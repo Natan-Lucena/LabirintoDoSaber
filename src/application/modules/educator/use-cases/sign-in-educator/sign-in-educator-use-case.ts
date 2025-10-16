@@ -1,5 +1,5 @@
 import bcrypt from "bcrypt";
-import { failure } from "@wave-telecom/framework/core";
+import { failure, success } from "@wave-telecom/framework/core";
 import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
 import { AuthService } from "../../../../services/auth-service";
 
@@ -29,6 +29,6 @@ export class SignInEducatorUseCase {
     }
 
     const token = await this.authService.generateToken(educator);
-    return { token };
+    return success(token);
   }
 }
