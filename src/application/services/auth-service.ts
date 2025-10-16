@@ -1,6 +1,6 @@
 import { Educator } from "../../domain/entities/educator";
 
-interface generateTokenResponse {
+export interface generateTokenResponse {
   token: string;
 }
 

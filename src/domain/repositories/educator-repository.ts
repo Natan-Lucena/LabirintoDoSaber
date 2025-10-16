@@ -1,7 +1,7 @@
 import { Educator } from "../entities/educator";
 import { Uuid } from "@wave-telecom/framework/core";
 
-interface SearchEducatorProps {
+export interface SearchEducatorProps {
   id?: Uuid;
   email?: string;
   name?: string;
