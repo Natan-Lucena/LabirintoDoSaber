@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
 import { Educator } from "../../../../../domain/entities/educator";
-import { failure, Uuid } from "@wave-telecom/framework/core";
+import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { SignInEducatorUseCase } from "./sign-in-educator-use-case";
 import { AuthService } from "../../../../services/auth-service";
 import bcrypt from "bcrypt";
@@ -79,7 +79,7 @@ describe("SignInEducatorUseCase", () => {
       password: "password123",
     });
 
-    expect(result).toEqual({ token: "mocked-token" });
+    expect(result).toEqual(success("mocked-token"));
     expect(authService.generateToken).toHaveBeenCalledWith(mockEducator);
   });
 });
