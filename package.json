@@ -16,7 +16,7 @@
     "@wave-telecom/framework": "^2.1.8",
     "bcrypt": "^6.0.0",
     "express": "^5.1.0",
-    "zod": "^4.1.12"
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
