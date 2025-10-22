@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Educator } from "../../entities/educator";
+import { failure } from "@wave-telecom/framework/core";
 
 describe("Educator Entity", () => {
   it("should update password when new password is different", () => {
@@ -21,7 +22,8 @@ describe("Educator Entity", () => {
       password: "samePassword",
     });
 
-    expect(() => educator.updatePassword("samePassword")).toThrowError("PASSWORD_SAME_AS_OLD");
+    const result = educator.updatePassword("samePassword");
 
+    expect(result).toEqual(failure("PASSWORD_SAME_AS_OLD"));
   });
 });
