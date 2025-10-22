@@ -31,7 +31,7 @@ export class CreateStudentUseCase {
       age: request.age,
       gender: request.gender,
       learningTopics: request.learningTopics,
-      educator: educatorExists,
+      educators: [educatorExists],
     });
 
     await this.studentRepository.save(student);

@@ -3,6 +3,8 @@ import { MockEducatorRepository } from "../../../../infraestructure/repositories
 import { MockStudentRepository } from "../../../../infraestructure/repositories/mock/student-repository-impl";
 import { CreateStudentUseCase } from "../use-cases/create-student/create-student-use-case";
 import { CreateStudentController } from "../use-cases/create-student/create-student-controller";
+import { AssignEducatorUseCase } from "../use-cases/assign-educator/assign-educator-use-case";
+import { AssignEducatorController } from "../use-cases/assign-educator/assign-educator-controller";
 
 const studentRouter = Router();
 
@@ -14,12 +16,17 @@ const createStudentUseCase = new CreateStudentUseCase(
   educatorRepository
 );
 
-const createStudentController = new CreateStudentController(
-  createStudentUseCase
+const assignEducatorUseCase = new AssignEducatorUseCase(
+  studentRepository,
+  educatorRepository
 );
 
 studentRouter.post("/create", async (req, res) => {
-  await createStudentController.execute(req, res);
+  new CreateStudentController(createStudentUseCase).execute(req, res);
+});
+
+studentRouter.post("/assign-educator", async (req, res) => {
+  new AssignEducatorController(assignEducatorUseCase).execute(req, res);
 });
 
 export { studentRouter };

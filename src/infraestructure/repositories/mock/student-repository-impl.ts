@@ -21,17 +21,17 @@ export class MockStudentRepository implements StudentRepository {
 
   async getById(id: Uuid): Promise<Student | null> {
     const student = this.data.find((s) => s.id === id);
-    return student
-      ? Student.create({
-          id: student.id,
-          name: student.name,
-          age: student.age,
-          gender: student.gender,
-          learningTopics: student.learningTopics,
-          createdAt: student.createdAt,
-          educator: student.educators[0],
-        })
-      : null;
+    if (!student) return null;
+
+    return Student.create({
+      id: student.id,
+      name: student.name,
+      age: student.age,
+      gender: student.gender,
+      learningTopics: [...student.learningTopics],
+      createdAt: student.createdAt,
+      educators: [...student.educators],
+    });
   }
 
   async search(props: SearchStudentProps): Promise<Student[]> {

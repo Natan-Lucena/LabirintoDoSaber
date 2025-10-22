@@ -13,7 +13,7 @@ export interface CreateStudentProps {
   age: number;
   gender: Gender;
   learningTopics: string[];
-  educator: Educator;
+  educators: Educator[];
 }
 
 export class Student {
@@ -35,7 +35,7 @@ export class Student {
       props.gender,
       props.learningTopics,
       props.createdAt || new Date(),
-      [props.educator]
+      props.educators
     );
   }
 
