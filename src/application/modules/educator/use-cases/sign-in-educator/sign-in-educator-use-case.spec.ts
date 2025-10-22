@@ -43,13 +43,13 @@ describe("SignInEducatorUseCase", () => {
   });
 
   it("should fail if password is invalid", async () => {
-    const mockEducator = {
+    const mockEducator = Educator.create({
       id: Uuid.random(),
       name: "John Doe",
       email: "john@example.com",
       password: await bcrypt.hash("correctpassword", 10),
-      createdAt: new Date(),
-    } as Educator;
+      createdAt: new Date(),    
+    });
 
     (educatorRepository.getByEmail as any).mockResolvedValue(mockEducator);
 
@@ -63,13 +63,13 @@ describe("SignInEducatorUseCase", () => {
   });
 
   it("should return token if credentials are valid", async () => {
-    const mockEducator = {
+    const mockEducator = Educator.create({
       id: Uuid.random(),
       name: "Jane Doe",
       email: "jane@example.com",
       password: await bcrypt.hash("password123", 10),
       createdAt: new Date(),
-    } as Educator;
+    });
 
     (educatorRepository.getByEmail as any).mockResolvedValue(mockEducator);
     (authService.generateToken as any).mockResolvedValue("mocked-token");
