@@ -1,4 +1,4 @@
-import { Uuid } from "@wave-telecom/framework/core";
+import { failure, success, Uuid } from "@wave-telecom/framework/core";
 
 interface CreateEducatorProps {
   id?: Uuid;
@@ -9,17 +9,13 @@ interface CreateEducatorProps {
 }
 
 export class Educator {
-  private _password: string;
-
   private constructor(
     public readonly id: Uuid,
     public readonly name: string,
     public readonly email: string,
-    password: string,
+    private _password: string,
     public readonly createdAt: Date
-  ) {
-    this._password = password;
-  }
+  ) {}
 
   static create(props: CreateEducatorProps) {
     return new Educator(
@@ -35,10 +31,11 @@ export class Educator {
     return this._password;
   }
 
-  updatePassword(newPassword: string): void {
-    if(this._password == newPassword) {
-      throw new Error("PASSWORD_SAME_AS_OLD");
+  updatePassword(newPassword: string) {
+    if (this._password == newPassword) {
+      return failure("PASSWORD_SAME_AS_OLD");
     }
     this._password = newPassword;
+    return success(void 0);
   }
 }
