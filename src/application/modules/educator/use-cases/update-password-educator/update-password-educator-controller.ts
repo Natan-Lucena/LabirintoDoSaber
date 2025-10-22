@@ -30,6 +30,7 @@ export class UpdatePasswordEducatorController extends BaseController {
             if (result.error == "PASSWORD_SAME_AS_OLD") {
                 return this.clientError(res, "PASSWORD_SAME_AS_OLD");
             }
+            return this.fail(res, result.error);
         }
 
         return this.ok(res);
