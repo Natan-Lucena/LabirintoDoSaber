@@ -10,7 +10,13 @@ export class MockEducatorRepository implements EducatorRepository {
 
   async getByEmail(email: string): Promise<Educator | null> {
     const educator = this.data.find((educator) => educator.email === email);
-    return educator ? { ...educator } : null;
+    return educator ? Educator.create({
+      id: educator.id,
+      name: educator.name,
+      email: educator.email,
+      password: educator.password,
+      createdAt: educator.createdAt
+    }) : null;
   }
 
   async save(educator: Educator): Promise<Educator> {
