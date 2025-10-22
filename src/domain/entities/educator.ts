@@ -13,7 +13,7 @@ export class Educator {
     public readonly id: Uuid,
     public readonly name: string,
     public readonly email: string,
-    public readonly password: string,
+    public password: string,
     public readonly createdAt: Date
   ) {}
 
@@ -25,5 +25,12 @@ export class Educator {
       props.password,
       props.createdAt || new Date()
     );
+  }
+
+  updatePassword(newPassword: string): void {
+    if(this.password == newPassword) {
+      throw new Error("PASSWORD_SAME_AS_OLD");
+    }
+    this.password = newPassword;
   }
 }
