@@ -9,13 +9,17 @@ interface CreateEducatorProps {
 }
 
 export class Educator {
+  private _password: string;
+
   private constructor(
     public readonly id: Uuid,
     public readonly name: string,
     public readonly email: string,
-    public password: string,
+    password: string,
     public readonly createdAt: Date
-  ) {}
+  ) {
+    this._password = password;
+  }
 
   static create(props: CreateEducatorProps) {
     return new Educator(
@@ -27,10 +31,14 @@ export class Educator {
     );
   }
 
+  get password(): string {
+    return this._password;
+  }
+
   updatePassword(newPassword: string): void {
-    if(this.password == newPassword) {
+    if(this._password == newPassword) {
       throw new Error("PASSWORD_SAME_AS_OLD");
     }
-    this.password = newPassword;
+    this._password = newPassword;
   }
 }
