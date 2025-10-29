@@ -7,6 +7,7 @@ import { AssignEducatorUseCase } from "../use-cases/assign-educator/assign-educa
 import { AssignEducatorController } from "../use-cases/assign-educator/assign-educator-controller";
 import { ListStudentsByEducatorUseCase } from "../use-cases/list-students-by-educator/list-students-by-educator-use-case";
 import { ListStudentsByEducatorController } from "../use-cases/list-students-by-educator/list-students-by-educator-controller";
+import { makeAuthMiddleware } from "../../../../infraestructure/middlewares";
 
 const studentRouter = Router();
 
@@ -26,6 +27,10 @@ const assignEducatorUseCase = new AssignEducatorUseCase(
 const listStudentByEducatorUseCase = new ListStudentsByEducatorUseCase(
   studentRepository
 );
+
+const authMiddleware = makeAuthMiddleware(educatorRepository);
+
+studentRouter.use(authMiddleware);
 
 studentRouter.post("/create", async (req, res) => {
   new CreateStudentController(createStudentUseCase).execute(req, res);

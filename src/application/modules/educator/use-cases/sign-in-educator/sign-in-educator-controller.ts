@@ -29,6 +29,6 @@ export class SignInEducatorController extends BaseController {
       return this.fail(res, result.error);
     }
 
-    return this.ok(res, { token: result.value });
+    return this.ok(res, { token: result.value.token });
   }
 }

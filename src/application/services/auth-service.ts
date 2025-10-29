@@ -6,5 +6,5 @@ export interface generateTokenResponse {
 
 export interface AuthService {
   generateToken(user: Educator): Promise<generateTokenResponse>;
-  verifyToken(token: string): Promise<Educator | null>;
+  verifyToken(token: string): Promise<string | null>;
 }
