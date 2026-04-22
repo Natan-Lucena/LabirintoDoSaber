@@ -23,7 +23,10 @@ export class AnswerTaskNotebookSessionUseCase {
     const taskId = new Uuid(request.taskId);
     const alternativeId = new Uuid(request.selectedAlternativeId);
 
-    const session = await this.sessionRepository.getById(sessionId);
+    const [session, task] = await Promise.all([
+      this.sessionRepository.getById(sessionId),
+      this.taskRepository.getById(taskId),
+    ]);
 
     if (!session) {
       return failure("SESSION_NOT_FOUND");
@@ -32,8 +35,6 @@ export class AnswerTaskNotebookSessionUseCase {
     if (session.finishedAt) {
       return failure("SESSION_ALREADY_FINISHED");
     }
-
-    const task = await this.taskRepository.getById(taskId);
 
     if (!task) {
       return failure("TASK_NOT_FOUND");
