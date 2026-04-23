@@ -8,6 +8,8 @@ import { UpdateTaskUseCase } from "../use-cases/update-task/update-task-use-case
 import { UpdateTaskController } from "../use-cases/update-task/update-task-controller";
 import { DeleteTaskUseCase } from "../use-cases/delete-task/delete-task-use-case";
 import { DeleteTaskController } from "../use-cases/delete-task/delete-task-controller";
+import { GetTaskByIdUseCase } from "../use-cases/get-task-by-id/get-task-by-id-use-case";
+import { GetTaskByIdController } from "../use-cases/get-task-by-id/get-task-by-id-controller";
 import {
   makeEducatorRepository,
   makeFileStorage,
@@ -29,6 +31,8 @@ const updateTaskUseCase = new UpdateTaskUseCase(taskRepository);
 const educatorRepository = makeEducatorRepository({ isMock: false });
 
 const deleteTaskUseCase = new DeleteTaskUseCase(taskRepository);
+
+const getTaskByIdUseCase = new GetTaskByIdUseCase(taskRepository);
 
 const authMiddleware = makeAuthMiddleware(educatorRepository);
 
@@ -55,6 +59,10 @@ taskRouter.put("/update", (req: Request, res: Response) => {
 
 taskRouter.delete("/delete/:id", (req: Request, res: Response) => {
   new DeleteTaskController(deleteTaskUseCase).execute(req, res);
+});
+
+taskRouter.get("/:id", (req: Request, res: Response) => {
+  new GetTaskByIdController(getTaskByIdUseCase).execute(req, res);
 });
 
 export { taskRouter };
