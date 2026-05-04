@@ -39,13 +39,13 @@ const makeSession = ({
 const mockSessionRepository = (): TaskNotebookSessionRepository =>
   ({
     getById: vi.fn(),
-  } as unknown as TaskNotebookSessionRepository);
+  }) as unknown as TaskNotebookSessionRepository;
 
 // Mock do repositório de tarefa
 const mockTaskRepository = (): TaskRepository =>
   ({
     getById: vi.fn(),
-  } as unknown as TaskRepository);
+  }) as unknown as TaskRepository;
 
 // Factory para criar uma tarefa mockada
 const makeTask = ({
@@ -58,7 +58,7 @@ const makeTask = ({
     category,
     type,
     // Outras propriedades de Task, se necessário
-  } as unknown as Task);
+  }) as unknown as Task;
 
 // --- Testes ---
 
@@ -72,7 +72,7 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
     taskRepository = mockTaskRepository();
     useCase = new GeneratorReportTaskNotebookSessionUseCase(
       sessionRepository,
-      taskRepository
+      taskRepository,
     );
   });
 
@@ -129,12 +129,12 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
     const expectedAverageTimePerQuestion = 50 / 3;
     const expectedAverageCorrectTime = 12.5;
     const expectedAverageIncorrectTime = 25;
-    
+
     const expectedPercentageByCategory = {
       "Category A": 100,
       "Category B": 0,
     };
-    
+
     const expectedPercentageByType = {
       "Type X": 100,
       "Type Y": 0,
@@ -148,12 +148,14 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
       averageIncorrectTime: expectedAverageIncorrectTime,
       percentageByCategory: expectedPercentageByCategory,
       percentageByType: expectedPercentageByType,
+      observation: null,
+      sessionName: undefined,
     });
 
     expect(result).toEqual(expectedSuccess);
     expect(taskRepository.getById).toHaveBeenCalledTimes(3);
   });
-  
+
   it("should handle session with zero answers (empty arrays/null averages)", async () => {
     const startTime = new Date(1672531200000);
     const finishTime = new Date(startTime.getTime() + 50000); // 50 segundos
@@ -164,15 +166,15 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
       finishedAt: finishTime,
     });
     (sessionRepository.getById as any).mockResolvedValue(session);
-    
+
     (taskRepository.getById as any).mockResolvedValue(null);
 
     const result = await useCase.execute({ sessionId: Uuid.random().value });
 
     const expectedTotalTimeSession = 50;
     const expectedTotalQuestions = 0;
-    
-    const expectedAverageTimePerQuestion = NaN; 
+
+    const expectedAverageTimePerQuestion = NaN;
     const expectedAverageCorrectTime = null;
     const expectedAverageIncorrectTime = null;
 
@@ -184,6 +186,8 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
       averageIncorrectTime: expectedAverageIncorrectTime,
       percentageByCategory: {},
       percentageByType: {},
+      observation: null,
+      sessionName: undefined,
     });
 
     expect(result).toEqual(expectedSuccess);
@@ -202,7 +206,11 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
     const session = makeSession({ answers });
     (sessionRepository.getById as any).mockResolvedValue(session);
 
-    const task1 = makeTask({ id: taskId1, category: "Test Category", type: "Test Type" });
+    const task1 = makeTask({
+      id: taskId1,
+      category: "Test Category",
+      type: "Test Type",
+    });
 
     // Mock: task1 é encontrado, task2 não é (retorna null)
     (taskRepository.getById as any).mockImplementation((taskId: Uuid) => {
@@ -230,15 +238,19 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
     // Para facilitar a comparação em objetos grandes, usamos expect.objectContaining
     // e verificamos o sucesso no topo.
     expect(result.ok).toBe(true);
-    expect(result).toEqual(success(expect.objectContaining({
-      totalQuestions: expectedTotalQuestions,
-      averageTimePerQuestion: expectedAverageTimePerQuestion,
-      averageCorrectTime: expectedAverageCorrectTime,
-      averageIncorrectTime: expectedAverageIncorrectTime,
-      percentageByCategory: expectedPercentageByCategory,
-      percentageByType: expectedPercentageByType,
-    })));
-    
+    expect(result).toEqual(
+      success(
+        expect.objectContaining({
+          totalQuestions: expectedTotalQuestions,
+          averageTimePerQuestion: expectedAverageTimePerQuestion,
+          averageCorrectTime: expectedAverageCorrectTime,
+          averageIncorrectTime: expectedAverageIncorrectTime,
+          percentageByCategory: expectedPercentageByCategory,
+          percentageByType: expectedPercentageByType,
+        }),
+      ),
+    );
+
     expect(taskRepository.getById).toHaveBeenCalledTimes(2);
   });
 });
