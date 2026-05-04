@@ -114,6 +114,7 @@ export class GeneratorReportTaskNotebookSessionUseCase {
       averageIncorrectTime,
       percentageByCategory,
       percentageByType,
+      observation: session.observation ?? null,
     });
   }
 }

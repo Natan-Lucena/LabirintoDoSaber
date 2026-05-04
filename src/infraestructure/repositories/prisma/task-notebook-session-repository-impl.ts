@@ -33,10 +33,12 @@ export class TaskNotebokSessionRepositoryImpl
         startedAt: session.startedAt,
         studentId: session.studentId.value,
         finishedAt: session.finishedAt,
+        observation: session.observation,
       },
       update: {
         startedAt: session.startedAt,
         finishedAt: session.finishedAt,
+        observation: session.observation,
         answers: {
           set: session.answers.map((a) => ({
             taskId: a.taskId.value,
@@ -78,7 +80,8 @@ export class TaskNotebokSessionRepositoryImpl
         isCorrect: a.isCorrect,
         timeToAnswer: a.timeToAnswer,
         answeredAt: a.answeredAt,
-      }))
+      })),
+      data.observation ?? undefined
     );
   }
 }
