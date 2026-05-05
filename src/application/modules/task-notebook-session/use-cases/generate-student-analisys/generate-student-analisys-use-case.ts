@@ -3,9 +3,13 @@ import { StudentRepository } from "../../../../../domain/repositories/student-re
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
 import { TaskCategory } from "../../../../../domain/entities/task";
+import { TaskNotebookSession } from "../../../../../domain/entities/task-notebook-session";
 
 export interface GenerateStudentAnalysisUseCaseRequest {
   studentId: string;
+  startDate?: Date;
+  endDate?: Date;
+  limit?: number;
 }
 
 export interface CategoryAccuracyResult {
@@ -22,27 +26,44 @@ export interface StudentAnalysisResponse {
     correct: number;
     accuracy: number;
   };
+  sessions: TaskNotebookSession[];
 }
 
 export class GenerateStudentAnalysisUseCase {
   constructor(
     private studentRepository: StudentRepository,
     private taskNotebookSessionRepository: TaskNotebookSessionRepository,
-    private taskRepository: TaskRepository
+    private taskRepository: TaskRepository,
   ) {}
 
   async execute(request: GenerateStudentAnalysisUseCaseRequest) {
     const student = await this.studentRepository.getById(
-      new Uuid(request.studentId)
+      new Uuid(request.studentId),
     );
 
     if (!student) {
       return failure("STUDENT_NOT_FOUND");
     }
 
-    const sessions = await this.taskNotebookSessionRepository.listByStudentId(
-      new Uuid(request.studentId)
+    const allSessions = await this.taskNotebookSessionRepository.listByStudentId(
+      new Uuid(request.studentId),
     );
+
+    let sessions = allSessions;
+
+    if (request.limit) {
+      sessions = [...allSessions]
+        .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())
+        .slice(0, request.limit);
+    } else if (request.startDate || request.endDate) {
+      sessions = allSessions.filter((session) => {
+        if (request.startDate && session.startedAt < request.startDate)
+          return false;
+        if (request.endDate && session.startedAt > request.endDate)
+          return false;
+        return true;
+      });
+    }
 
     if (!sessions.length) {
       return success({
@@ -73,6 +94,7 @@ export class GenerateStudentAnalysisUseCase {
           },
         },
         total: { total: 0, correct: 0, accuracy: 0 },
+        sessions: [],
       });
     }
 
@@ -154,6 +176,7 @@ export class GenerateStudentAnalysisUseCase {
         correct: totalCorrect,
         accuracy: totalAnswered === 0 ? 0 : totalCorrect / totalAnswered,
       },
+      sessions: sessions,
     };
 
     return success(response);

@@ -7,7 +7,10 @@ import {
   StudentAnalysisResponse,
 } from "./generate-student-analisys-use-case";
 import { Request, Response } from "express";
-import { generateStudentAnalisysSchema } from "../../schemas/generate-student-analisys.schema";
+import {
+  generateStudentAnalisysSchema,
+  generateStudentAnalisysQuerySchema,
+} from "../../schemas/generate-student-analisys.schema";
 
 export class GenerateStudentAnalysisController extends BaseController {
   constructor(private useCase: GenerateStudentAnalysisUseCase) {
@@ -15,18 +18,32 @@ export class GenerateStudentAnalysisController extends BaseController {
   }
 
   async executeImpl(req: Request, res: Response): Promise<unknown> {
-    const validation = await generateStudentAnalisysSchema.safeParseAsync(
+    const paramsValidation = await generateStudentAnalisysSchema.safeParseAsync(
       req.params
     );
 
-    if (!validation.success) {
-      const errors = formatValidationErrors(validation.error);
+    if (!paramsValidation.success) {
+      const errors = formatValidationErrors(paramsValidation.error);
       return this.clientError(res, undefined, errors);
     }
 
-    const { studentId } = validation.data;
+    const queryValidation =
+      await generateStudentAnalisysQuerySchema.safeParseAsync(req.query);
 
-    const result = await this.useCase.execute({ studentId });
+    if (!queryValidation.success) {
+      const errors = formatValidationErrors(queryValidation.error);
+      return this.clientError(res, undefined, errors);
+    }
+
+    const { studentId } = paramsValidation.data;
+    const { startDate, endDate, limit } = queryValidation.data;
+
+    const result = await this.useCase.execute({
+      studentId,
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
+      limit,
+    });
 
     if (!result.ok) {
       if (result.error === "STUDENT_NOT_FOUND") {
