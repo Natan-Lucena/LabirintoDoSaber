@@ -5,6 +5,7 @@ import {
   makeTaskNotebookRepository,
   makeTaskNotebookSessionRepository,
   makeTaskRepository,
+  makeStudentAnalysisReportRepository,
 } from "../../../../infraestructure/factories";
 import { makeAuthMiddleware } from "../../../../infraestructure/middlewares";
 import { StartTaskNotebookSessionUseCase } from "../use-cases/start-task-notebook-session/start-task-session-use-case";
@@ -21,6 +22,8 @@ import { GenerateStudentAnalysisUseCase } from "../use-cases/generate-student-an
 import { GenerateStudentAnalysisController } from "../use-cases/generate-student-analisys/generate-student-analisys-controller";
 import { AddObservationTaskNotebookSessionUseCase } from "../use-cases/add-observation-task-notebook-session/add-observation-task-notebook-session-use-case";
 import { AddObservationTaskNotebookSessionController } from "../use-cases/add-observation-task-notebook-session/add-observation-task-notebook-session-controller";
+import { ListStudentAnalysisHistoryUseCase } from "../use-cases/list-student-analysis-history/list-student-analysis-history-use-case";
+import { ListStudentAnalysisHistoryController } from "../use-cases/list-student-analysis-history/list-student-analysis-history-controller";
 
 const taskNotebookSessionRouter = Router();
 
@@ -29,6 +32,7 @@ const studentRepository = makeStudentRepository({ isMock: false });
 const taskNotebookRepository = makeTaskNotebookRepository({ isMock: false });
 const taskSessionRepository = makeTaskNotebookSessionRepository();
 const taskRepository = makeTaskRepository({ isMock: false });
+const studentAnalysisReportRepository = makeStudentAnalysisReportRepository();
 const authMiddleware = makeAuthMiddleware(educatorRepository);
 
 const startTaskNotebookSessionUseCase = new StartTaskNotebookSessionUseCase(
@@ -59,11 +63,16 @@ const generateReportTaskNotebookSessionUseCase =
 const generateStudentAnalisysUseCase = new GenerateStudentAnalysisUseCase(
   studentRepository,
   taskSessionRepository,
-  taskRepository
+  taskRepository,
+  studentAnalysisReportRepository
 );
 
 const addObservationTaskNotebookSessionUseCase =
   new AddObservationTaskNotebookSessionUseCase(taskSessionRepository);
+
+const listStudentAnalysisHistoryUseCase = new ListStudentAnalysisHistoryUseCase(
+  studentAnalysisReportRepository
+);
 
 taskNotebookSessionRouter.use(authMiddleware);
 
@@ -115,6 +124,15 @@ taskNotebookSessionRouter.get(
   (req: Request, res: Response) => {
     new GenerateStudentAnalysisController(
       generateStudentAnalisysUseCase
+    ).execute(req, res);
+  }
+);
+
+taskNotebookSessionRouter.get(
+  "/analysis/student/:studentId/history",
+  (req: Request, res: Response) => {
+    new ListStudentAnalysisHistoryController(
+      listStudentAnalysisHistoryUseCase
     ).execute(req, res);
   }
 );

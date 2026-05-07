@@ -5,6 +5,7 @@ import { TaskCategory } from "../../../../../domain/entities/task";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
+import { StudentAnalysisReportRepository } from "../../../../../domain/repositories/student-analysis-report-repository";
 import { GenerateStudentAnalysisUseCase } from "./generate-student-analisys-use-case";
 
 // IDs fixos
@@ -29,6 +30,7 @@ const makeSession = (
   answers: Array<{ taskId: string; isCorrect: boolean }>,
   startedAt: Date = new Date()
 ) => ({
+  id: Uuid.random(),
   startedAt,
   answers: answers.map((a) => ({
     taskId: new Uuid(a.taskId),
@@ -60,22 +62,31 @@ const mockTaskRepository = (): TaskRepository =>
     getById: vi.fn(),
   } as unknown as TaskRepository);
 
+const mockAnalysisReportRepository = (): StudentAnalysisReportRepository =>
+  ({
+    save: vi.fn().mockResolvedValue(undefined),
+    listByStudentId: vi.fn(),
+  } as unknown as StudentAnalysisReportRepository);
+
 // Tests ----------------------------------------------------------
 describe("GenerateStudentAnalysisUseCase", () => {
   let studentRepo: StudentRepository;
   let sessionRepo: TaskNotebookSessionRepository;
   let taskRepo: TaskRepository;
+  let analysisReportRepo: StudentAnalysisReportRepository;
   let useCase: GenerateStudentAnalysisUseCase;
 
   beforeEach(() => {
     studentRepo = mockStudentRepository();
     sessionRepo = mockSessionRepository();
     taskRepo = mockTaskRepository();
+    analysisReportRepo = mockAnalysisReportRepository();
 
     useCase = new GenerateStudentAnalysisUseCase(
       studentRepo,
       sessionRepo,
-      taskRepo
+      taskRepo,
+      analysisReportRepo
     );
   });
 

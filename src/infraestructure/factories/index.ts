@@ -13,6 +13,7 @@ import { TaskNotebokSessionRepositoryImpl } from "../repositories/prisma/task-no
 import { TaskNotebookRepository } from "../../domain/repositories/task-notebook-repository";
 import { TaskNotebookSessionRepository } from "../../domain/repositories/task-notebook-session-repository";
 import { TaskGroupRepositoryImpl } from "../repositories/prisma/task-group-repository-impl";
+import { StudentAnalysisReportRepositoryImpl } from "../repositories/prisma/student-analysis-report-repository-impl";
 import { AwsS3FileStorage } from "../services/file-storage-impl";
 
 const prismaClient = new PrismaClient();
@@ -63,6 +64,10 @@ export const makeTaskNotebookSessionRepository =
 
 export const makeTaskGroupRepository = () => {
   return new TaskGroupRepositoryImpl(prismaClient);
+};
+
+export const makeStudentAnalysisReportRepository = () => {
+  return new StudentAnalysisReportRepositoryImpl(prismaClient);
 };
 
 export const makeFileStorage = () => {
