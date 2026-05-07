@@ -131,9 +131,30 @@ model TaskGroup {
 }
 
 type TaskAnswer {
-  taskId               String   
-  selectedAlternativeId String   
+  taskId               String
+  selectedAlternativeId String
   isCorrect            Boolean
   timeToAnswer         Int      // segundos
   answeredAt           DateTime
+}
+
+model StudentAnalysisReport {
+  id             String                 @id @map("_id")
+  studentId      String
+  generatedAt    DateTime               @default(now())
+  startDate      DateTime?
+  endDate        DateTime?
+  limit          Int?
+  sessionIds     String[]
+  categories     CategoryAccuracyData[]
+  totalQuestions Int
+  totalCorrect   Int
+  accuracy       Float
+}
+
+type CategoryAccuracyData {
+  category String
+  total    Int
+  correct  Int
+  accuracy Float
 }
