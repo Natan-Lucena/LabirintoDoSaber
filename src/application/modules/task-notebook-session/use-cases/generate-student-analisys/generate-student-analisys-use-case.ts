@@ -4,8 +4,6 @@ import { TaskNotebookSessionRepository } from "../../../../../domain/repositorie
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
 import { TaskCategory } from "../../../../../domain/entities/task";
 import { TaskNotebookSession } from "../../../../../domain/entities/task-notebook-session";
-import { StudentAnalysisReportRepository } from "../../../../../domain/repositories/student-analysis-report-repository";
-import { StudentAnalysisReport } from "../../../../../domain/entities/student-analysis-report";
 
 export interface GenerateStudentAnalysisUseCaseRequest {
   studentId: string;
@@ -36,7 +34,6 @@ export class GenerateStudentAnalysisUseCase {
     private studentRepository: StudentRepository,
     private taskNotebookSessionRepository: TaskNotebookSessionRepository,
     private taskRepository: TaskRepository,
-    private studentAnalysisReportRepository: StudentAnalysisReportRepository,
   ) {}
 
   async execute(request: GenerateStudentAnalysisUseCaseRequest) {
@@ -69,7 +66,7 @@ export class GenerateStudentAnalysisUseCase {
     }
 
     if (!sessions.length) {
-      const emptyResponse: StudentAnalysisResponse = {
+      return success({
         categories: {
           [TaskCategory.Reading]: {
             category: TaskCategory.Reading,
@@ -98,11 +95,7 @@ export class GenerateStudentAnalysisUseCase {
         },
         total: { total: 0, correct: 0, accuracy: 0 },
         sessions: [],
-      };
-
-      await this.saveReport(request, [], emptyResponse);
-
-      return success(emptyResponse);
+      });
     }
 
     const categoryStats: Record<
@@ -186,28 +179,6 @@ export class GenerateStudentAnalysisUseCase {
       sessions: sessions,
     };
 
-    await this.saveReport(request, sessions, response);
-
     return success(response);
-  }
-
-  private async saveReport(
-    request: GenerateStudentAnalysisUseCaseRequest,
-    sessions: TaskNotebookSession[],
-    response: StudentAnalysisResponse,
-  ): Promise<void> {
-    const report = StudentAnalysisReport.create({
-      studentId: request.studentId,
-      startDate: request.startDate,
-      endDate: request.endDate,
-      limit: request.limit,
-      sessionIds: sessions.map((s) => s.id.value),
-      categories: Object.values(response.categories),
-      totalQuestions: response.total.total,
-      totalCorrect: response.total.correct,
-      accuracy: response.total.accuracy,
-    });
-
-    await this.studentAnalysisReportRepository.save(report);
   }
 }
