@@ -24,6 +24,8 @@ import { AddObservationTaskNotebookSessionUseCase } from "../use-cases/add-obser
 import { AddObservationTaskNotebookSessionController } from "../use-cases/add-observation-task-notebook-session/add-observation-task-notebook-session-controller";
 import { ListStudentAnalysisHistoryUseCase } from "../use-cases/list-student-analysis-history/list-student-analysis-history-use-case";
 import { ListStudentAnalysisHistoryController } from "../use-cases/list-student-analysis-history/list-student-analysis-history-controller";
+import { SaveStudentAnalysisSnapshotUseCase } from "../use-cases/save-student-analysis-snapshot/save-student-analysis-snapshot-use-case";
+import { SaveStudentAnalysisSnapshotController } from "../use-cases/save-student-analysis-snapshot/save-student-analysis-snapshot-controller";
 
 const taskNotebookSessionRouter = Router();
 
@@ -60,11 +62,15 @@ const generateReportTaskNotebookSessionUseCase =
     taskRepository
   );
 
-const generateStudentAnalisysUseCase = new GenerateStudentAnalysisUseCase(
+const generateStudentAnalysisUseCase = new GenerateStudentAnalysisUseCase(
   studentRepository,
   taskSessionRepository,
   taskRepository,
-  studentAnalysisReportRepository
+);
+
+const saveStudentAnalysisSnapshotUseCase = new SaveStudentAnalysisSnapshotUseCase(
+  generateStudentAnalysisUseCase,
+  studentAnalysisReportRepository,
 );
 
 const addObservationTaskNotebookSessionUseCase =
@@ -123,7 +129,16 @@ taskNotebookSessionRouter.get(
   "/analysis/student/:studentId",
   (req: Request, res: Response) => {
     new GenerateStudentAnalysisController(
-      generateStudentAnalisysUseCase
+      generateStudentAnalysisUseCase
+    ).execute(req, res);
+  }
+);
+
+taskNotebookSessionRouter.post(
+  "/analysis/student/:studentId/snapshot",
+  (req: Request, res: Response) => {
+    new SaveStudentAnalysisSnapshotController(
+      saveStudentAnalysisSnapshotUseCase
     ).execute(req, res);
   }
 );
