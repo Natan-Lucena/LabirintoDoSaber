@@ -15,6 +15,8 @@ import { TaskNotebookSessionRepository } from "../../domain/repositories/task-no
 import { TaskGroupRepositoryImpl } from "../repositories/prisma/task-group-repository-impl";
 import { StudentAnalysisReportRepositoryImpl } from "../repositories/prisma/student-analysis-report-repository-impl";
 import { AwsS3FileStorage } from "../services/file-storage-impl";
+import { AnamneseTemplateRepositoryImpl } from "../repositories/prisma/anamnese-template-repository-impl";
+import { AnamneseResponseRepositoryImpl } from "../repositories/prisma/anamnese-response-repository-impl";
 
 const prismaClient = new PrismaClient();
 
@@ -72,4 +74,12 @@ export const makeStudentAnalysisReportRepository = () => {
 
 export const makeFileStorage = () => {
   return new AwsS3FileStorage();
+};
+
+export const makeAnamneseTemplateRepository = () => {
+  return new AnamneseTemplateRepositoryImpl(prismaClient);
+};
+
+export const makeAnamneseResponseRepository = () => {
+  return new AnamneseResponseRepositoryImpl(prismaClient);
 };
