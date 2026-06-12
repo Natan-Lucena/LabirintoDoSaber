@@ -186,6 +186,24 @@ enum AnamneseQuestionType {
   FileUpload
 }
 
+model Appointment {
+  id          String            @id @map("_id")
+  educatorId  String
+  studentId   String
+  scheduledAt DateTime
+  observation String?
+  status      AppointmentStatus @default(PENDING)
+  notifiedAt  DateTime?
+  metadata    Json              @default("{}")
+  createdAt   DateTime          @default(now())
+}
+
+enum AppointmentStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
 model StudentAnalysisReport {
   id             String                 @id @map("_id")
   studentId      String
