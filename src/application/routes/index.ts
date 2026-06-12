@@ -7,6 +7,7 @@ import { taskNotebookRouter } from "../modules/task-notebook/routes";
 import { taskGroupRouter } from "../modules/task-group/routes";
 import { anamneseTemplateRouter } from "../modules/anamnese-template/routes";
 import { anamneseResponseRouter } from "../modules/anamnese-response/routes";
+import { appointmentRouter } from "../modules/appointment/routes";
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.use("/task-notebook-session", taskNotebookSessionRouter);
 router.use("/task-group", taskGroupRouter);
 router.use("/anamnese/templates", anamneseTemplateRouter);
 router.use("/anamnese", anamneseResponseRouter);
+router.use("/appointment", appointmentRouter);
 
 export { router };
