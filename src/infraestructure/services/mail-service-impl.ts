@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { MailService } from "../../application/services/mail-service";
+import { Appointment } from "../../domain/entities/appointment";
 
 export class NodemailerMailService implements MailService {
   private transporter;
@@ -23,5 +24,18 @@ export class NodemailerMailService implements MailService {
       subject,
       html: body,
     });
+  }
+
+  async sendAppointmentReminder(appointment: Appointment): Promise<void> {
+    const body = `
+      <h2>Lembrete de Consulta</h2>
+      <p>Sua consulta está agendada para: ${appointment.scheduledAt.toLocaleString("pt-BR")}</p>
+      ${appointment.observation ? `<p>Observação: ${appointment.observation}</p>` : ""}
+    `;
+    await this.sendMail(
+      process.env.MAIL_USER ?? "",
+      "Lembrete de Consulta",
+      body
+    );
   }
 }
