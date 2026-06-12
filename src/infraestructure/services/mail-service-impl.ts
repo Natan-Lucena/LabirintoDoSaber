@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 import { MailService } from "../../application/services/mail-service";
 import { Appointment } from "../../domain/entities/appointment";
-import { buildReminderEmailHtml } from "./email-lembrete-template";
+import { buildReminderEmailHtml } from "./appointment-reminder-email";
 
 export class NodemailerMailService implements MailService {
   private transporter;

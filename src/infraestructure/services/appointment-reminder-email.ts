@@ -1,9 +1,12 @@
 import { Appointment } from "../../domain/entities/appointment";
 
-const LOGO_URL = "https://labirinto-do-saber.vercel.app/logo.png";
-const AGENDA_URL = "https://labirinto-do-saber.vercel.app/agenda";
+const LOGO_URL = "https://labirintodosaber.vercel.app/logo.png";
+const AGENDA_URL = "https://labirintodosaber.vercel.app/agenda";
 
-export function buildReminderEmailHtml(appointment: Appointment, studentName?: string): string {
+export function buildReminderEmailHtml(
+  appointment: Appointment,
+  studentName?: string,
+): string {
   const dateLabel = appointment.scheduledAt.toLocaleDateString("pt-BR", {
     weekday: "long",
     day: "2-digit",
