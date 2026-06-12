@@ -25,7 +25,7 @@ describe("CreateAppointmentUseCase", () => {
   let useCase: CreateAppointmentUseCase;
 
   const educatorId = Uuid.random();
-  const studentId = Uuid.random();
+  const studentId = Uuid.random().value;
   const scheduledAt = new Date("2026-08-01T10:00:00Z");
 
   beforeEach(() => {
@@ -70,7 +70,7 @@ describe("CreateAppointmentUseCase", () => {
   it("should return success with appointment data", async () => {
     const result = await useCase.execute({ educatorId, studentId, scheduledAt });
 
-    expect(result).toEqual(success(expect.objectContaining({ educatorId, studentId })));
+    expect(result).toEqual(success(expect.objectContaining({ educatorId, studentId: new Uuid(studentId) })));
   });
 
   it("should forward the optional observation field", async () => {

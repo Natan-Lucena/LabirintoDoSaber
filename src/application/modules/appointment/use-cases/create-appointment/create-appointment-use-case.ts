@@ -5,7 +5,7 @@ import { AppointmentSchedulerService } from "../../../../../domain/services/appo
 
 export interface CreateAppointmentUseCaseRequest {
   educatorId: Uuid;
-  studentId: Uuid;
+  studentId: string;
   scheduledAt: Date;
   observation?: string;
 }
@@ -19,7 +19,7 @@ export class CreateAppointmentUseCase {
   async execute(request: CreateAppointmentUseCaseRequest) {
     const appointment = Appointment.create({
       educatorId: request.educatorId,
-      studentId: request.studentId,
+      studentId: new Uuid(request.studentId),
       scheduledAt: request.scheduledAt,
       observation: request.observation,
     });
