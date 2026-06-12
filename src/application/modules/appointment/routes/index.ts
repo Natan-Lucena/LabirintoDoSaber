@@ -36,7 +36,7 @@ const updateAppointmentUseCase = new UpdateAppointmentUseCase(appointmentReposit
 const deleteAppointmentUseCase = new DeleteAppointmentUseCase(appointmentRepository, schedulerService);
 const listAppointmentsUseCase = new ListAppointmentsUseCase(appointmentRepository);
 const getAppointmentUseCase = new GetAppointmentUseCase(appointmentRepository);
-const notifyAppointmentsUseCase = new NotifyAppointmentsUseCase(appointmentRepository, schedulerService, mailService);
+const notifyAppointmentsUseCase = new NotifyAppointmentsUseCase(appointmentRepository, educatorRepository, schedulerService, mailService);
 const watchdogAppointmentsUseCase = new WatchdogAppointmentsUseCase(appointmentRepository, schedulerService);
 
 const authMiddleware = makeAuthMiddleware(educatorRepository);
@@ -46,7 +46,7 @@ appointmentRouter.post("/notify", requireJobApiKey, async (req, res) => {
   new NotifyAppointmentsController(notifyAppointmentsUseCase).execute(req, res);
 });
 
-appointmentRouter.post("/watchdog", requireJobApiKey, async (req, res) => {
+appointmentRouter.post("/watchdog", async (req, res) => {
   new WatchdogAppointmentsController(watchdogAppointmentsUseCase).execute(req, res);
 });
 

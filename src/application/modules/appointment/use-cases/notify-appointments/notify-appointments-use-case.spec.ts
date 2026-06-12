@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Uuid } from "@wave-telecom/framework/core";
 import { NotifyAppointmentsUseCase } from "./notify-appointments-use-case";
 import { AppointmentRepository } from "../../../../../domain/repositories/appointment-repository";
+import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
 import { AppointmentSchedulerService } from "../../../../../domain/services/appointment-scheduler-service";
 import { MailService } from "../../../../../domain/services/mail-service";
 import { Appointment } from "../../../../../domain/entities/appointment";
@@ -21,10 +22,20 @@ const mockSchedulerService = (): AppointmentSchedulerService =>
     scheduleNext: vi.fn(),
   } as unknown as AppointmentSchedulerService);
 
+const mockEducatorRepository = (): EducatorRepository =>
+  ({
+    save: vi.fn(),
+    search: vi.fn(),
+    getByEmail: vi.fn(),
+    delete: vi.fn(),
+  } as unknown as EducatorRepository);
+
 const mockMailService = (): MailService =>
   ({
     sendAppointmentReminder: vi.fn(),
   } as unknown as MailService);
+
+const fakeEducator = { email: "educator@test.com" } as any;
 
 const makeAppointment = () =>
   Appointment.create({
@@ -35,6 +46,7 @@ const makeAppointment = () =>
 
 describe("NotifyAppointmentsUseCase", () => {
   let appointmentRepository: AppointmentRepository;
+  let educatorRepository: EducatorRepository;
   let schedulerService: AppointmentSchedulerService;
   let mailService: MailService;
   let useCase: NotifyAppointmentsUseCase;
@@ -42,15 +54,18 @@ describe("NotifyAppointmentsUseCase", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     appointmentRepository = mockAppointmentRepository();
+    educatorRepository = mockEducatorRepository();
     schedulerService = mockSchedulerService();
     mailService = mockMailService();
     useCase = new NotifyAppointmentsUseCase(
       appointmentRepository,
+      educatorRepository,
       schedulerService,
       mailService
     );
 
     (appointmentRepository.save as any).mockResolvedValue(undefined);
+    (educatorRepository.search as any).mockResolvedValue([fakeEducator]);
     (schedulerService.scheduleNext as any).mockResolvedValue(undefined);
     (mailService.sendAppointmentReminder as any).mockResolvedValue(undefined);
   });
@@ -76,8 +91,8 @@ describe("NotifyAppointmentsUseCase", () => {
     await useCase.execute();
 
     expect(mailService.sendAppointmentReminder).toHaveBeenCalledTimes(2);
-    expect(mailService.sendAppointmentReminder).toHaveBeenCalledWith(appts[0]);
-    expect(mailService.sendAppointmentReminder).toHaveBeenCalledWith(appts[1]);
+    expect(mailService.sendAppointmentReminder).toHaveBeenCalledWith(appts[0], fakeEducator.email);
+    expect(mailService.sendAppointmentReminder).toHaveBeenCalledWith(appts[1], fakeEducator.email);
   });
 
   it("should save each appointment as notified after sending mail", async () => {

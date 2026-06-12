@@ -26,16 +26,12 @@ export class NodemailerMailService implements MailService {
     });
   }
 
-  async sendAppointmentReminder(appointment: Appointment): Promise<void> {
+  async sendAppointmentReminder(appointment: Appointment, educatorEmail: string): Promise<void> {
     const body = `
       <h2>Lembrete de Consulta</h2>
       <p>Sua consulta está agendada para: ${appointment.scheduledAt.toLocaleString("pt-BR")}</p>
       ${appointment.observation ? `<p>Observação: ${appointment.observation}</p>` : ""}
     `;
-    await this.sendMail(
-      process.env.MAIL_USER ?? "",
-      "Lembrete de Consulta",
-      body
-    );
+    await this.sendMail(educatorEmail, "Lembrete de Consulta", body);
   }
 }
