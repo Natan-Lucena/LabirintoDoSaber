@@ -12,11 +12,13 @@ export function buildReminderEmailHtml(
     day: "2-digit",
     month: "long",
     year: "numeric",
+    timeZone: "America/Sao_Paulo",
   });
 
   const timeLabel = appointment.scheduledAt.toLocaleTimeString("pt-BR", {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
   });
 
   return `
@@ -51,7 +53,7 @@ export function buildReminderEmailHtml(
                 <tr>
                   <td style="background-color:#63e9e2; padding:28px 36px;">
                     <p style="margin:0; font-family:'Nunito', Arial, Helvetica, sans-serif; font-size:22px; font-weight:800; color:#ffffff;">
-                      Lembrete de Sess&atilde;o &#128197;
+                      Lembrete de Sess&atilde;o
                     </p>
                     <p style="margin:6px 0 0; font-family:'Nunito', Arial, Helvetica, sans-serif; font-size:14px; color:#ffffff;">
                       Voc&ecirc; tem um atendimento agendado${studentName ? ` com <strong>${studentName}</strong>` : ""}.
