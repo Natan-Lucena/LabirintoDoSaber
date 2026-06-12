@@ -4,6 +4,18 @@ import { EducatorRepository } from "../../domain/repositories/educator-repositor
 import { JwtAuthService } from "../services/auth-service-impl";
 import multer from "multer";
 
+export function requireJobApiKey(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  if (req.headers["x-job-api-key"] !== process.env.INTERNAL_JOB_API_KEY) {
+    res.sendStatus(401);
+    return;
+  }
+  next();
+}
+
 const authService = new JwtAuthService();
 
 export function makeAuthMiddleware(educatorRepository: EducatorRepository) {
