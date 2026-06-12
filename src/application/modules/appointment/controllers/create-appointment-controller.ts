@@ -1,5 +1,9 @@
-import { BaseController } from "@wave-telecom/framework/controllers";
+import {
+  BaseController,
+  formatValidationErrors,
+} from "@wave-telecom/framework/controllers";
 import { Request, Response } from "express";
+import { createAppointmentSchema } from "../schemas/appointment-schemas";
 import { CreateAppointmentUseCase } from "../use-cases/create-appointment/create-appointment-use-case";
 
 export class CreateAppointmentController extends BaseController {
@@ -13,11 +17,14 @@ export class CreateAppointmentController extends BaseController {
       return this.unauthorized(res);
     }
 
-    const { studentId, scheduledAt, observation } = req.body;
+    const validation = await createAppointmentSchema.safeParseAsync(req.body);
 
-    if (!studentId || !scheduledAt) {
-      return this.clientError(res, "studentId and scheduledAt are required");
+    if (!validation.success) {
+      const errors = formatValidationErrors(validation.error);
+      return this.clientError(res, undefined, errors);
     }
+
+    const { studentId, scheduledAt, observation } = validation.data;
 
     const result = await this.useCase.execute({
       educatorId: educator.id,
