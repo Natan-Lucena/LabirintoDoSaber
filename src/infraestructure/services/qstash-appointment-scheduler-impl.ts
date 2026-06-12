@@ -57,7 +57,7 @@ export class QStashAppointmentSchedulerImpl implements AppointmentSchedulerServi
     const internalJobApiKey = process.env.INTERNAL_JOB_API_KEY ?? "";
 
     const response = await fetch(
-      `${qstashUrl}/v2/publish/${apiUrl}/api/queue/appointments/run`,
+      `${qstashUrl}/v2/publish/${apiUrl}/appointment/notify`,
       {
         method: "POST",
         headers: {
