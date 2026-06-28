@@ -31,7 +31,15 @@ export class ListTasksNotebooksUseCase {
           );
 
           return {
-            notebook,
+            notebook: {
+              id: notebook.id.value,
+              educator: notebook.educator.id.value,
+              tasks: notebook.tasks.map((task) => task.id.value),
+              category: notebook.category,
+              description: notebook.description,
+              createdAt: notebook.createdAt,
+              taskGroupsIds: notebook.taskGroupsIds,
+            },
             taskGroups: taskGroups.filter((g) => g !== null),
           };
         })
