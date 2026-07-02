@@ -17,6 +17,12 @@ export class MockTaskRepository implements TaskRepository {
     }
   }
 
+  async saveMany(tasks: Task[]): Promise<void> {
+    for (const task of tasks) {
+      await this.save(task);
+    }
+  }
+
   async getById(id: Uuid): Promise<Task | null> {
     const task = this.data.find((t) => t.id === id);
     if (!task) return null;

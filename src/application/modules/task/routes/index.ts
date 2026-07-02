@@ -10,9 +10,14 @@ import { DeleteTaskUseCase } from "../use-cases/delete-task/delete-task-use-case
 import { DeleteTaskController } from "../use-cases/delete-task/delete-task-controller";
 import { GetTaskByIdUseCase } from "../use-cases/get-task-by-id/get-task-by-id-use-case";
 import { GetTaskByIdController } from "../use-cases/get-task-by-id/get-task-by-id-controller";
+import { SaveTaskBatchUseCase } from "../use-cases/save-task-batch/save-task-batch-use-case";
+import { SaveTaskBatchController } from "../use-cases/save-task-batch/save-task-batch-controller";
+import { UploadTaskMediaUseCase } from "../use-cases/upload-task-media/upload-task-media-use-case";
+import { UploadTaskMediaController } from "../use-cases/upload-task-media/upload-task-media-controller";
 import {
   makeEducatorRepository,
   makeFileStorage,
+  makeTaskGroupRepository,
   makeTaskRepository,
 } from "../../../../infraestructure/factories";
 import { Multer } from "../../../../infraestructure/upload/multer-config";
@@ -21,6 +26,7 @@ const taskRouter = Router();
 
 const taskRepository = makeTaskRepository({ isMock: false });
 const fileStorage = makeFileStorage();
+const taskGroupRepository = makeTaskGroupRepository();
 
 const createTaskUseCase = new CreateTaskUseCase(taskRepository, fileStorage);
 
@@ -34,6 +40,14 @@ const deleteTaskUseCase = new DeleteTaskUseCase(taskRepository);
 
 const getTaskByIdUseCase = new GetTaskByIdUseCase(taskRepository);
 
+const saveTaskBatchUseCase = new SaveTaskBatchUseCase(
+  taskRepository,
+  taskGroupRepository,
+  educatorRepository
+);
+
+const uploadTaskMediaUseCase = new UploadTaskMediaUseCase(fileStorage);
+
 const authMiddleware = makeAuthMiddleware(educatorRepository);
 
 taskRouter.use(authMiddleware);
@@ -46,6 +60,18 @@ taskRouter.post(
   ]),
   (req: Request, res: Response) => {
     return new CreateTaskController(createTaskUseCase).execute(req, res);
+  }
+);
+
+taskRouter.post("/batch", (req: Request, res: Response) => {
+  new SaveTaskBatchController(saveTaskBatchUseCase).execute(req, res);
+});
+
+taskRouter.post(
+  "/upload-media",
+  Multer.getUploader(10).single("file"),
+  (req: Request, res: Response) => {
+    new UploadTaskMediaController(uploadTaskMediaUseCase).execute(req, res);
   }
 );
 

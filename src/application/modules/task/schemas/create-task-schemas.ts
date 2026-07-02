@@ -1,7 +1,7 @@
 import z from "zod";
 import { TaskCategory, TaskType } from "../../../../domain/entities/task";
 
-export const createTaskSchema = z.object({
+export const taskFieldsSchema = z.object({
   category: z.nativeEnum(TaskCategory),
   type: z.nativeEnum(TaskType),
   prompt: z.string().min(1),
@@ -14,3 +14,5 @@ export const createTaskSchema = z.object({
     )
     .min(2),
 });
+
+export const createTaskSchema = taskFieldsSchema;
