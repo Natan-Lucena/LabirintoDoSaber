@@ -46,6 +46,12 @@ export class TaskRepositoryImpl implements TaskRepository {
     });
   }
 
+  async saveMany(tasks: Task[]): Promise<void> {
+    for (const task of tasks) {
+      await this.save(task);
+    }
+  }
+
   async getById(id: Uuid): Promise<Task | null> {
     const prismaTask = await this.prismaService.task.findUnique({
       where: { id: id.value },

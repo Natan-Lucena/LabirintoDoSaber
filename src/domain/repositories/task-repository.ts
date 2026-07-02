@@ -10,6 +10,7 @@ export interface SearchTaskProps {
 
 export interface TaskRepository {
   save(task: Task): Promise<void>;
+  saveMany(tasks: Task[]): Promise<void>;
   getById(id: Uuid): Promise<Task | null>;
   search(params: SearchTaskProps): Promise<Task[]>;
   delete(id: Uuid): Promise<void>;
