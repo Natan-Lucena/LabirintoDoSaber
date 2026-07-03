@@ -5,8 +5,9 @@ import {
   GeneratedTaskDraft,
 } from "../../domain/services/ai-task-generator-service";
 import { buildGenerateTasksPrompt } from "./prompts/generate-tasks-prompt";
+import { withGeminiRetry } from "./gemini-retry";
 
-const MODEL = "gemini-2.5-flash";
+const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
 const RESPONSE_SCHEMA = {
   type: Type.ARRAY,
@@ -43,22 +44,37 @@ export class GeminiTaskGeneratorImpl implements AiTaskGeneratorService {
   async generate(params: GenerateTasksParams): Promise<GeneratedTaskDraft[]> {
     const prompt = buildGenerateTasksPrompt(params);
 
-    const response = await this.client.models.generateContent({
-      model: MODEL,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: RESPONSE_SCHEMA,
-      },
-    });
+    console.log(`[GeminiTaskGenerator] calling ${MODEL} for ${params.quantity} task(s)`);
 
-    const text = response.text;
+    try {
+      const response = await withGeminiRetry(
+        () =>
+          this.client.models.generateContent({
+            model: MODEL,
+            contents: prompt,
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: RESPONSE_SCHEMA,
+            },
+          }),
+        { label: "GeminiTaskGenerator" }
+      );
 
-    if (!text) {
-      throw new Error("AI_EMPTY_RESPONSE");
+      const text = response.text;
+
+      if (!text) {
+        console.error("[GeminiTaskGenerator] empty response", {
+          finishReason: (response as any)?.candidates?.[0]?.finishReason,
+          promptFeedback: (response as any)?.promptFeedback,
+        });
+        throw new Error("AI_EMPTY_RESPONSE");
+      }
+
+      return this.parseResponse(text);
+    } catch (err) {
+      console.error("[GeminiTaskGenerator] generateContent failed:", err);
+      throw err;
     }
-
-    return this.parseResponse(text);
   }
 
   private parseResponse(raw: string): GeneratedTaskDraft[] {
