@@ -128,7 +128,8 @@ export class GenerateStudentAiAnalysisUseCase {
     let analysis: string;
     try {
       analysis = await this.aiStudentAnalysisService.generate(input);
-    } catch {
+    } catch (err) {
+      console.error("[generate-student-ai-analysis] Gemini call failed", err);
       return failure("AI_ANALYSIS_FAILED");
     }
 

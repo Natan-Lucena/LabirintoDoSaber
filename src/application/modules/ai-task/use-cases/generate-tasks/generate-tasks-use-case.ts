@@ -40,7 +40,8 @@ export class GenerateTasksUseCase {
         quantity: request.quantity,
         category: request.category,
       });
-    } catch {
+    } catch (err) {
+      console.error("[generate-tasks] Gemini call failed", err);
       return failure("AI_GENERATION_FAILED");
     }
 

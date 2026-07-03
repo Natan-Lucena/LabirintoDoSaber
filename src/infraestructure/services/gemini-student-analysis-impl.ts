@@ -4,8 +4,9 @@ import {
   StudentAnalysisAiInput,
 } from "../../domain/services/ai-student-analysis-service";
 import { buildStudentAnalysisPrompt } from "./prompts/student-analysis-prompt";
+import { withGeminiRetry } from "./gemini-retry";
 
-const MODEL = "gemini-2.5-flash";
+const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
 export class GeminiStudentAnalysisImpl implements AiStudentAnalysisService {
   private readonly client: GoogleGenAI;
@@ -20,20 +21,41 @@ export class GeminiStudentAnalysisImpl implements AiStudentAnalysisService {
   async generate(input: StudentAnalysisAiInput): Promise<string> {
     const prompt = buildStudentAnalysisPrompt(input);
 
-    const response = await this.client.models.generateContent({
-      model: MODEL,
-      contents: prompt,
-      config: {
-        temperature: 0.7,
-      },
-    });
+    console.log(
+      `[GeminiStudentAnalysis] calling ${MODEL} (prompt ${prompt.length} chars)`
+    );
 
-    const text = response.text;
+    try {
+      const response = await withGeminiRetry(
+        () =>
+          this.client.models.generateContent({
+            model: MODEL,
+            contents: prompt,
+            config: {
+              temperature: 0.7,
+            },
+          }),
+        { label: "GeminiStudentAnalysis" }
+      );
 
-    if (!text || !text.trim()) {
-      throw new Error("AI_EMPTY_RESPONSE");
+      const text = response.text;
+
+      if (!text || !text.trim()) {
+        console.error("[GeminiStudentAnalysis] empty response", {
+          finishReason: (response as any)?.candidates?.[0]?.finishReason,
+          promptFeedback: (response as any)?.promptFeedback,
+          usage: (response as any)?.usageMetadata,
+        });
+        throw new Error("AI_EMPTY_RESPONSE");
+      }
+
+      console.log(
+        `[GeminiStudentAnalysis] ok (${text.trim().length} chars returned)`
+      );
+      return text.trim();
+    } catch (err) {
+      console.error("[GeminiStudentAnalysis] generateContent failed:", err);
+      throw err;
     }
-
-    return text.trim();
   }
 }
