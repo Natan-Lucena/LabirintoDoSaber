@@ -23,7 +23,8 @@ export class StudentRepositoryImpl implements StudentRepository {
         housenumber: student.housenumber,
         phonenumber: student.phonenumber,
         learningTopics: student.learningTopics,
-        photoUrl: student.photoUrl
+        photoUrl: student.photoUrl,
+        documents: student.documents,
       },
       create: {
         educatorId: student.educatorId.value,
@@ -37,7 +38,8 @@ export class StudentRepositoryImpl implements StudentRepository {
         phonenumber: student.phonenumber,
         learningTopics: student.learningTopics,
         createdAt: student.createdAt,
-        photoUrl: student.photoUrl
+        photoUrl: student.photoUrl,
+        documents: student.documents,
       },
       include: {
         educatorStudents: {
@@ -123,6 +125,13 @@ export class StudentRepositoryImpl implements StudentRepository {
       educators,
       educatorId: new Uuid(prismaStudent.educatorId),
       photoUrl: prismaStudent.photoUrl ?? undefined,
+      documents:
+        prismaStudent.documents?.map((doc: any) => ({
+          id: doc.id,
+          name: doc.name,
+          url: doc.url,
+          uploadedAt: doc.uploadedAt,
+        })) ?? [],
     });
   }
 

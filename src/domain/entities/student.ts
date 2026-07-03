@@ -6,6 +6,13 @@ export enum Gender {
   Female = "female",
 }
 
+export interface StudentDocument {
+  id: string;
+  name: string;
+  url: string;
+  uploadedAt: Date;
+}
+
 export interface UpdateStudentProps {
   name?: string;
   age?: number;
@@ -31,6 +38,7 @@ export interface CreateStudentProps {
   educators: Educator[];
   educatorId: Uuid;
   photoUrl?: string;
+  documents?: StudentDocument[];
 }
 
 export class Student {
@@ -47,7 +55,8 @@ export class Student {
     public readonly createdAt: Date,
     public readonly educators: Educator[],
     public readonly educatorId: Uuid,
-    private _photoUrl?: string
+    private _photoUrl?: string,
+    private _documents: StudentDocument[] = []
   ) {}
 
   static create(props: CreateStudentProps) {
@@ -64,7 +73,8 @@ export class Student {
       props.createdAt || new Date(),
       props.educators,
       props.educatorId,
-      props.photoUrl
+      props.photoUrl,
+      props.documents ?? []
     );
   }
 
@@ -74,6 +84,10 @@ export class Student {
 
   updatePhoto(photoUrl: string) {
     this._photoUrl = photoUrl;
+  }
+
+  addDocument(document: StudentDocument) {
+    this._documents.push(document);
   }
 
   update(props: UpdateStudentProps) {
@@ -88,6 +102,10 @@ export class Student {
 
   get photoUrl(): string | undefined {
     return this._photoUrl;
+  }
+
+  get documents(): StudentDocument[] {
+    return this._documents;
   }
 
   get name(): string {

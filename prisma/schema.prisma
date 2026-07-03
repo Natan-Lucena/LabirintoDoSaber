@@ -34,10 +34,18 @@ model Student {
   phonenumber    String
   learningTopics String[]
   photoUrl       String?
+  documents      StudentDocument[]
   createdAt      DateTime @default(now())
   educatorId     String
 
   educatorStudents EducatorStudent[]
+}
+
+type StudentDocument {
+  id         String
+  name       String
+  url        String
+  uploadedAt DateTime
 }
 
 model EducatorStudent {

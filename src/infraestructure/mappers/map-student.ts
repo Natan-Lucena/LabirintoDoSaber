@@ -14,6 +14,7 @@ export const mapStudentToResponse = (student: Student) => {
     createdAt: student.createdAt,
     educatorId: student.educatorId.value,
     photoUrl: student.photoUrl ?? null,
+    documents: student.documents,
     educators: student.educators,
   };
 };

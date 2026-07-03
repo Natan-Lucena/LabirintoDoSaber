@@ -14,6 +14,8 @@ import {
 import { Multer } from "../../../../infraestructure/upload/multer-config";
 import { UpdateStudentUseCase } from "../use-cases/update-student/update-student-use-case";
 import { UpdateStudentController } from "../use-cases/update-student/update-student-controller";
+import { AddStudentDocumentUseCase } from "../use-cases/add-student-document/add-student-document-use-case";
+import { AddStudentDocumentController } from "../use-cases/add-student-document/add-student-document-controller";
 
 const studentRouter = Router();
 
@@ -43,6 +45,12 @@ const updateStudentUseCase = new UpdateStudentUseCase(
   educatorRepository
 );
 
+const addStudentDocumentUseCase = new AddStudentDocumentUseCase(
+  studentRepository,
+  educatorRepository,
+  fileStorage
+);
+
 const authMiddleware = makeAuthMiddleware(educatorRepository);
 
 studentRouter.use(authMiddleware);
@@ -60,6 +68,17 @@ studentRouter.post(
   Multer.getUploader(5).single("photo"),
   async (req, res) => {
     new CreateStudentController(createStudentUseCase).execute(req, res);
+  }
+);
+
+studentRouter.post(
+  "/:id/documents",
+  Multer.getUploader(10).single("document"),
+  async (req, res) => {
+    new AddStudentDocumentController(addStudentDocumentUseCase).execute(
+      req,
+      res
+    );
   }
 );
 

@@ -36,6 +36,8 @@ export class MockStudentRepository implements StudentRepository {
       createdAt: student.createdAt,
       educators: [...student.educators],
       educatorId: student.educatorId,
+      photoUrl: student.photoUrl,
+      documents: [...student.documents],
     });
   }
 
