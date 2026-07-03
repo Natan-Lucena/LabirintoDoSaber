@@ -1,0 +1,170 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { success, failure, Uuid } from "@wave-telecom/framework/core";
+import { GenerateStudentAiAnalysisUseCase } from "./generate-student-ai-analysis-use-case";
+import { GenerateStudentAnalysisUseCase } from "../generate-student-analisys/generate-student-analisys-use-case";
+import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { TaskRepository } from "../../../../../domain/repositories/task-repository";
+import { AnamneseTemplateRepository } from "../../../../../domain/repositories/anamnese-template-repository";
+import { AnamneseResponseRepository } from "../../../../../domain/repositories/anamnese-response-repository";
+import { AiStudentAnalysisService } from "../../../../../domain/services/ai-student-analysis-service";
+import { TaskCategory } from "../../../../../domain/entities/task";
+
+const studentId = Uuid.random().value;
+const taskId = Uuid.random();
+
+const fakeStudent = {
+  name: "João",
+  age: 8,
+  gender: "male",
+  learningTopics: ["leitura"],
+} as any;
+
+const analysisValue = {
+  categories: {
+    [TaskCategory.Reading]: {
+      category: TaskCategory.Reading,
+      total: 2,
+      correct: 1,
+      accuracy: 0.5,
+    },
+  },
+  total: { total: 2, correct: 1, accuracy: 0.5 },
+  sessions: [
+    {
+      id: Uuid.random(),
+      name: "Sessão 1",
+      startedAt: new Date("2026-06-01T10:00:00.000Z"),
+      finishedAt: new Date("2026-06-01T10:20:00.000Z"),
+      observation: "Atento",
+      answers: [
+        { taskId, isCorrect: true, timeToAnswer: 12 },
+        { taskId, isCorrect: false, timeToAnswer: 20 },
+      ],
+    },
+  ],
+} as any;
+
+const mockGenerate = (): GenerateStudentAnalysisUseCase =>
+  ({ execute: vi.fn() } as unknown as GenerateStudentAnalysisUseCase);
+
+const mockStudentRepo = (): StudentRepository =>
+  ({ getById: vi.fn() } as unknown as StudentRepository);
+
+const mockTaskRepo = (): TaskRepository =>
+  ({ getById: vi.fn() } as unknown as TaskRepository);
+
+const mockTemplateRepo = (): AnamneseTemplateRepository =>
+  ({ findById: vi.fn() } as unknown as AnamneseTemplateRepository);
+
+const mockResponseRepo = (): AnamneseResponseRepository =>
+  ({ listByStudentId: vi.fn() } as unknown as AnamneseResponseRepository);
+
+const mockAiService = (): AiStudentAnalysisService =>
+  ({ generate: vi.fn() } as unknown as AiStudentAnalysisService);
+
+describe("GenerateStudentAiAnalysisUseCase", () => {
+  let generate: GenerateStudentAnalysisUseCase;
+  let studentRepo: StudentRepository;
+  let taskRepo: TaskRepository;
+  let templateRepo: AnamneseTemplateRepository;
+  let responseRepo: AnamneseResponseRepository;
+  let aiService: AiStudentAnalysisService;
+  let useCase: GenerateStudentAiAnalysisUseCase;
+
+  beforeEach(() => {
+    generate = mockGenerate();
+    studentRepo = mockStudentRepo();
+    taskRepo = mockTaskRepo();
+    templateRepo = mockTemplateRepo();
+    responseRepo = mockResponseRepo();
+    aiService = mockAiService();
+    useCase = new GenerateStudentAiAnalysisUseCase(
+      generate,
+      studentRepo,
+      taskRepo,
+      templateRepo,
+      responseRepo,
+      aiService
+    );
+
+    (generate.execute as any).mockResolvedValue(success(analysisValue));
+    (studentRepo.getById as any).mockResolvedValue(fakeStudent);
+    (taskRepo.getById as any).mockResolvedValue({
+      prompt: "Qual é a vogal?",
+      category: TaskCategory.Reading,
+    });
+    (aiService.generate as any).mockResolvedValue("Análise extensa...");
+  });
+
+  it("propagates failure when the metrics use-case fails", async () => {
+    (generate.execute as any).mockResolvedValue(failure("STUDENT_NOT_FOUND"));
+
+    const result = await useCase.execute({ studentId });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBe("STUDENT_NOT_FOUND");
+    expect(aiService.generate).not.toHaveBeenCalled();
+  });
+
+  it("builds a rich input and returns the AI analysis text", async () => {
+    const result = await useCase.execute({ studentId });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.analysis).toBe("Análise extensa...");
+
+    const input = (aiService.generate as any).mock.calls[0][0];
+    expect(input.student.name).toBe("João");
+    expect(input.metrics.total.total).toBe(2);
+    expect(input.sessions).toHaveLength(1);
+    expect(input.sessions[0].correctAnswers).toBe(1);
+    expect(input.sessions[0].averageTimeToAnswer).toBe(16);
+    expect(input.sessions[0].answers[0].taskPrompt).toBe("Qual é a vogal?");
+    expect(input.anamnese).toBeUndefined();
+  });
+
+  it("returns AI_ANALYSIS_FAILED when the AI service throws", async () => {
+    (aiService.generate as any).mockRejectedValue(new Error("boom"));
+
+    const result = await useCase.execute({ studentId });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBe("AI_ANALYSIS_FAILED");
+  });
+
+  it("includes anamnese data when a templateId is provided", async () => {
+    const templateId = Uuid.random().value;
+    (templateRepo.findById as any).mockResolvedValue({
+      title: "Anamnese Inicial",
+      questions: [
+        { id: "q1", text: "Como dorme?", options: [] },
+        {
+          id: "q2",
+          text: "Nível de atenção?",
+          options: [{ id: "o1", text: "Alto" }],
+        },
+      ],
+    });
+    (responseRepo.listByStudentId as any).mockResolvedValue([
+      {
+        templateId: new Uuid(templateId),
+        answers: [
+          { questionId: "q1", textValue: "Bem" },
+          { questionId: "q2", selectedOptionId: "o1" },
+        ],
+      },
+    ]);
+
+    const result = await useCase.execute({ studentId, templateId });
+
+    expect(result.ok).toBe(true);
+    const input = (aiService.generate as any).mock.calls[0][0];
+    expect(input.anamnese.templateTitle).toBe("Anamnese Inicial");
+    expect(input.anamnese.answers).toEqual([
+      { question: "Como dorme?", answer: "Bem" },
+      { question: "Nível de atenção?", answer: "Alto" },
+    ]);
+  });
+});

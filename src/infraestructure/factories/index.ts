@@ -22,6 +22,8 @@ import { QStashAppointmentSchedulerImpl } from "../services/qstash-appointment-s
 import { AppointmentRepository } from "../../domain/repositories/appointment-repository";
 import { AiTaskGeneratorService } from "../../domain/services/ai-task-generator-service";
 import { GeminiTaskGeneratorImpl } from "../services/gemini-task-generator-impl";
+import { AiStudentAnalysisService } from "../../domain/services/ai-student-analysis-service";
+import { GeminiStudentAnalysisImpl } from "../services/gemini-student-analysis-impl";
 
 const prismaClient = new PrismaClient();
 
@@ -99,4 +101,8 @@ export const makeAppointmentSchedulerService = (repo: AppointmentRepository) => 
 
 export const makeAiTaskGeneratorService = (): AiTaskGeneratorService => {
   return new GeminiTaskGeneratorImpl();
+};
+
+export const makeAiStudentAnalysisService = (): AiStudentAnalysisService => {
+  return new GeminiStudentAnalysisImpl();
 };
