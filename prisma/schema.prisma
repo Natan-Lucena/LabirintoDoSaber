@@ -226,10 +226,14 @@ model Appointment {
   metadata    Json              @default("{}")
   createdAt   DateTime          @default(now())
 
-  @@index([educatorId])
-  @@index([studentId])
-  @@index([status])
-  @@index([scheduledAt])
+  // Compostos, não individuais: nenhum caller filtra studentId ou
+  // scheduledAt sozinho — sempre junto com educatorId (ListAppointmentsUseCase)
+  // ou com status (NotifyAppointmentsUseCase/WatchdogAppointmentsUseCase).
+  // MongoDB usa o prefixo do índice composto pra servir a busca só pelo
+  // primeiro campo também, então isso cobre educatorId sozinho e
+  // status sozinho sem precisar de índices extras.
+  @@index([educatorId, studentId])
+  @@index([status, scheduledAt])
 }
 
 enum AppointmentStatus {
