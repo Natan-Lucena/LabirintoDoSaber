@@ -47,9 +47,24 @@ export class TaskRepositoryImpl implements TaskRepository {
   }
 
   async saveMany(tasks: Task[]): Promise<void> {
-    for (const task of tasks) {
-      await this.save(task);
-    }
+    if (tasks.length === 0) return;
+
+    await this.prismaService.task.createMany({
+      data: tasks.map((task) => ({
+        id: task.id.value,
+        category: this.mapCategory(task.category),
+        type: this.mapType(task.type),
+        prompt: task.prompt,
+        alternatives: task.alternatives.map((alt) => ({
+          id: alt.id?.value ?? Uuid.random().value,
+          text: alt.text,
+          isCorrect: alt.isCorrect,
+        })),
+        imageFile: task.imageFile,
+        audioFile: task.audioFile,
+        createdAt: task.createdAt,
+      })),
+    });
   }
 
   async getById(id: Uuid): Promise<Task | null> {
