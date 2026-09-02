@@ -20,30 +20,36 @@ export class ListTasksNotebooksUseCase {
     try {
       const notebooks = await this.taskNotebookRepository.search(params);
 
-      const result = await Promise.all(
-        notebooks.map(async (notebook) => {
-          const groups = notebook.taskGroupsIds;
+      const uniqueGroupIds = new Map<string, Uuid>();
+      for (const notebook of notebooks) {
+        for (const groupId of notebook.taskGroupsIds) {
+          uniqueGroupIds.set(groupId, new Uuid(groupId));
+        }
+      }
 
-          const taskGroups = await Promise.all(
-            groups.map(async (groupId) => {
-              return this.taskGroupRepository.findById(new Uuid(groupId));
-            })
-          );
-
-          return {
-            notebook: {
-              id: notebook.id.value,
-              educator: notebook.educator.id.value,
-              tasks: notebook.tasks.map((task) => task.id.value),
-              category: notebook.category,
-              description: notebook.description,
-              createdAt: notebook.createdAt,
-              taskGroupsIds: notebook.taskGroupsIds,
-            },
-            taskGroups: taskGroups.filter((g) => g !== null),
-          };
-        })
+      const taskGroups = uniqueGroupIds.size
+        ? await this.taskGroupRepository.findByIds(
+            Array.from(uniqueGroupIds.values()),
+          )
+        : [];
+      const taskGroupById = new Map(
+        taskGroups.map((group) => [group.id.value, group]),
       );
+
+      const result = notebooks.map((notebook) => ({
+        notebook: {
+          id: notebook.id.value,
+          educator: notebook.educator.id.value,
+          tasks: notebook.tasks.map((task) => task.id.value),
+          category: notebook.category,
+          description: notebook.description,
+          createdAt: notebook.createdAt,
+          taskGroupsIds: notebook.taskGroupsIds,
+        },
+        taskGroups: notebook.taskGroupsIds
+          .map((groupId) => taskGroupById.get(groupId))
+          .filter((g): g is NonNullable<typeof g> => g !== undefined),
+      }));
 
       return success(result);
     } catch {
