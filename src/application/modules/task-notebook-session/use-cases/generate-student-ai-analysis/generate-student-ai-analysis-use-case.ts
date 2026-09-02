@@ -1,6 +1,4 @@
 import { failure, success, Uuid } from "@wave-telecom/framework/core";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
-import { TaskRepository } from "../../../../../domain/repositories/task-repository";
 import { AnamneseTemplateRepository } from "../../../../../domain/repositories/anamnese-template-repository";
 import { AnamneseResponseRepository } from "../../../../../domain/repositories/anamnese-response-repository";
 import {
@@ -8,7 +6,6 @@ import {
   StudentAnalysisAiInput,
   StudentAnalysisAnamneseAnswer,
 } from "../../../../../domain/services/ai-student-analysis-service";
-import { Task } from "../../../../../domain/entities/task";
 import { AnamneseAnswer } from "../../../../../domain/entities/anamnese-response";
 import { AnamneseTemplate } from "../../../../../domain/entities/anamnese-template";
 import { GenerateStudentAnalysisUseCase } from "../generate-student-analisys/generate-student-analisys-use-case";
@@ -24,77 +21,65 @@ export interface GenerateStudentAiAnalysisUseCaseRequest {
 export class GenerateStudentAiAnalysisUseCase {
   constructor(
     private generateStudentAnalysisUseCase: GenerateStudentAnalysisUseCase,
-    private studentRepository: StudentRepository,
-    private taskRepository: TaskRepository,
     private anamneseTemplateRepository: AnamneseTemplateRepository,
     private anamneseResponseRepository: AnamneseResponseRepository,
     private aiStudentAnalysisService: AiStudentAnalysisService
   ) {}
 
   async execute(request: GenerateStudentAiAnalysisUseCaseRequest) {
-    // Reaproveita o cálculo de métricas/sessões (também valida o aluno).
-    const analysisResult = await this.generateStudentAnalysisUseCase.execute({
-      studentId: request.studentId,
-      startDate: request.startDate,
-      endDate: request.endDate,
-      limit: request.limit,
-    });
+    // loadAnalysisData já faz, numa única leva, a busca de student +
+    // sessões + tasks em lote (também valida o aluno). buildAnamnese não
+    // depende de nada disso, então roda em paralelo em vez de esperar.
+    const [rawResult, anamnese] = await Promise.all([
+      this.generateStudentAnalysisUseCase.loadAnalysisData({
+        studentId: request.studentId,
+        startDate: request.startDate,
+        endDate: request.endDate,
+        limit: request.limit,
+      }),
+      request.templateId
+        ? this.buildAnamnese(request.templateId, request.studentId)
+        : Promise.resolve(null),
+    ]);
 
-    if (!analysisResult.ok) {
-      return failure(analysisResult.error);
+    if (!rawResult.ok) {
+      return failure(rawResult.error);
     }
 
-    const student = await this.studentRepository.getById(
-      new Uuid(request.studentId)
-    );
+    const { student, sessions, taskById, categories, total } = rawResult.value;
 
-    if (!student) {
-      return failure("STUDENT_NOT_FOUND");
-    }
+    const sessionSummaries: StudentAnalysisAiInput["sessions"] = sessions.map(
+      (session) => {
+        let correctAnswers = 0;
+        let totalTime = 0;
 
-    const { categories, total, sessions } = analysisResult.value;
+        const answers = session.answers.map((answer) => {
+          const task = taskById.get(answer.taskId.value);
+          if (answer.isCorrect) correctAnswers++;
+          totalTime += answer.timeToAnswer;
 
-    const taskCache = new Map<string, Task | null>();
-    const getTask = async (taskId: Uuid): Promise<Task | null> => {
-      const key = taskId.value;
-      if (!taskCache.has(key)) {
-        taskCache.set(key, await this.taskRepository.getById(taskId));
-      }
-      return taskCache.get(key) ?? null;
-    };
-
-    const sessionSummaries: StudentAnalysisAiInput["sessions"] = [];
-    for (const session of sessions) {
-      const answers = [];
-      let correctAnswers = 0;
-      let totalTime = 0;
-
-      for (const answer of session.answers) {
-        const task = await getTask(answer.taskId);
-        if (answer.isCorrect) correctAnswers++;
-        totalTime += answer.timeToAnswer;
-
-        answers.push({
-          taskPrompt: task?.prompt,
-          category: task?.category,
-          isCorrect: answer.isCorrect,
-          timeToAnswer: answer.timeToAnswer,
+          return {
+            taskPrompt: task?.prompt,
+            category: task?.category,
+            isCorrect: answer.isCorrect,
+            timeToAnswer: answer.timeToAnswer,
+          };
         });
-      }
 
-      sessionSummaries.push({
-        name: session.name,
-        startedAt: session.startedAt.toISOString(),
-        finishedAt: session.finishedAt?.toISOString(),
-        observation: session.observation,
-        totalAnswers: session.answers.length,
-        correctAnswers,
-        averageTimeToAnswer: session.answers.length
-          ? totalTime / session.answers.length
-          : undefined,
-        answers,
-      });
-    }
+        return {
+          name: session.name,
+          startedAt: session.startedAt.toISOString(),
+          finishedAt: session.finishedAt?.toISOString(),
+          observation: session.observation,
+          totalAnswers: session.answers.length,
+          correctAnswers,
+          averageTimeToAnswer: session.answers.length
+            ? totalTime / session.answers.length
+            : undefined,
+          answers,
+        };
+      },
+    );
 
     const input: StudentAnalysisAiInput = {
       student: {
@@ -115,14 +100,8 @@ export class GenerateStudentAiAnalysisUseCase {
       sessions: sessionSummaries,
     };
 
-    if (request.templateId) {
-      const anamnese = await this.buildAnamnese(
-        request.templateId,
-        request.studentId
-      );
-      if (anamnese) {
-        input.anamnese = anamnese;
-      }
+    if (anamnese) {
+      input.anamnese = anamnese;
     }
 
     let analysis: string;

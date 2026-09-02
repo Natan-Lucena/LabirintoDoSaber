@@ -90,8 +90,6 @@ const listStudentAnalysisHistoryUseCase = new ListStudentAnalysisHistoryUseCase(
 
 const generateStudentAiAnalysisUseCase = new GenerateStudentAiAnalysisUseCase(
   generateStudentAnalysisUseCase,
-  studentRepository,
-  taskRepository,
   anamneseTemplateRepository,
   anamneseResponseRepository,
   aiStudentAnalysisService

@@ -2,8 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { success, failure, Uuid } from "@wave-telecom/framework/core";
 import { GenerateStudentAiAnalysisUseCase } from "./generate-student-ai-analysis-use-case";
 import { GenerateStudentAnalysisUseCase } from "../generate-student-analisys/generate-student-analisys-use-case";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
-import { TaskRepository } from "../../../../../domain/repositories/task-repository";
 import { AnamneseTemplateRepository } from "../../../../../domain/repositories/anamnese-template-repository";
 import { AnamneseResponseRepository } from "../../../../../domain/repositories/anamnese-response-repository";
 import { AiStudentAnalysisService } from "../../../../../domain/services/ai-student-analysis-service";
@@ -19,7 +17,15 @@ const fakeStudent = {
   learningTopics: ["leitura"],
 } as any;
 
-const analysisValue = {
+const fakeTask = {
+  id: taskId,
+  prompt: "Qual é a vogal?",
+  category: TaskCategory.Reading,
+};
+
+const rawAnalysisValue = {
+  student: fakeStudent,
+  taskById: new Map([[taskId.value, fakeTask]]),
   categories: {
     [TaskCategory.Reading]: {
       category: TaskCategory.Reading,
@@ -45,13 +51,7 @@ const analysisValue = {
 } as any;
 
 const mockGenerate = (): GenerateStudentAnalysisUseCase =>
-  ({ execute: vi.fn() } as unknown as GenerateStudentAnalysisUseCase);
-
-const mockStudentRepo = (): StudentRepository =>
-  ({ getById: vi.fn() } as unknown as StudentRepository);
-
-const mockTaskRepo = (): TaskRepository =>
-  ({ getById: vi.fn() } as unknown as TaskRepository);
+  ({ loadAnalysisData: vi.fn() } as unknown as GenerateStudentAnalysisUseCase);
 
 const mockTemplateRepo = (): AnamneseTemplateRepository =>
   ({ findById: vi.fn() } as unknown as AnamneseTemplateRepository);
@@ -64,8 +64,6 @@ const mockAiService = (): AiStudentAnalysisService =>
 
 describe("GenerateStudentAiAnalysisUseCase", () => {
   let generate: GenerateStudentAnalysisUseCase;
-  let studentRepo: StudentRepository;
-  let taskRepo: TaskRepository;
   let templateRepo: AnamneseTemplateRepository;
   let responseRepo: AnamneseResponseRepository;
   let aiService: AiStudentAnalysisService;
@@ -73,31 +71,26 @@ describe("GenerateStudentAiAnalysisUseCase", () => {
 
   beforeEach(() => {
     generate = mockGenerate();
-    studentRepo = mockStudentRepo();
-    taskRepo = mockTaskRepo();
     templateRepo = mockTemplateRepo();
     responseRepo = mockResponseRepo();
     aiService = mockAiService();
     useCase = new GenerateStudentAiAnalysisUseCase(
       generate,
-      studentRepo,
-      taskRepo,
       templateRepo,
       responseRepo,
       aiService
     );
 
-    (generate.execute as any).mockResolvedValue(success(analysisValue));
-    (studentRepo.getById as any).mockResolvedValue(fakeStudent);
-    (taskRepo.getById as any).mockResolvedValue({
-      prompt: "Qual é a vogal?",
-      category: TaskCategory.Reading,
-    });
+    (generate.loadAnalysisData as any).mockResolvedValue(
+      success(rawAnalysisValue)
+    );
     (aiService.generate as any).mockResolvedValue("Análise extensa...");
   });
 
   it("propagates failure when the metrics use-case fails", async () => {
-    (generate.execute as any).mockResolvedValue(failure("STUDENT_NOT_FOUND"));
+    (generate.loadAnalysisData as any).mockResolvedValue(
+      failure("STUDENT_NOT_FOUND")
+    );
 
     const result = await useCase.execute({ studentId });
 
@@ -122,6 +115,12 @@ describe("GenerateStudentAiAnalysisUseCase", () => {
     expect(input.sessions[0].averageTimeToAnswer).toBe(16);
     expect(input.sessions[0].answers[0].taskPrompt).toBe("Qual é a vogal?");
     expect(input.anamnese).toBeUndefined();
+  });
+
+  it("does not call loadAnalysisData more than once (no redundant fetch)", async () => {
+    await useCase.execute({ studentId });
+
+    expect(generate.loadAnalysisData as any).toHaveBeenCalledTimes(1);
   });
 
   it("returns AI_ANALYSIS_FAILED when the AI service throws", async () => {
@@ -166,5 +165,54 @@ describe("GenerateStudentAiAnalysisUseCase", () => {
       { question: "Como dorme?", answer: "Bem" },
       { question: "Nível de atenção?", answer: "Alto" },
     ]);
+  });
+
+  // --- regressão: sem refetch redundante de student/tasks -------
+  //
+  // Antes da otimização, este use case chamava studentRepository.getById()
+  // de novo (o GenerateStudentAnalysisUseCase já tinha buscado o mesmo
+  // student) e refazia a busca de tasks (mesmo com cache, sequencial por
+  // task única). Agora reaproveita student/taskById que
+  // loadAnalysisData() já resolveu — nenhum repositório extra é injetado
+  // pra isso.
+  describe("no redundant student/task fetch (regression)", () => {
+    it("builds session summaries purely from the data loadAnalysisData already resolved", async () => {
+      const result = await useCase.execute({ studentId });
+
+      expect(result.ok).toBe(true);
+      // loadAnalysisData é a ÚNICA fonte de student/tasks; não há
+      // studentRepository/taskRepository injetados neste use case.
+      expect(generate.loadAnalysisData as any).toHaveBeenCalledWith({
+        studentId,
+        startDate: undefined,
+        endDate: undefined,
+        limit: undefined,
+      });
+    });
+
+    it("runs buildAnamnese concurrently with loadAnalysisData instead of sequentially", async () => {
+      const templateId = Uuid.random().value;
+      const callOrder: string[] = [];
+
+      (generate.loadAnalysisData as any).mockImplementation(async () => {
+        callOrder.push("loadAnalysisData:start");
+        await new Promise((r) => setTimeout(r, 10));
+        callOrder.push("loadAnalysisData:end");
+        return success(rawAnalysisValue);
+      });
+      (templateRepo.findById as any).mockImplementation(async () => {
+        callOrder.push("buildAnamnese:start");
+        return { title: "Anamnese", questions: [] };
+      });
+      (responseRepo.listByStudentId as any).mockResolvedValue([]);
+
+      await useCase.execute({ studentId, templateId });
+
+      // buildAnamnese começa ANTES de loadAnalysisData terminar — prova
+      // que rodam em paralelo (Promise.all), não em sequência.
+      const templateStartIndex = callOrder.indexOf("buildAnamnese:start");
+      const loadEndIndex = callOrder.indexOf("loadAnalysisData:end");
+      expect(templateStartIndex).toBeLessThan(loadEndIndex);
+    });
   });
 });
