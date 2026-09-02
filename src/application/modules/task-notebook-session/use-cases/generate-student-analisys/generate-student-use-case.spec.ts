@@ -475,4 +475,68 @@ describe("GenerateStudentAnalysisUseCase", () => {
       expect(result.value.total).toEqual({ total: 0, correct: 0, accuracy: 0 });
     });
   });
+
+  // --- loadAnalysisData: reuso interno por outros use cases -----
+  //
+  // GenerateStudentAiAnalysisUseCase reaproveita loadAnalysisData() para
+  // não refazer as mesmas buscas de student/tasks. execute() (o método
+  // exposto ao controller HTTP) precisa continuar retornando só
+  // categories/total/sessions — nunca student ou taskById, que carregam
+  // dados sensíveis (student.educators[].password) sem lugar num response
+  // JSON público.
+  describe("loadAnalysisData (reuso interno)", () => {
+    it("should expose student and taskById for internal callers to reuse", async () => {
+      const student = makeStudent(ID.student);
+      (studentRepo.getById as any).mockResolvedValue(student);
+
+      const session = makeSession([{ taskId: ID.t1, isCorrect: true }]);
+      (sessionRepo.listByStudentId as any).mockResolvedValue([session]);
+
+      stubTaskCatalog(taskRepo, {
+        [ID.t1]: makeTask(ID.t1, TaskCategory.Reading),
+      });
+
+      const raw = await useCase.loadAnalysisData({ studentId: ID.student });
+
+      expect(raw.ok).toBe(true);
+      if (!raw.ok) throw new Error("Expected result to be ok");
+
+      expect(raw.value.student).toBe(student);
+      expect(raw.value.taskById.get(ID.t1)?.category).toBe(
+        TaskCategory.Reading,
+      );
+      // uma única chamada em lote, igual ao execute()
+      expect(taskRepo.getByIds as any).toHaveBeenCalledTimes(1);
+    });
+
+    it("should propagate STUDENT_NOT_FOUND from loadAnalysisData", async () => {
+      (studentRepo.getById as any).mockResolvedValue(null);
+
+      const raw = await useCase.loadAnalysisData({ studentId: ID.student });
+
+      expect(raw).toEqual(failure("STUDENT_NOT_FOUND"));
+    });
+
+    it("execute() should never leak student or taskById in its public response", async () => {
+      (studentRepo.getById as any).mockResolvedValue(makeStudent(ID.student));
+
+      const session = makeSession([{ taskId: ID.t1, isCorrect: true }]);
+      (sessionRepo.listByStudentId as any).mockResolvedValue([session]);
+
+      stubTaskCatalog(taskRepo, {
+        [ID.t1]: makeTask(ID.t1, TaskCategory.Reading),
+      });
+
+      const result = await useCase.execute({ studentId: ID.student });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("Expected result to be ok");
+
+      expect(Object.keys(result.value).sort()).toEqual(
+        ["categories", "sessions", "total"].sort(),
+      );
+      expect((result.value as any).student).toBeUndefined();
+      expect((result.value as any).taskById).toBeUndefined();
+    });
+  });
 });
