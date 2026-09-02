@@ -22,11 +22,17 @@ export class GeneratorReportTaskNotebookSessionUseCase {
       return failure("SESSION_NOT_FOUND");
     }
 
-    const tasksById: Record<string, Task | null> = {};
-
+    const uniqueTaskIds = new Map<string, Uuid>();
     for (const answer of session.answers) {
-      const task = await this.taskRepository.getById(answer.taskId);
-      tasksById[answer.taskId.value] = task;
+      uniqueTaskIds.set(answer.taskId.value, answer.taskId);
+    }
+
+    const tasks = uniqueTaskIds.size
+      ? await this.taskRepository.getByIds(Array.from(uniqueTaskIds.values()))
+      : [];
+    const tasksById: Record<string, Task | null> = {};
+    for (const task of tasks) {
+      tasksById[task.id.value] = task;
     }
 
     const totalTimeSession =

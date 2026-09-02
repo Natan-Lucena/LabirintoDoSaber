@@ -41,10 +41,13 @@ const mockSessionRepository = (): TaskNotebookSessionRepository =>
     getById: vi.fn(),
   }) as unknown as TaskNotebookSessionRepository;
 
-// Mock do repositório de tarefa
+// getById fica disponível (contrato legado), mas o use case sob teste deve
+// usar getByIds em lote — os testes abaixo travam isso e evitam a volta do
+// N+1 (um getById por resposta, mesmo repetindo a mesma task).
 const mockTaskRepository = (): TaskRepository =>
   ({
     getById: vi.fn(),
+    getByIds: vi.fn(),
   }) as unknown as TaskRepository;
 
 // Factory para criar uma tarefa mockada
@@ -59,6 +62,21 @@ const makeTask = ({
     type,
     // Outras propriedades de Task, se necessário
   }) as unknown as Task;
+
+// Configura taskRepository.getByIds para resolver, a partir de um
+// "catálogo" de tasks, exatamente as tasks correspondentes aos ids
+// pedidos (como uma query real com `id: { in: [...] }` faria).
+const stubTaskCatalog = (
+  taskRepository: TaskRepository,
+  catalog: Record<string, Task>,
+) => {
+  (taskRepository.getByIds as any).mockImplementation(async (ids: Uuid[]) => {
+    const uniqueIds = Array.from(new Set(ids.map((id) => id.value)));
+    return uniqueIds
+      .map((id) => catalog[id])
+      .filter((task): task is Task => Boolean(task));
+  });
+};
 
 // --- Testes ---
 
@@ -82,7 +100,7 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
     const result = await useCase.execute({ sessionId: Uuid.random().value });
 
     expect(result).toEqual(failure("SESSION_NOT_FOUND"));
-    expect(taskRepository.getById).not.toHaveBeenCalled();
+    expect(taskRepository.getByIds).not.toHaveBeenCalled();
   });
 
   it("should generate report successfully for a simple session", async () => {
@@ -115,11 +133,9 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
       type: "Type Y",
     });
 
-    // Mock do getById: comparando pela propriedade .value
-    (taskRepository.getById as any).mockImplementation((taskId: Uuid) => {
-      if (taskId.value === taskId1.value) return Promise.resolve(task1);
-      if (taskId.value === taskId2.value) return Promise.resolve(task2);
-      return Promise.resolve(null);
+    stubTaskCatalog(taskRepository, {
+      [taskId1.value]: task1,
+      [taskId2.value]: task2,
     });
 
     const result = await useCase.execute({ sessionId: Uuid.random().value });
@@ -153,7 +169,6 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
     });
 
     expect(result).toEqual(expectedSuccess);
-    expect(taskRepository.getById).toHaveBeenCalledTimes(3);
   });
 
   it("should handle session with zero answers (empty arrays/null averages)", async () => {
@@ -166,8 +181,6 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
       finishedAt: finishTime,
     });
     (sessionRepository.getById as any).mockResolvedValue(session);
-
-    (taskRepository.getById as any).mockResolvedValue(null);
 
     const result = await useCase.execute({ sessionId: Uuid.random().value });
 
@@ -191,7 +204,8 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
     });
 
     expect(result).toEqual(expectedSuccess);
-    expect(taskRepository.getById).not.toHaveBeenCalled();
+    // sem respostas, não deve nem tentar buscar tasks
+    expect(taskRepository.getByIds).not.toHaveBeenCalled();
   });
 
   it("should handle tasks not found for some answers gracefully", async () => {
@@ -212,11 +226,9 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
       type: "Test Type",
     });
 
-    // Mock: task1 é encontrado, task2 não é (retorna null)
-    (taskRepository.getById as any).mockImplementation((taskId: Uuid) => {
-      if (taskId.value === taskId1.value) return Promise.resolve(task1);
-      if (taskId.value === taskId2.value) return Promise.resolve(null);
-      return Promise.resolve(null);
+    // task1 está no catálogo; task2 propositalmente ausente (não encontrada)
+    stubTaskCatalog(taskRepository, {
+      [taskId1.value]: task1,
     });
 
     const result = await useCase.execute({ sessionId: Uuid.random().value });
@@ -250,7 +262,61 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
         }),
       ),
     );
+  });
 
-    expect(taskRepository.getById).toHaveBeenCalledTimes(2);
+  // --- regressão: consulta de tasks em lote (anti N+1) ----------
+  //
+  // Antes da correção, o use case chamava taskRepository.getById() uma vez
+  // POR RESPOSTA, sequencialmente — mesma task repetida em várias respostas
+  // gerava uma chamada por resposta, não por task única. Estes testes
+  // travam o contrato correto: uma única chamada em lote, com ids únicos.
+  describe("batched task lookup (anti N+1 regression)", () => {
+    it("should fetch tasks with a single batched call, never per-answer getById", async () => {
+      const taskId1 = Uuid.random();
+      const taskId2 = Uuid.random();
+
+      const answers = [
+        makeAnswer({ taskId: taskId1 }),
+        makeAnswer({ taskId: taskId2 }),
+        makeAnswer({ taskId: taskId1 }),
+      ];
+      const session = makeSession({ answers });
+      (sessionRepository.getById as any).mockResolvedValue(session);
+
+      stubTaskCatalog(taskRepository, {
+        [taskId1.value]: makeTask({ id: taskId1 }),
+        [taskId2.value]: makeTask({ id: taskId2 }),
+      });
+
+      await useCase.execute({ sessionId: Uuid.random().value });
+
+      expect(taskRepository.getByIds).toHaveBeenCalledTimes(1);
+      expect(taskRepository.getById).not.toHaveBeenCalled();
+    });
+
+    it("should request each referenced task id only once, even if repeated across answers", async () => {
+      const taskId1 = Uuid.random();
+
+      const answers = [
+        makeAnswer({ taskId: taskId1 }),
+        makeAnswer({ taskId: taskId1 }),
+        makeAnswer({ taskId: taskId1 }),
+      ];
+      const session = makeSession({ answers });
+      (sessionRepository.getById as any).mockResolvedValue(session);
+
+      stubTaskCatalog(taskRepository, {
+        [taskId1.value]: makeTask({ id: taskId1 }),
+      });
+
+      await useCase.execute({ sessionId: Uuid.random().value });
+
+      const calledWith = (taskRepository.getByIds as any).mock
+        .calls[0][0] as Uuid[];
+      const uniqueIds = new Set(calledWith.map((id) => id.value));
+
+      expect(uniqueIds.size).toBe(1);
+      expect(uniqueIds.has(taskId1.value)).toBe(true);
+    });
   });
 });
