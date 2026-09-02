@@ -30,6 +30,11 @@ export class MockTaskRepository implements TaskRepository {
     return task;
   }
 
+  async getByIds(ids: Uuid[]): Promise<Task[]> {
+    const idSet = new Set(ids);
+    return this.data.filter((t) => idSet.has(t.id));
+  }
+
   async search(params: SearchTaskProps): Promise<Task[]> {
     const { id, category, type, promptContains } = params;
 

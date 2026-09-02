@@ -62,6 +62,18 @@ export class TaskRepositoryImpl implements TaskRepository {
     return this.mapToEntity(prismaTask);
   }
 
+  async getByIds(ids: Uuid[]): Promise<Task[]> {
+    if (ids.length === 0) return [];
+
+    const uniqueIds = Array.from(new Set(ids.map((id) => id.value)));
+
+    const prismaTasks = await this.prismaService.task.findMany({
+      where: { id: { in: uniqueIds } },
+    });
+
+    return prismaTasks.map((task) => this.mapToEntity(task));
+  }
+
   async search(params: SearchTaskProps): Promise<Task[]> {
     const prismaTasks = await this.prismaService.task.findMany({
       where: {

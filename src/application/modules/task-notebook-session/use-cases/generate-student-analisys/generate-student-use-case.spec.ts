@@ -56,10 +56,29 @@ const mockSessionRepository = (): TaskNotebookSessionRepository =>
     listByStudentId: vi.fn(),
   } as unknown as TaskNotebookSessionRepository);
 
+// getById fica disponível (outros pontos do código ainda podem usá-lo),
+// mas o use case sob teste deve usar getByIds em lote — os testes de
+// regressão abaixo garantem isso e evitam a volta do N+1.
 const mockTaskRepository = (): TaskRepository =>
   ({
     getById: vi.fn(),
+    getByIds: vi.fn(),
   } as unknown as TaskRepository);
+
+// Configura taskRepo.getByIds para resolver, a partir de um "catálogo" de
+// tasks, exatamente as tasks correspondentes aos ids pedidos (como uma
+// query real com `id: { in: [...] }` faria).
+const stubTaskCatalog = (
+  taskRepo: TaskRepository,
+  catalog: Record<string, ReturnType<typeof makeTask>>
+) => {
+  (taskRepo.getByIds as any).mockImplementation(async (ids: Uuid[]) => {
+    const uniqueIds = Array.from(new Set(ids.map((id) => id.value)));
+    return uniqueIds
+      .map((id) => catalog[id])
+      .filter((task): task is NonNullable<typeof task> => Boolean(task));
+  });
+};
 
 // Tests ----------------------------------------------------------
 describe("GenerateStudentAnalysisUseCase", () => {
@@ -106,6 +125,9 @@ describe("GenerateStudentAnalysisUseCase", () => {
     expect(categories.writing.total).toBe(0);
     expect(categories.vocabulary.total).toBe(0);
     expect(categories.comprehension.total).toBe(0);
+
+    // sem respostas, não deve nem tentar buscar tasks
+    expect(taskRepo.getByIds as any).not.toHaveBeenCalled();
   });
 
   it("should calculate accuracy correctly per category and total", async () => {
@@ -119,12 +141,10 @@ describe("GenerateStudentAnalysisUseCase", () => {
 
     (sessionRepo.listByStudentId as any).mockResolvedValue([session]);
 
-    (taskRepo.getById as any).mockImplementation((taskId: Uuid | any) => {
-      const id = (taskId as any).value ?? taskId;
-      if (id === ID.t1) return makeTask(ID.t1, TaskCategory.Reading);
-      if (id === ID.t2) return makeTask(ID.t2, TaskCategory.Reading);
-      if (id === ID.t3) return makeTask(ID.t3, TaskCategory.Writing);
-      return null;
+    stubTaskCatalog(taskRepo, {
+      [ID.t1]: makeTask(ID.t1, TaskCategory.Reading),
+      [ID.t2]: makeTask(ID.t2, TaskCategory.Reading),
+      [ID.t3]: makeTask(ID.t3, TaskCategory.Writing),
     });
 
     const result = await useCase.execute({ studentId: ID.student });
@@ -157,10 +177,9 @@ describe("GenerateStudentAnalysisUseCase", () => {
 
     (sessionRepo.listByStudentId as any).mockResolvedValue([session]);
 
-    (taskRepo.getById as any).mockImplementation((taskId: Uuid | any) => {
-      const id = (taskId as any).value ?? taskId;
-      if (id === ID.t1) return makeTask(ID.t1, TaskCategory.Vocabulary);
-      return null;
+    stubTaskCatalog(taskRepo, {
+      [ID.t1]: makeTask(ID.t1, TaskCategory.Vocabulary),
+      // ID.missing propositalmente ausente do catálogo
     });
 
     const result = await useCase.execute({ studentId: ID.student });
@@ -187,11 +206,10 @@ describe("GenerateStudentAnalysisUseCase", () => {
 
     (sessionRepo.listByStudentId as any).mockResolvedValue([session1, session2]);
 
-    (taskRepo.getById as any).mockImplementation((taskId: Uuid | any) => {
-      const id = (taskId as any).value ?? taskId;
-      if (id === ID.t1 || id === ID.t2) return makeTask(id, TaskCategory.Reading);
-      if (id === ID.t3) return makeTask(id, TaskCategory.Comprehension);
-      return null;
+    stubTaskCatalog(taskRepo, {
+      [ID.t1]: makeTask(ID.t1, TaskCategory.Reading),
+      [ID.t2]: makeTask(ID.t2, TaskCategory.Reading),
+      [ID.t3]: makeTask(ID.t3, TaskCategory.Comprehension),
     });
 
     const result = await useCase.execute({ studentId: ID.student });
@@ -207,6 +225,95 @@ describe("GenerateStudentAnalysisUseCase", () => {
     expect(categories.comprehension.correct).toBe(1);
     expect(total.total).toBe(3);
     expect(total.correct).toBe(2);
+  });
+
+  // --- regressão: consulta de tasks em lote (anti N+1) ----------
+  //
+  // Antes da correção, o use case chamava taskRepository.getById() uma vez
+  // POR RESPOSTA, sequencialmente. Um aluno com 81 respostas gerava 81
+  // round trips ao banco (~5s medidos contra o cluster real). Estes testes
+  // travam o contrato correto: uma única chamada em lote, com ids únicos.
+  describe("batched task lookup (anti N+1 regression)", () => {
+    it("should fetch tasks with a single batched call, never per-answer getById", async () => {
+      (studentRepo.getById as any).mockResolvedValue(makeStudent(ID.student));
+
+      // 20 respostas espalhadas em várias sessões
+      const answers = Array.from({ length: 20 }, (_, i) => ({
+        taskId: i % 2 === 0 ? ID.t1 : ID.t2,
+        isCorrect: i % 3 === 0,
+      }));
+      const session1 = makeSession(answers.slice(0, 10));
+      const session2 = makeSession(answers.slice(10));
+
+      (sessionRepo.listByStudentId as any).mockResolvedValue([session1, session2]);
+
+      stubTaskCatalog(taskRepo, {
+        [ID.t1]: makeTask(ID.t1, TaskCategory.Reading),
+        [ID.t2]: makeTask(ID.t2, TaskCategory.Writing),
+      });
+
+      const result = await useCase.execute({ studentId: ID.student });
+
+      expect(result.ok).toBe(true);
+
+      // exatamente 1 chamada em lote, independentemente de quantas respostas existam
+      expect(taskRepo.getByIds as any).toHaveBeenCalledTimes(1);
+      // getById (por item) nunca deve ser usado por este use case
+      expect(taskRepo.getById as any).not.toHaveBeenCalled();
+    });
+
+    it("should request each referenced task id only once, even if many answers repeat it", async () => {
+      (studentRepo.getById as any).mockResolvedValue(makeStudent(ID.student));
+
+      const answers = Array.from({ length: 15 }, () => ({
+        taskId: ID.t1,
+        isCorrect: true,
+      }));
+      (sessionRepo.listByStudentId as any).mockResolvedValue([
+        makeSession(answers),
+      ]);
+
+      stubTaskCatalog(taskRepo, {
+        [ID.t1]: makeTask(ID.t1, TaskCategory.Reading),
+      });
+
+      await useCase.execute({ studentId: ID.student });
+
+      const calledWith = (taskRepo.getByIds as any).mock.calls[0][0] as Uuid[];
+      const uniqueIds = new Set(calledWith.map((id) => id.value));
+
+      expect(uniqueIds.size).toBe(1);
+      expect(uniqueIds.has(ID.t1)).toBe(true);
+    });
+
+    it("should still compute correct per-category stats when fetched in a batch", async () => {
+      (studentRepo.getById as any).mockResolvedValue(makeStudent(ID.student));
+
+      const answers = [
+        { taskId: ID.t1, isCorrect: true },
+        { taskId: ID.t1, isCorrect: false },
+        { taskId: ID.t2, isCorrect: true },
+      ];
+      (sessionRepo.listByStudentId as any).mockResolvedValue([
+        makeSession(answers),
+      ]);
+
+      stubTaskCatalog(taskRepo, {
+        [ID.t1]: makeTask(ID.t1, TaskCategory.Reading),
+        [ID.t2]: makeTask(ID.t2, TaskCategory.Writing),
+      });
+
+      const result = await useCase.execute({ studentId: ID.student });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("Expected result to be ok");
+
+      expect(result.value.categories.reading.total).toBe(2);
+      expect(result.value.categories.reading.correct).toBe(1);
+      expect(result.value.categories.writing.total).toBe(1);
+      expect(result.value.categories.writing.correct).toBe(1);
+      expect(taskRepo.getByIds as any).toHaveBeenCalledTimes(1);
+    });
   });
 
   // --- filtro por limit ----------------------------------------
@@ -230,9 +337,10 @@ describe("GenerateStudentAnalysisUseCase", () => {
         session3,
       ]);
 
-      (taskRepo.getById as any).mockImplementation((taskId: Uuid | any) => {
-        const id = (taskId as any).value ?? taskId;
-        return makeTask(id, TaskCategory.Reading);
+      stubTaskCatalog(taskRepo, {
+        [ID.t1]: makeTask(ID.t1, TaskCategory.Reading),
+        [ID.t2]: makeTask(ID.t2, TaskCategory.Reading),
+        [ID.t3]: makeTask(ID.t3, TaskCategory.Reading),
       });
     });
 
@@ -294,9 +402,10 @@ describe("GenerateStudentAnalysisUseCase", () => {
         sessionMay,
       ]);
 
-      (taskRepo.getById as any).mockImplementation((taskId: Uuid | any) => {
-        const id = (taskId as any).value ?? taskId;
-        return makeTask(id, TaskCategory.Reading);
+      stubTaskCatalog(taskRepo, {
+        [ID.t1]: makeTask(ID.t1, TaskCategory.Reading),
+        [ID.t2]: makeTask(ID.t2, TaskCategory.Reading),
+        [ID.t3]: makeTask(ID.t3, TaskCategory.Reading),
       });
     });
 
