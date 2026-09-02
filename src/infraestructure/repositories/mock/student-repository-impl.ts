@@ -41,6 +41,30 @@ export class MockStudentRepository implements StudentRepository {
     });
   }
 
+  async getByIds(ids: Uuid[]): Promise<Student[]> {
+    const idSet = new Set(ids.map((id) => id.value));
+    return this.data
+      .filter((s) => idSet.has(s.id.value))
+      .map((student) =>
+        Student.create({
+          id: student.id,
+          name: student.name,
+          age: student.age,
+          gender: student.gender,
+          zipcode: student.zipcode,
+          road: student.road,
+          housenumber: student.housenumber,
+          phonenumber: student.phonenumber,
+          learningTopics: [...student.learningTopics],
+          createdAt: student.createdAt,
+          educators: [...student.educators],
+          educatorId: student.educatorId,
+          photoUrl: student.photoUrl,
+          documents: [...student.documents],
+        })
+      );
+  }
+
   async search(props: SearchStudentProps): Promise<Student[]> {
     return this.data.filter((student) => {
       if (props.id && student.id !== props.id) return false;

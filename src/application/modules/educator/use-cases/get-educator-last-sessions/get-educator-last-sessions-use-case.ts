@@ -1,4 +1,4 @@
-import { failure, success } from "@wave-telecom/framework/core";
+import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
@@ -27,22 +27,26 @@ export class GetEducatorLastSessionsUseCase {
       educatorId: educatorExists.id,
       limit: 2,
     });
-    console.log(educatorExists.id.value);
-    console.log(educatorLastSessions);
     if (educatorLastSessions.length === 0) {
       return failure("EDUCATOR_DOES_NOT_HAVE_SESSIONS");
     }
 
-    const result = await Promise.all(
-      educatorLastSessions.map(async (session) => {
-        const student = await this.studentRepository.getById(session.studentId);
+    const uniqueStudentIds = new Map<string, Uuid>();
+    for (const session of educatorLastSessions) {
+      uniqueStudentIds.set(session.studentId.value, session.studentId);
+    }
 
-        return {
-          studentName: student?.name,
-          sessionName: session.name,
-        };
-      })
+    const students = await this.studentRepository.getByIds(
+      Array.from(uniqueStudentIds.values())
     );
+    const studentById = new Map(
+      students.map((student) => [student.id.value, student])
+    );
+
+    const result = educatorLastSessions.map((session) => ({
+      studentName: studentById.get(session.studentId.value)?.name,
+      sessionName: session.name,
+    }));
 
     return success(result);
   }

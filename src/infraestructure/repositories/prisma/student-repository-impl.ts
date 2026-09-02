@@ -70,6 +70,25 @@ export class StudentRepositoryImpl implements StudentRepository {
     return this.mapToEntity(prismaStudent);
   }
 
+  async getByIds(ids: Uuid[]): Promise<Student[]> {
+    if (ids.length === 0) return [];
+
+    const uniqueIds = Array.from(new Set(ids.map((id) => id.value)));
+
+    const prismaStudents = await this.prismaService.student.findMany({
+      where: { id: { in: uniqueIds } },
+      include: {
+        educatorStudents: {
+          include: {
+            educator: true,
+          },
+        },
+      },
+    });
+
+    return prismaStudents.map((student) => this.mapToEntity(student));
+  }
+
   async search(params: SearchStudentProps): Promise<Student[]> {
     const prismaStudents = await this.prismaService.student.findMany({
       where: {

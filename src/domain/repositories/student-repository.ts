@@ -13,6 +13,7 @@ export interface SearchStudentProps {
 export interface StudentRepository {
   save(student: Student): Promise<Student>;
   getById(id: Uuid): Promise<Student | null>;
+  getByIds(ids: Uuid[]): Promise<Student[]>;
   search(params: SearchStudentProps): Promise<Student[]>;
   delete(id: Uuid): Promise<void>;
 }
