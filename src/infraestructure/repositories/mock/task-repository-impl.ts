@@ -31,8 +31,8 @@ export class MockTaskRepository implements TaskRepository {
   }
 
   async getByIds(ids: Uuid[]): Promise<Task[]> {
-    const idSet = new Set(ids);
-    return this.data.filter((t) => idSet.has(t.id));
+    const idSet = new Set(ids.map((id) => id.value));
+    return this.data.filter((t) => idSet.has(t.id.value));
   }
 
   async search(params: SearchTaskProps): Promise<Task[]> {
