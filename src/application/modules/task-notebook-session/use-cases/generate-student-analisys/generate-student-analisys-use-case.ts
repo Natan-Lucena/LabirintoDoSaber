@@ -111,9 +111,21 @@ export class GenerateStudentAnalysisUseCase {
     let totalAnswered = 0;
     let totalCorrect = 0;
 
+    const uniqueTaskIds = new Map<string, Uuid>();
     for (const session of sessions) {
       for (const answer of session.answers) {
-        const task = await this.taskRepository.getById(answer.taskId);
+        uniqueTaskIds.set(answer.taskId.value, answer.taskId);
+      }
+    }
+
+    const tasks = await this.taskRepository.getByIds(
+      Array.from(uniqueTaskIds.values()),
+    );
+    const taskById = new Map(tasks.map((task) => [task.id.value, task]));
+
+    for (const session of sessions) {
+      for (const answer of session.answers) {
+        const task = taskById.get(answer.taskId.value);
         if (!task) continue;
 
         const category = task.category;
