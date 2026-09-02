@@ -11,6 +11,7 @@ export interface searchTaskGroupsParams {
 export interface TaskGroupRepository {
   save(taskGroup: TaskGroup): Promise<TaskGroup>;
   findById(id: Uuid): Promise<TaskGroup | null>;
+  findByIds(ids: Uuid[]): Promise<TaskGroup[]>;
   search(params: searchTaskGroupsParams): Promise<TaskGroup[]>;
   deleteById(id: Uuid): Promise<void>;
 }

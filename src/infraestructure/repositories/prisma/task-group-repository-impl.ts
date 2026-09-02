@@ -40,6 +40,17 @@ export class TaskGroupRepositoryImpl implements TaskGroupRepository {
     if (!result) return null;
     return this.mapToEntity(result);
   }
+  async findByIds(ids: Uuid[]): Promise<TaskGroup[]> {
+    if (ids.length === 0) return [];
+
+    const uniqueIds = Array.from(new Set(ids.map((id) => id.value)));
+
+    const results = await this.prismaService.taskGroup.findMany({
+      where: { id: { in: uniqueIds } },
+    });
+
+    return results.map((value) => this.mapToEntity(value));
+  }
   async search(params: searchTaskGroupsParams): Promise<TaskGroup[]> {
     const result = await this.prismaService.taskGroup.findMany({
       where: {
