@@ -30,11 +30,13 @@ export class CreateTaskNotebookUseCase {
       return failure("EDUCATOR_DOES_NOT_EXISTS");
     }
 
-    const tasks = await Promise.all(
-      props.tasks.map(async (taskId) => {
-        return await this.taskRepository.getById(new Uuid(taskId));
-      })
+    const foundTasks = await this.taskRepository.getByIds(
+      props.tasks.map((taskId) => new Uuid(taskId))
     );
+    const foundTaskById = new Map(
+      foundTasks.map((task) => [task.id.value, task])
+    );
+    const tasks = props.tasks.map((taskId) => foundTaskById.get(taskId) ?? null);
     const existingTasks = tasks.filter(
       (t): t is NonNullable<typeof t> => t !== null
     );
