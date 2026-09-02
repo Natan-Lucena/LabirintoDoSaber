@@ -14,7 +14,7 @@ model Educator {
   password  String
   createdAt DateTime @default(now())
 
-  contact   String?
+  contact  String?
   photoUrl String?
 
   notebooks TaskNotebook[]
@@ -24,7 +24,7 @@ model Educator {
 }
 
 model Student {
-  id             String   @id @map("_id")
+  id             String            @id @map("_id")
   name           String
   age            Int
   gender         Gender
@@ -35,10 +35,12 @@ model Student {
   learningTopics String[]
   photoUrl       String?
   documents      StudentDocument[]
-  createdAt      DateTime @default(now())
+  createdAt      DateTime          @default(now())
   educatorId     String
 
   educatorStudents EducatorStudent[]
+
+  @@index([educatorId])
 }
 
 type StudentDocument {
@@ -50,11 +52,14 @@ type StudentDocument {
 
 model EducatorStudent {
   id         String @id @map("_id")
-  educatorId String 
-  studentId  String 
+  educatorId String
+  studentId  String
 
   educator Educator @relation(fields: [educatorId], references: [id])
   student  Student  @relation(fields: [studentId], references: [id])
+
+  @@index([educatorId])
+  @@index([studentId])
 }
 
 model Task {
@@ -67,8 +72,10 @@ model Task {
   audioFile    String?
   createdAt    DateTime          @default(now())
 
-  notebookId String?       
+  notebookId String?
   notebook   TaskNotebook? @relation(fields: [notebookId], references: [id])
+
+  @@index([notebookId])
 }
 
 type TaskAlternative {
@@ -78,21 +85,25 @@ type TaskAlternative {
 }
 
 model TaskNotebook {
-  id          String               @id @map("_id")
-  educatorId  String               
-  educator    Educator             @relation(fields: [educatorId], references: [id])
-  tasks       Task[]
-  category    TaskNotebookCategory
-  description String
+  id            String               @id @map("_id")
+  educatorId    String
+  educator      Educator             @relation(fields: [educatorId], references: [id])
+  tasks         Task[]
+  category      TaskNotebookCategory
+  description   String
   taskGroupsIds String[]
-  createdAt   DateTime             
+  createdAt     DateTime
+
+  @@index([educatorId])
 }
 
 model AuthToken {
   id       String   @id @map("_id")
   token    String
-  userId   String   
+  userId   String
   educator Educator @relation(fields: [userId], references: [id])
+
+  @@index([userId])
 }
 
 enum Gender {
@@ -128,22 +139,27 @@ model TaskNotebookSession {
   finishedAt  DateTime?
   observation String?
   answers     TaskAnswer[]
+
+  @@index([educatorId])
+  @@index([studentId])
 }
 
 model TaskGroup {
-  id          String   @id @map("_id")
-  name        String
-  educatorId  String
-  taskIds     String[]
-  category    TaskCategory
+  id         String       @id @map("_id")
+  name       String
+  educatorId String
+  taskIds    String[]
+  category   TaskCategory
+
+  @@index([educatorId])
 }
 
 type TaskAnswer {
-  taskId               String
+  taskId                String
   selectedAlternativeId String
-  isCorrect            Boolean
-  timeToAnswer         Int      // segundos
-  answeredAt           DateTime
+  isCorrect             Boolean
+  timeToAnswer          Int // segundos
+  answeredAt            DateTime
 }
 
 model AnamneseTemplate {
@@ -153,6 +169,8 @@ model AnamneseTemplate {
   description String?
   questions   AnamneseQuestion[]
   createdAt   DateTime           @default(now())
+
+  @@index([educatorId])
 }
 
 model AnamneseResponse {
@@ -162,6 +180,9 @@ model AnamneseResponse {
   studentId  String
   answeredAt DateTime         @default(now())
   answers    AnamneseAnswer[]
+
+  @@index([templateId])
+  @@index([studentId])
 }
 
 type AnamneseQuestionOption {
@@ -204,6 +225,11 @@ model Appointment {
   notifiedAt  DateTime?
   metadata    Json              @default("{}")
   createdAt   DateTime          @default(now())
+
+  @@index([educatorId])
+  @@index([studentId])
+  @@index([status])
+  @@index([scheduledAt])
 }
 
 enum AppointmentStatus {
@@ -224,6 +250,8 @@ model StudentAnalysisReport {
   totalQuestions Int
   totalCorrect   Int
   accuracy       Float
+
+  @@index([studentId])
 }
 
 type CategoryAccuracyData {
