@@ -1,4 +1,4 @@
-import { PlanType } from "../entities/plan";
+import { GoalStatus, PlanType } from "../entities/plan";
 
 export interface PlanAiCategoryMetric {
   category: string;
@@ -61,6 +61,38 @@ export class AiInvalidOutputError extends Error {
   }
 }
 
+// Plano atual enviado à IA para sugerir ajustes. Os ids das metas são os
+// reais, para o modelo apontar a meta certa.
+export interface PlanAiSuggestionPlan {
+  type: PlanType;
+  generalObjective: string;
+  startDate: string;
+  endDate: string;
+  nextReviewDate?: string;
+  today: string;
+  goals: { id: string; description: string; successCriterion?: string; status: GoalStatus }[];
+}
+
+export interface GeneratePlanSuggestionsParams {
+  context: PlanAiContext;
+  plan: PlanAiSuggestionPlan;
+  max: number;
+}
+
+// Saída crua do modelo; o use case valida cada item com a entidade.
+export interface PlanSuggestionOutput {
+  kind: string;
+  goalId?: string;
+  text: string;
+  proposedChange: {
+    status?: string;
+    description?: string;
+    successCriterion?: string;
+    nextReviewDate?: string;
+  };
+}
+
 export interface AiPlanGeneratorService {
   generateDraft(params: GeneratePlanDraftParams): Promise<PlanDraftOutput>;
+  generateSuggestions(params: GeneratePlanSuggestionsParams): Promise<PlanSuggestionOutput[]>;
 }

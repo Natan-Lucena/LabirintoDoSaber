@@ -5,10 +5,12 @@ import { Plan, PlanSource, PlanStatus, PlanType } from "../../../../../domain/en
 import { Gender, Student } from "../../../../../domain/entities/student";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { PlanSuggestionRepository } from "../../../../../domain/repositories/plan-suggestion-repository";
 
 describe("ClosePlanUseCase", () => {
   let planRepository: PlanRepository;
   let studentRepository: StudentRepository;
+  let suggestionRepository: PlanSuggestionRepository;
   let useCase: ClosePlanUseCase;
 
   const educatorId = Uuid.random();
@@ -52,7 +54,10 @@ describe("ClosePlanUseCase", () => {
     studentRepository = {
       getById: vi.fn().mockResolvedValue(student),
     } as unknown as StudentRepository;
-    useCase = new ClosePlanUseCase(planRepository, studentRepository);
+    suggestionRepository = {
+      dismissPendingByPlanId: vi.fn(),
+    } as unknown as PlanSuggestionRepository;
+    useCase = new ClosePlanUseCase(planRepository, studentRepository, suggestionRepository);
   });
 
   it("should close the plan with the given status", async () => {
@@ -67,6 +72,15 @@ describe("ClosePlanUseCase", () => {
     expect(stored.closedAt).toBeInstanceOf(Date);
   });
 
+  it("should dismiss the pending suggestions of the closed plan", async () => {
+    const planId = stored.id.value;
+
+    await useCase.execute({ educatorId, planId, status: PlanStatus.COMPLETED });
+
+    expect(suggestionRepository.dismissPendingByPlanId).toHaveBeenCalledOnce();
+    expect((suggestionRepository.dismissPendingByPlanId as any).mock.calls[0][0].value).toBe(planId);
+  });
+
   it("should return PLAN_NOT_EDITABLE when closing twice", async () => {
     const planId = stored.id.value;
     await useCase.execute({ educatorId, planId, status: PlanStatus.COMPLETED });
@@ -76,5 +90,6 @@ describe("ClosePlanUseCase", () => {
     expect(result).toEqual({ ok: false, error: "PLAN_NOT_EDITABLE" });
     expect(stored.status).toBe(PlanStatus.COMPLETED);
     expect(planRepository.save).toHaveBeenCalledOnce();
+    expect(suggestionRepository.dismissPendingByPlanId).toHaveBeenCalledOnce();
   });
 });

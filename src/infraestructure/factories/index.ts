@@ -30,6 +30,8 @@ import { PlanRepository } from "../../domain/repositories/plan-repository";
 import { PlanRepositoryImpl } from "../repositories/prisma/plan-repository-impl";
 import { PlanReviewRepository } from "../../domain/repositories/plan-review-repository";
 import { PlanReviewRepositoryImpl } from "../repositories/prisma/plan-review-repository-impl";
+import { PlanSuggestionRepository } from "../../domain/repositories/plan-suggestion-repository";
+import { PlanSuggestionRepositoryImpl } from "../repositories/prisma/plan-suggestion-repository-impl";
 
 const prismaClient = new PrismaClient();
 
@@ -123,4 +125,8 @@ export const makePlanRepository = (): PlanRepository => {
 
 export const makePlanReviewRepository = (): PlanReviewRepository => {
   return new PlanReviewRepositoryImpl(prismaClient);
+};
+
+export const makePlanSuggestionRepository = (): PlanSuggestionRepository => {
+  return new PlanSuggestionRepositoryImpl(prismaClient);
 };

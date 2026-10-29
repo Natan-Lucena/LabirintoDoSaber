@@ -1,6 +1,7 @@
 import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { PlanRepository } from "../../../../domain/repositories/plan-repository";
 import { StudentRepository } from "../../../../domain/repositories/student-repository";
+import { PlanSuggestionRepository } from "../../../../domain/repositories/plan-suggestion-repository";
 
 export async function assertStudentOwnership(
   studentRepository: StudentRepository,
@@ -40,4 +41,24 @@ export async function loadOwnedPlan(
   }
 
   return success(plan);
+}
+
+// Sugestão do educador ainda pendente; base de aceitar e descartar.
+export async function loadPendingSuggestion(
+  suggestionRepository: PlanSuggestionRepository,
+  suggestionId: string,
+  educatorId: Uuid
+) {
+  if (!Uuid.isValid(suggestionId)) return failure("SUGGESTION_NOT_FOUND");
+
+  const suggestion = await suggestionRepository.findById(new Uuid(suggestionId));
+  if (!suggestion) return failure("SUGGESTION_NOT_FOUND");
+
+  if (suggestion.educatorId.value !== educatorId.value) {
+    return failure("UNAUTHORIZED");
+  }
+
+  if (!suggestion.isPending) return failure("SUGGESTION_ALREADY_RESOLVED");
+
+  return success(suggestion);
 }

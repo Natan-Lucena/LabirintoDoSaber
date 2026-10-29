@@ -1,5 +1,6 @@
 import { Plan } from "../../domain/entities/plan";
 import { PlanReview } from "../../domain/entities/plan-review";
+import { PlanSuggestion } from "../../domain/entities/plan-suggestion";
 
 export function mapPlanToResponse(plan: Plan) {
   return {
@@ -34,6 +35,25 @@ export function mapPlanReviewToResponse(review: PlanReview) {
       goalId: goalStatus.goalId.value,
       status: goalStatus.status,
     })),
+  };
+}
+
+export function mapPlanSuggestionToResponse(
+  suggestion: PlanSuggestion,
+  studentName: string
+) {
+  return {
+    id: suggestion.id.value,
+    planId: suggestion.planId.value,
+    studentId: suggestion.studentId.value,
+    studentName,
+    goalId: suggestion.goalId?.value,
+    kind: suggestion.kind,
+    text: suggestion.text,
+    proposedChange: suggestion.proposedChange,
+    status: suggestion.status,
+    createdAt: suggestion.createdAt,
+    resolvedAt: suggestion.resolvedAt,
   };
 }
 

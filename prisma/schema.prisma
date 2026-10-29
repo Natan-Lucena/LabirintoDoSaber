@@ -342,3 +342,41 @@ enum PlanSource {
   AI
   MANUAL
 }
+
+model PlanSuggestion {
+  id             String               @id @map("_id")
+  planId         String
+  educatorId     String
+  studentId      String
+  goalId         String?
+  kind           SuggestionKind
+  text           String
+  proposedChange PlanSuggestionChange
+  status         SuggestionStatus
+  createdAt      DateTime
+  resolvedAt     DateTime?
+
+  @@index([educatorId, status])
+  @@index([planId, status])
+}
+
+type PlanSuggestionChange {
+  status           GoalStatus?
+  description      String?
+  successCriterion String?
+  // AAAA-MM-DD
+  nextReviewDate   String?
+}
+
+enum SuggestionKind {
+  UPDATE_GOAL_STATUS
+  ADD_GOAL
+  REWRITE_GOAL
+  SCHEDULE_REVIEW
+}
+
+enum SuggestionStatus {
+  PENDING
+  ACCEPTED
+  DISMISSED
+}

@@ -7,6 +7,7 @@ import {
   makeEducatorRepository,
   makePlanRepository,
   makePlanReviewRepository,
+  makePlanSuggestionRepository,
   makeStudentRepository,
   makeTaskNotebookSessionRepository,
   makeTaskRepository,
@@ -32,6 +33,14 @@ import { CreatePlanReviewUseCase } from "../use-cases/create-plan-review/create-
 import { CreatePlanReviewController } from "../use-cases/create-plan-review/create-plan-review-controller";
 import { ListPlanReviewsUseCase } from "../use-cases/list-plan-reviews/list-plan-reviews-use-case";
 import { ListPlanReviewsController } from "../use-cases/list-plan-reviews/list-plan-reviews-controller";
+import { GeneratePlanSuggestionsUseCase } from "../use-cases/generate-plan-suggestions/generate-plan-suggestions-use-case";
+import { GeneratePlanSuggestionsController } from "../use-cases/generate-plan-suggestions/generate-plan-suggestions-controller";
+import { ListPlanSuggestionsUseCase } from "../use-cases/list-plan-suggestions/list-plan-suggestions-use-case";
+import { ListPlanSuggestionsController } from "../use-cases/list-plan-suggestions/list-plan-suggestions-controller";
+import { AcceptPlanSuggestionUseCase } from "../use-cases/accept-plan-suggestion/accept-plan-suggestion-use-case";
+import { AcceptPlanSuggestionController } from "../use-cases/accept-plan-suggestion/accept-plan-suggestion-controller";
+import { DismissPlanSuggestionUseCase } from "../use-cases/dismiss-plan-suggestion/dismiss-plan-suggestion-use-case";
+import { DismissPlanSuggestionController } from "../use-cases/dismiss-plan-suggestion/dismiss-plan-suggestion-controller";
 
 const planRouter = Router();
 
@@ -40,6 +49,7 @@ const studentRepository = makeStudentRepository({ isMock: false });
 const appointmentRepository = makeAppointmentRepository();
 const planRepository = makePlanRepository();
 const planReviewRepository = makePlanReviewRepository();
+const planSuggestionRepository = makePlanSuggestionRepository();
 const anamneseTemplateRepository = makeAnamneseTemplateRepository();
 const anamneseResponseRepository = makeAnamneseResponseRepository();
 const aiPlanGeneratorService = makeAiPlanGeneratorService();
@@ -56,7 +66,7 @@ const listPlansUseCase = new ListPlansUseCase(planRepository, studentRepository)
 const getPlanUseCase = new GetPlanUseCase(planRepository, studentRepository);
 const updatePlanUseCase = new UpdatePlanUseCase(planRepository, studentRepository);
 const changeGoalStatusUseCase = new ChangeGoalStatusUseCase(planRepository, studentRepository);
-const closePlanUseCase = new ClosePlanUseCase(planRepository, studentRepository);
+const closePlanUseCase = new ClosePlanUseCase(planRepository, studentRepository, planSuggestionRepository);
 const createPlanReviewUseCase = new CreatePlanReviewUseCase(planRepository, planReviewRepository, studentRepository);
 const listPlanReviewsUseCase = new ListPlanReviewsUseCase(planRepository, planReviewRepository, studentRepository);
 const generatePlanDraftUseCase = new GeneratePlanDraftUseCase(
@@ -67,6 +77,21 @@ const generatePlanDraftUseCase = new GeneratePlanDraftUseCase(
   generateStudentAnalysisUseCase,
   aiPlanGeneratorService
 );
+const generatePlanSuggestionsUseCase = new GeneratePlanSuggestionsUseCase(
+  planRepository,
+  studentRepository,
+  planSuggestionRepository,
+  anamneseContextBuilder,
+  generateStudentAnalysisUseCase,
+  aiPlanGeneratorService
+);
+const listPlanSuggestionsUseCase = new ListPlanSuggestionsUseCase(planSuggestionRepository, studentRepository);
+const acceptPlanSuggestionUseCase = new AcceptPlanSuggestionUseCase(
+  planRepository,
+  studentRepository,
+  planSuggestionRepository
+);
+const dismissPlanSuggestionUseCase = new DismissPlanSuggestionUseCase(planSuggestionRepository, studentRepository);
 
 const authMiddleware = makeAuthMiddleware(educatorRepository);
 
@@ -83,6 +108,18 @@ planRouter.get("/", async (req, res) => {
 // Rotas literais antes de /:id.
 planRouter.post("/generate", async (req, res) => {
   new GeneratePlanDraftController(generatePlanDraftUseCase).execute(req, res);
+});
+
+planRouter.get("/suggestions", async (req, res) => {
+  new ListPlanSuggestionsController(listPlanSuggestionsUseCase).execute(req, res);
+});
+
+planRouter.post("/suggestions/:id/accept", async (req, res) => {
+  new AcceptPlanSuggestionController(acceptPlanSuggestionUseCase).execute(req, res);
+});
+
+planRouter.post("/suggestions/:id/dismiss", async (req, res) => {
+  new DismissPlanSuggestionController(dismissPlanSuggestionUseCase).execute(req, res);
 });
 
 planRouter.get("/:id", async (req, res) => {
@@ -107,6 +144,10 @@ planRouter.post("/:id/reviews", async (req, res) => {
 
 planRouter.get("/:id/reviews", async (req, res) => {
   new ListPlanReviewsController(listPlanReviewsUseCase).execute(req, res);
+});
+
+planRouter.post("/:id/suggestions/generate", async (req, res) => {
+  new GeneratePlanSuggestionsController(generatePlanSuggestionsUseCase).execute(req, res);
 });
 
 export { planRouter };
