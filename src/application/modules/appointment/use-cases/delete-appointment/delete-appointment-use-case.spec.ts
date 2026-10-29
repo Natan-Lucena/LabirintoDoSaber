@@ -42,6 +42,7 @@ describe("DeleteAppointmentUseCase", () => {
 
     (schedulerService.cancel as any).mockResolvedValue(undefined);
     (appointmentRepository.delete as any).mockResolvedValue(undefined);
+    (appointmentRepository.save as any).mockResolvedValue(undefined);
   });
 
   it("should delete successfully and return success(undefined)", async () => {
@@ -85,7 +86,26 @@ describe("DeleteAppointmentUseCase", () => {
 
     await useCase.execute({ id: appt.id, educatorId });
 
-    expect(schedulerService.cancel).toHaveBeenCalledWith(appt);
+    const cancelArg = (schedulerService.cancel as any).mock.calls[0][0];
+    expect(cancelArg.id.value).toBe(appt.id.value);
+    expect(cancelArg.status).toBe(AppointmentStatus.CANCELLED);
+  });
+
+  it("should save the appointment as CANCELLED before calling schedulerService.cancel", async () => {
+    const appt = makeAppointment(educatorId);
+    (appointmentRepository.findById as any).mockResolvedValue(appt);
+
+    const callOrder: string[] = [];
+    (appointmentRepository.save as any).mockImplementation(async (saved: Appointment) => {
+      callOrder.push(`save:${saved.status}`);
+    });
+    (schedulerService.cancel as any).mockImplementation(async () => {
+      callOrder.push("cancel");
+    });
+
+    await useCase.execute({ id: appt.id, educatorId });
+
+    expect(callOrder).toEqual([`save:${AppointmentStatus.CANCELLED}`, "cancel"]);
   });
 
   it("should return failure('NOT_FOUND') when appointment does not exist", async () => {

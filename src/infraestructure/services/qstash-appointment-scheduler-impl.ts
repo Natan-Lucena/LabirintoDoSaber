@@ -29,11 +29,20 @@ export class QStashAppointmentSchedulerImpl implements AppointmentSchedulerServi
 
   async cancel(appointment: Appointment): Promise<void> {
     const messageId = appointment.metadata[CHAIN_KEY];
-    if (typeof messageId === "string") {
+    if (typeof messageId !== "string") return;
+
+    // Só o líder ativo (mensagem ainda por disparar) carrega a cadeia. Um atendimento
+    // já notificado ou no passado guarda um id antigo: basta limpar, senão
+    // scheduleNext abriria uma segunda cadeia ao lado do líder atual.
+    const isActiveLeader = appointment.scheduledAt > new Date() && !appointment.notifiedAt;
+
+    if (isActiveLeader) {
       await this._deleteQStashMessage(messageId);
-      await this.appointmentRepo.save(appointment.withMetadata(CHAIN_KEY, null));
     }
-    await this.scheduleNext();
+    await this.appointmentRepo.save(appointment.withMetadata(CHAIN_KEY, null));
+    if (isActiveLeader) {
+      await this.scheduleNext();
+    }
   }
 
   async scheduleNext(): Promise<void> {
