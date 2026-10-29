@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { Uuid } from "@wave-telecom/framework/core";
+import { isValidDateOnly } from "../../../../domain/utils/date-only";
 
 export const dateOnlySchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Data deve estar no formato AAAA-MM-DD");
+  .refine(isValidDateOnly, "Data deve ser válida no formato AAAA-MM-DD");
 
 export const uuidSchema = z
   .string()
