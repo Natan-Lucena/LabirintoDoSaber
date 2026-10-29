@@ -16,6 +16,8 @@ import { GetAnamneseResponseUseCase } from "../use-cases/get-anamnese-response/g
 import { GetAnamneseResponseController } from "../use-cases/get-anamnese-response/get-anamnese-response-controller";
 import { UploadAnamneseFileUseCase } from "../use-cases/upload-anamnese-file/upload-anamnese-file-use-case";
 import { UploadAnamneseFileController } from "../use-cases/upload-anamnese-file/upload-anamnese-file-controller";
+import { UpdateAnamneseResponseUseCase } from "../use-cases/update-anamnese-response/update-anamnese-response-use-case";
+import { UpdateAnamneseResponseController } from "../use-cases/update-anamnese-response/update-anamnese-response-controller";
 
 const anamneseResponseRouter = Router();
 
@@ -34,6 +36,10 @@ const submitUseCase = new SubmitAnamneseResponseUseCase(
 const listByStudentUseCase = new ListAnamneseResponsesByStudentUseCase(responseRepository);
 const getUseCase = new GetAnamneseResponseUseCase(responseRepository);
 const uploadFileUseCase = new UploadAnamneseFileUseCase(makeFileStorage());
+const updateUseCase = new UpdateAnamneseResponseUseCase(
+  templateRepository,
+  responseRepository
+);
 
 anamneseResponseRouter.use(authMiddleware);
 
@@ -63,6 +69,13 @@ anamneseResponseRouter.get(
   "/responses/:responseId",
   (req: Request, res: Response) => {
     new GetAnamneseResponseController(getUseCase).execute(req, res);
+  }
+);
+
+anamneseResponseRouter.put(
+  "/responses/:responseId",
+  (req: Request, res: Response) => {
+    new UpdateAnamneseResponseController(updateUseCase).execute(req, res);
   }
 );
 

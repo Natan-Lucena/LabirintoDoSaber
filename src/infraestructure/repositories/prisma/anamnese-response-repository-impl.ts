@@ -21,14 +21,20 @@ export class AnamneseResponseRepositoryImpl implements AnamneseResponseRepositor
       fileUrl: a.fileUrl ?? null,
     }));
 
-    await this.prismaService.anamneseResponse.create({
-      data: {
+    await this.prismaService.anamneseResponse.upsert({
+      where: { id: response.id.value },
+      create: {
         id: response.id.value,
         templateId: response.templateId.value,
         educatorId: response.educatorId.value,
         studentId: response.studentId.value,
         answeredAt: response.answeredAt,
+        updatedAt: response.updatedAt ?? null,
         answers,
+      },
+      update: {
+        answers: { set: answers },
+        updatedAt: response.updatedAt ?? null,
       },
     });
   }
@@ -72,6 +78,7 @@ export class AnamneseResponseRepositoryImpl implements AnamneseResponseRepositor
       studentId: new Uuid(data.studentId),
       answers,
       answeredAt: data.answeredAt,
+      updatedAt: data.updatedAt ?? undefined,
     });
   }
 
