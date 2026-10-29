@@ -34,11 +34,15 @@ export class TaskNotebokSessionRepositoryImpl
         studentId: session.studentId.value,
         finishedAt: session.finishedAt,
         observation: session.observation,
+        taskNotebookId: session.taskNotebookId?.value ?? null,
+        appointmentId: session.appointmentId?.value ?? null,
       },
       update: {
         startedAt: session.startedAt,
         finishedAt: session.finishedAt,
         observation: session.observation,
+        taskNotebookId: session.taskNotebookId?.value ?? null,
+        appointmentId: session.appointmentId?.value ?? null,
         answers: {
           set: session.answers.map((a) => ({
             taskId: a.taskId.value,
@@ -81,7 +85,9 @@ export class TaskNotebokSessionRepositoryImpl
         timeToAnswer: a.timeToAnswer,
         answeredAt: a.answeredAt,
       })),
-      data.observation ?? undefined
+      data.observation ?? undefined,
+      data.taskNotebookId ? new Uuid(data.taskNotebookId) : undefined,
+      data.appointmentId ? new Uuid(data.appointmentId) : undefined
     );
   }
 }

@@ -24,6 +24,14 @@ import { AiTaskGeneratorService } from "../../domain/services/ai-task-generator-
 import { GeminiTaskGeneratorImpl } from "../services/gemini-task-generator-impl";
 import { AiStudentAnalysisService } from "../../domain/services/ai-student-analysis-service";
 import { GeminiStudentAnalysisImpl } from "../services/gemini-student-analysis-impl";
+import { AiPlanGeneratorService } from "../../domain/services/ai-plan-generator-service";
+import { GeminiPlanGeneratorImpl } from "../services/gemini-plan-generator-impl";
+import { PlanRepository } from "../../domain/repositories/plan-repository";
+import { PlanRepositoryImpl } from "../repositories/prisma/plan-repository-impl";
+import { PlanReviewRepository } from "../../domain/repositories/plan-review-repository";
+import { PlanReviewRepositoryImpl } from "../repositories/prisma/plan-review-repository-impl";
+import { PlanSuggestionRepository } from "../../domain/repositories/plan-suggestion-repository";
+import { PlanSuggestionRepositoryImpl } from "../repositories/prisma/plan-suggestion-repository-impl";
 
 const prismaClient = new PrismaClient();
 
@@ -105,4 +113,20 @@ export const makeAiTaskGeneratorService = (): AiTaskGeneratorService => {
 
 export const makeAiStudentAnalysisService = (): AiStudentAnalysisService => {
   return new GeminiStudentAnalysisImpl();
+};
+
+export const makeAiPlanGeneratorService = (): AiPlanGeneratorService => {
+  return new GeminiPlanGeneratorImpl();
+};
+
+export const makePlanRepository = (): PlanRepository => {
+  return new PlanRepositoryImpl(prismaClient);
+};
+
+export const makePlanReviewRepository = (): PlanReviewRepository => {
+  return new PlanReviewRepositoryImpl(prismaClient);
+};
+
+export const makePlanSuggestionRepository = (): PlanSuggestionRepository => {
+  return new PlanSuggestionRepositoryImpl(prismaClient);
 };

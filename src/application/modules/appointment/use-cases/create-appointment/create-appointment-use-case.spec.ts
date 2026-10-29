@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { success, Uuid } from "@wave-telecom/framework/core";
 import { CreateAppointmentUseCase } from "./create-appointment-use-case";
 import { AppointmentRepository } from "../../../../../domain/repositories/appointment-repository";
+import { Appointment } from "../../../../../domain/entities/appointment";
 import { AppointmentSchedulerService } from "../../../../../domain/services/appointment-scheduler-service";
 
 const mockAppointmentRepository = (): AppointmentRepository =>
@@ -36,6 +37,7 @@ describe("CreateAppointmentUseCase", () => {
 
     (appointmentRepository.save as any).mockResolvedValue(undefined);
     (schedulerService.ensureScheduled as any).mockResolvedValue(undefined);
+    (appointmentRepository.search as any).mockResolvedValue([]);
   });
 
   it("should create and save the appointment", async () => {
@@ -88,5 +90,56 @@ describe("CreateAppointmentUseCase", () => {
 
     const savedArg = (appointmentRepository.save as any).mock.calls[0][0];
     expect(savedArg.educatorId).toBe(otherId);
+  });
+  it("should forward type and durationMinutes", async () => {
+    await useCase.execute({ educatorId, studentId, scheduledAt, type: "Avaliação", durationMinutes: 90 });
+
+    const savedArg = (appointmentRepository.save as any).mock.calls[0][0];
+    expect(savedArg.type).toBe("Avaliação");
+    expect(savedArg.durationMinutes).toBe(90);
+  });
+
+  it("should search PENDING appointments of the educator in a 240-minute window", async () => {
+    await useCase.execute({ educatorId, studentId, scheduledAt });
+
+    expect(appointmentRepository.search).toHaveBeenCalledWith({
+      educatorId,
+      status: "PENDING",
+      scheduledAfter: new Date("2026-08-01T06:00:00Z"),
+      scheduledBefore: new Date("2026-08-01T14:00:00Z"),
+    });
+  });
+
+  it("should return APPOINTMENT_CONFLICT with the conflicting id and not save", async () => {
+    const existing = Appointment.create({
+      educatorId,
+      studentId: Uuid.random(),
+      scheduledAt: new Date("2026-08-01T09:30:00Z"),
+      durationMinutes: 60,
+    });
+    (appointmentRepository.search as any).mockResolvedValue([existing]);
+
+    const result = await useCase.execute({ educatorId, studentId, scheduledAt });
+
+    expect(result).toEqual({
+      ok: false,
+      error: { code: "APPOINTMENT_CONFLICT", conflictingAppointmentId: existing.id.value },
+    });
+    expect(appointmentRepository.save).not.toHaveBeenCalled();
+    expect(schedulerService.ensureScheduled).not.toHaveBeenCalled();
+  });
+
+  it("should accept an appointment that starts exactly when another ends", async () => {
+    const existing = Appointment.create({
+      educatorId,
+      studentId: Uuid.random(),
+      scheduledAt: new Date("2026-08-01T09:10:00Z"),
+    });
+    (appointmentRepository.search as any).mockResolvedValue([existing]);
+
+    const result = await useCase.execute({ educatorId, studentId, scheduledAt });
+
+    expect(result.ok).toBe(true);
+    expect(appointmentRepository.save).toHaveBeenCalledOnce();
   });
 });

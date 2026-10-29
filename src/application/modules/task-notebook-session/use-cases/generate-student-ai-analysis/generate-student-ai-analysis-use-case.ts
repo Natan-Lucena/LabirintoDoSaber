@@ -1,13 +1,11 @@
-import { failure, success, Uuid } from "@wave-telecom/framework/core";
+import { failure, success } from "@wave-telecom/framework/core";
 import { AnamneseTemplateRepository } from "../../../../../domain/repositories/anamnese-template-repository";
 import { AnamneseResponseRepository } from "../../../../../domain/repositories/anamnese-response-repository";
 import {
   AiStudentAnalysisService,
   StudentAnalysisAiInput,
-  StudentAnalysisAnamneseAnswer,
 } from "../../../../../domain/services/ai-student-analysis-service";
-import { AnamneseAnswer } from "../../../../../domain/entities/anamnese-response";
-import { AnamneseTemplate } from "../../../../../domain/entities/anamnese-template";
+import { AnamneseContextBuilder } from "../../../../services/anamnese-context-builder";
 import { GenerateStudentAnalysisUseCase } from "../generate-student-analisys/generate-student-analisys-use-case";
 
 export interface GenerateStudentAiAnalysisUseCaseRequest {
@@ -19,12 +17,19 @@ export interface GenerateStudentAiAnalysisUseCaseRequest {
 }
 
 export class GenerateStudentAiAnalysisUseCase {
+  private anamneseBuilder: AnamneseContextBuilder;
+
   constructor(
     private generateStudentAnalysisUseCase: GenerateStudentAnalysisUseCase,
-    private anamneseTemplateRepository: AnamneseTemplateRepository,
-    private anamneseResponseRepository: AnamneseResponseRepository,
+    anamneseTemplateRepository: AnamneseTemplateRepository,
+    anamneseResponseRepository: AnamneseResponseRepository,
     private aiStudentAnalysisService: AiStudentAnalysisService
-  ) {}
+  ) {
+    this.anamneseBuilder = new AnamneseContextBuilder(
+      anamneseTemplateRepository,
+      anamneseResponseRepository
+    );
+  }
 
   async execute(request: GenerateStudentAiAnalysisUseCaseRequest) {
     // loadAnalysisData já faz, numa única leva, a busca de student +
@@ -38,7 +43,7 @@ export class GenerateStudentAiAnalysisUseCase {
         limit: request.limit,
       }),
       request.templateId
-        ? this.buildAnamnese(request.templateId, request.studentId)
+        ? this.anamneseBuilder.buildAnamnese(request.templateId, request.studentId)
         : Promise.resolve(null),
     ]);
 
@@ -113,75 +118,5 @@ export class GenerateStudentAiAnalysisUseCase {
     }
 
     return success({ analysis });
-  }
-
-  private async buildAnamnese(
-    templateId: string,
-    studentId: string
-  ): Promise<StudentAnalysisAiInput["anamnese"] | null> {
-    const template = await this.anamneseTemplateRepository.findById(
-      new Uuid(templateId)
-    );
-
-    if (!template) return null;
-
-    const responses = await this.anamneseResponseRepository.listByStudentId(
-      new Uuid(studentId)
-    );
-
-    const templateResponses = responses.filter(
-      (response) => response.templateId.value === templateId
-    );
-
-    if (!templateResponses.length) return null;
-
-    const answers: StudentAnalysisAnamneseAnswer[] = [];
-    for (const response of templateResponses) {
-      for (const answer of response.answers) {
-        answers.push({
-          question: this.resolveQuestionText(template, answer.questionId),
-          answer: this.resolveAnswerText(template, answer),
-        });
-      }
-    }
-
-    return { templateTitle: template.title, answers };
-  }
-
-  private resolveQuestionText(
-    template: AnamneseTemplate,
-    questionId: string
-  ): string {
-    const question = template.questions.find((q) => q.id === questionId);
-    return question?.text ?? "(pergunta não encontrada)";
-  }
-
-  private resolveAnswerText(
-    template: AnamneseTemplate,
-    answer: AnamneseAnswer
-  ): string {
-    const question = template.questions.find((q) => q.id === answer.questionId);
-
-    if (answer.textValue) return answer.textValue;
-
-    if (answer.selectedOptionId) {
-      const option = question?.options.find(
-        (o) => o.id === answer.selectedOptionId
-      );
-      return option?.text ?? answer.selectedOptionId;
-    }
-
-    if (answer.selectedOptionIds?.length) {
-      return answer.selectedOptionIds
-        .map(
-          (id) =>
-            question?.options.find((o) => o.id === id)?.text ?? id
-        )
-        .join(", ");
-    }
-
-    if (answer.fileUrl) return `Arquivo enviado: ${answer.fileUrl}`;
-
-    return "(sem resposta)";
   }
 }

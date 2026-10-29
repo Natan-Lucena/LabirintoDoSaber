@@ -5,6 +5,7 @@ interface UpdateEducatorUseCaseRequest {
   email: string;
   newName?: string;
   newContact?: string;
+  newProfession?: string;
 }
 
 export class UpdateEducatorUseCase {
@@ -20,6 +21,7 @@ export class UpdateEducatorUseCase {
     educator.update({
       name: request.newName ?? educator.name,
       contact: request.newContact ?? educator.contact,
+      profession: request.newProfession ?? educator.profession,
     });
 
     const result = await this.educatorRepository.save(educator);

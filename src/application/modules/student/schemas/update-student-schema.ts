@@ -1,5 +1,6 @@
 import z from "zod";
 import { Gender } from "../../../../domain/entities/student";
+import { guardianFields } from "./guardian-fields";
 
 export const updateStudentSchema = z.object({
   id: z.string().uuid(),
@@ -11,4 +12,5 @@ export const updateStudentSchema = z.object({
   housenumber: z.string().min(1).max(10).optional(),
   phonenumber: z.string().min(7).max(15).optional(),
   learningTopics: z.array(z.string().min(1).max(50)).min(1).optional(),
+  ...guardianFields,
 });

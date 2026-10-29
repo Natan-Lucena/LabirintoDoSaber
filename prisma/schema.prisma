@@ -14,8 +14,9 @@ model Educator {
   password  String
   createdAt DateTime @default(now())
 
-  contact  String?
-  photoUrl String?
+  contact    String?
+  photoUrl   String?
+  profession String?
 
   notebooks TaskNotebook[]
   tokens    AuthToken[]
@@ -35,6 +36,11 @@ model Student {
   learningTopics String[]
   photoUrl       String?
   documents      StudentDocument[]
+
+  guardianName         String?
+  guardianPhone        String?
+  guardianRelationship String?
+
   createdAt      DateTime          @default(now())
   educatorId     String
 
@@ -131,14 +137,16 @@ enum TaskNotebookCategory {
 }
 
 model TaskNotebookSession {
-  id          String       @id @map("_id")
-  educatorId  String
-  studentId   String
-  name        String
-  startedAt   DateTime
-  finishedAt  DateTime?
-  observation String?
-  answers     TaskAnswer[]
+  id             String       @id @map("_id")
+  educatorId     String
+  studentId      String
+  name           String
+  startedAt      DateTime
+  finishedAt     DateTime?
+  observation    String?
+  answers        TaskAnswer[]
+  taskNotebookId String?
+  appointmentId  String?
 
   @@index([educatorId])
   @@index([studentId])
@@ -179,6 +187,7 @@ model AnamneseResponse {
   educatorId String
   studentId  String
   answeredAt DateTime         @default(now())
+  updatedAt  DateTime?
   answers    AnamneseAnswer[]
 
   @@index([templateId])
@@ -221,6 +230,8 @@ model Appointment {
   studentId   String
   scheduledAt DateTime
   observation String?
+  type            String?
+  durationMinutes Int?
   status      AppointmentStatus @default(PENDING)
   notifiedAt  DateTime?
   metadata    Json              @default("{}")
@@ -263,4 +274,120 @@ type CategoryAccuracyData {
   total    Int
   correct  Int
   accuracy Float
+}
+
+model Plan {
+  id                     String       @id @map("_id")
+  educatorId             String
+  studentId              String
+  type                   PlanType
+  status                 PlanStatus
+  source                 PlanSource
+  title                  String
+  generalObjective       String
+  professionalNotes      String?
+  focus                  String?
+  consideredDifficulties String[]
+  // Datas sem hora no formato AAAA-MM-DD (fuso America/Sao_Paulo).
+  startDate              String
+  endDate                String
+  nextReviewDate         String?
+  parentPlanId           String?
+  sessionDate            String?
+  appointmentId          String?
+  goals                  PlanGoal[]
+  createdAt              DateTime
+  updatedAt              DateTime
+  closedAt               DateTime?
+
+  @@index([educatorId, studentId])
+  @@index([studentId, type, status])
+}
+
+type PlanGoal {
+  id               String
+  order            Int
+  description      String
+  successCriterion String?
+  status           GoalStatus
+  achievedAt       DateTime?
+  updatedAt        DateTime
+}
+
+model PlanReview {
+  id             String                 @id @map("_id")
+  planId         String
+  educatorId     String
+  reviewedAt     DateTime
+  note           String
+  nextReviewDate String?
+  goalStatuses   PlanReviewGoalStatus[]
+
+  @@index([planId])
+}
+
+type PlanReviewGoalStatus {
+  goalId String
+  status GoalStatus
+}
+
+enum PlanType {
+  PDI
+  PE
+}
+
+enum PlanStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum GoalStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  ACHIEVED
+  DISCONTINUED
+}
+
+enum PlanSource {
+  AI
+  MANUAL
+}
+
+model PlanSuggestion {
+  id             String               @id @map("_id")
+  planId         String
+  educatorId     String
+  studentId      String
+  goalId         String?
+  kind           SuggestionKind
+  text           String
+  proposedChange PlanSuggestionChange
+  status         SuggestionStatus
+  createdAt      DateTime
+  resolvedAt     DateTime?
+
+  @@index([educatorId, status])
+  @@index([planId, status])
+}
+
+type PlanSuggestionChange {
+  status           GoalStatus?
+  description      String?
+  successCriterion String?
+  // AAAA-MM-DD
+  nextReviewDate   String?
+}
+
+enum SuggestionKind {
+  UPDATE_GOAL_STATUS
+  ADD_GOAL
+  REWRITE_GOAL
+  SCHEDULE_REVIEW
+}
+
+enum SuggestionStatus {
+  PENDING
+  ACCEPTED
+  DISMISSED
 }

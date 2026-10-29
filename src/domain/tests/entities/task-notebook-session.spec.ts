@@ -140,4 +140,68 @@ describe("TaskNotebookSession Entity", () => {
     expect(finishedSession?.answers.length).toBe(1);
     expect(finishedSession?.answers[0]).toEqual(answer);
   });
+
+  describe("notebook and appointment link", () => {
+    const makeAnswer = (taskId: Uuid = Uuid.random()): TaskAnswer => ({
+      taskId,
+      selectedAlternativeId: Uuid.random(),
+      isCorrect: true,
+      timeToAnswer: 3,
+      answeredAt: new Date(),
+    });
+
+    const startLinked = () => {
+      const notebookId = Uuid.random();
+      const appointmentId = Uuid.random();
+      const result = TaskNotebookSession.start(
+        Uuid.random(),
+        "name",
+        Uuid.random(),
+        notebookId,
+        appointmentId
+      );
+      if (!result.ok) throw new Error("start failed");
+      return { session: result.value, notebookId, appointmentId };
+    };
+
+    it("should keep taskNotebookId and appointmentId through answerTask, finish and addObservation", () => {
+      const { session, notebookId, appointmentId } = startLinked();
+      expect(session.taskNotebookId).toBe(notebookId);
+      expect(session.appointmentId).toBe(appointmentId);
+
+      const answered = session.answerTask(makeAnswer());
+      if (!answered.ok) throw new Error("answer failed");
+      expect(answered.value.taskNotebookId).toBe(notebookId);
+      expect(answered.value.appointmentId).toBe(appointmentId);
+
+      const finished = answered.value.finish();
+      if (!finished.ok) throw new Error("finish failed");
+      expect(finished.value.taskNotebookId).toBe(notebookId);
+      expect(finished.value.appointmentId).toBe(appointmentId);
+
+      const observed = finished.value.addObservation("obs");
+      if (!observed.ok) throw new Error("observation failed");
+      expect(observed.value.taskNotebookId).toBe(notebookId);
+      expect(observed.value.appointmentId).toBe(appointmentId);
+    });
+
+    it("should leave both fields undefined when started without them", () => {
+      const result = TaskNotebookSession.start(Uuid.random(), "name", Uuid.random());
+      if (!result.ok) throw new Error("start failed");
+      expect(result.value.taskNotebookId).toBeUndefined();
+      expect(result.value.appointmentId).toBeUndefined();
+    });
+
+    it("should block a duplicate answer even when the taskId is a different Uuid instance", () => {
+      const { session } = startLinked();
+      const taskId = Uuid.random();
+
+      const first = session.answerTask(makeAnswer(taskId));
+      if (!first.ok) throw new Error("answer failed");
+
+      const second = first.value.answerTask(makeAnswer(new Uuid(taskId.value)));
+
+      expect(second).toEqual(failure("TASK_ALREADY_ANSWERED"));
+    });
+  });
 });

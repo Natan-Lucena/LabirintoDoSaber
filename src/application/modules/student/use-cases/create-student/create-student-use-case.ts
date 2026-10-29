@@ -16,6 +16,9 @@ export interface CreateStudentUseCaseRequest {
   photo?: Express.Multer.File;
   learningTopics: string[];
   educatorEmail: string;
+  guardianName?: string;
+  guardianPhone?: string;
+  guardianRelationship?: string;
 }
 
 export class CreateStudentUseCase {
@@ -57,6 +60,9 @@ export class CreateStudentUseCase {
       educators: [educatorExists],
       educatorId: educatorExists.id,
       photoUrl: photoUrl,
+      guardianName: request.guardianName,
+      guardianPhone: request.guardianPhone,
+      guardianRelationship: request.guardianRelationship,
     });
 
     await this.studentRepository.save(student);

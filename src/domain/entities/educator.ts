@@ -8,11 +8,13 @@ interface CreateEducatorProps {
   password: string;
   photoUrl?: string;
   contact?: string;
+  profession?: string;
 }
 
 interface UpdateEducatorProps {
   name?: string;
   contact?: string;
+  profession?: string;
 }
 
 export class Educator {
@@ -23,7 +25,8 @@ export class Educator {
     private _password: string,
     public readonly createdAt: Date,
     private _photoUrl?: string,
-    private _contact?: string
+    private _contact?: string,
+    private _profession?: string
   ) {}
 
   static create(props: CreateEducatorProps) {
@@ -34,7 +37,8 @@ export class Educator {
       props.password,
       props.createdAt || new Date(),
       props.photoUrl,
-      props.contact
+      props.contact,
+      props.profession
     );
   }
 
@@ -57,9 +61,15 @@ export class Educator {
   get contact(): string | undefined {
     return this._contact;
   }
+
+  get profession(): string | undefined {
+    return this._profession;
+  }
+
   update(props: UpdateEducatorProps) {
     this._name = props.name ?? this._name;
     this._contact = props.contact ?? this._contact;
+    this._profession = props.profession ?? this._profession;
   }
 
   updateProfilePicture(photoUrl: string) {

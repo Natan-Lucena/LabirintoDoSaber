@@ -15,6 +15,9 @@ export const mapStudentToResponse = (student: Student) => {
     educatorId: student.educatorId.value,
     photoUrl: student.photoUrl ?? null,
     documents: student.documents,
+    guardianName: student.guardianName ?? null,
+    guardianPhone: student.guardianPhone ?? null,
+    guardianRelationship: student.guardianRelationship ?? null,
     educators: student.educators,
   };
 };

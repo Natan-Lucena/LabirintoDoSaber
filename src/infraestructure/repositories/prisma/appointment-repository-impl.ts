@@ -21,6 +21,8 @@ export class AppointmentRepositoryImpl implements AppointmentRepository {
         studentId: appointment.studentId.value,
         scheduledAt: appointment.scheduledAt,
         observation: appointment.observation ?? null,
+        type: appointment.type ?? null,
+        durationMinutes: appointment.durationMinutes,
         status: this.mapStatus(appointment.status),
         notifiedAt: appointment.notifiedAt ?? null,
         metadata: appointment.metadata as Prisma.InputJsonValue,
@@ -31,6 +33,8 @@ export class AppointmentRepositoryImpl implements AppointmentRepository {
         studentId: appointment.studentId.value,
         scheduledAt: appointment.scheduledAt,
         observation: appointment.observation ?? null,
+        type: appointment.type ?? null,
+        durationMinutes: appointment.durationMinutes,
         status: this.mapStatus(appointment.status),
         notifiedAt: appointment.notifiedAt ?? null,
         metadata: appointment.metadata as Prisma.InputJsonValue,
@@ -120,6 +124,8 @@ export class AppointmentRepositoryImpl implements AppointmentRepository {
     studentId: string;
     scheduledAt: Date;
     observation: string | null;
+    type: string | null;
+    durationMinutes: number | null;
     status: PrismaAppointmentStatus;
     notifiedAt: Date | null;
     metadata: Prisma.JsonValue;
@@ -137,6 +143,8 @@ export class AppointmentRepositoryImpl implements AppointmentRepository {
       studentId: new Uuid(record.studentId),
       scheduledAt: record.scheduledAt,
       observation: record.observation ?? undefined,
+      type: record.type ?? undefined,
+      durationMinutes: record.durationMinutes ?? undefined,
       status: this.mapStatusFromPrisma(record.status),
       notifiedAt: record.notifiedAt ?? undefined,
       metadata,

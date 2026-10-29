@@ -34,6 +34,8 @@ export class StartTaskNotebookSessionController extends BaseController {
           return this.notFound(res, "STUDENT_NOT_FOUND");
         case "NOTEBOOK_NOT_FOUND":
           return this.notFound(res, "NOTEBOOK_NOT_FOUND");
+        case "APPOINTMENT_NOT_FOUND":
+          return this.notFound(res, "APPOINTMENT_NOT_FOUND");
         case "SESSION_CREATION_FAILED":
           return this.fail(res, "SESSION_CREATION_FAILED");
         default:

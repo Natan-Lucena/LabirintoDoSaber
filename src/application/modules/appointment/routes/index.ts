@@ -32,7 +32,7 @@ const schedulerService = makeAppointmentSchedulerService(appointmentRepository);
 const mailService = new NodemailerMailService();
 
 const createAppointmentUseCase = new CreateAppointmentUseCase(appointmentRepository, schedulerService);
-const updateAppointmentUseCase = new UpdateAppointmentUseCase(appointmentRepository);
+const updateAppointmentUseCase = new UpdateAppointmentUseCase(appointmentRepository, schedulerService);
 const deleteAppointmentUseCase = new DeleteAppointmentUseCase(appointmentRepository, schedulerService);
 const listAppointmentsUseCase = new ListAppointmentsUseCase(appointmentRepository);
 const getAppointmentUseCase = new GetAppointmentUseCase(appointmentRepository);

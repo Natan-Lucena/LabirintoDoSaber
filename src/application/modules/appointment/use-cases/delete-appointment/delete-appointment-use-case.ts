@@ -20,7 +20,11 @@ export class DeleteAppointmentUseCase {
       return failure("NOT_FOUND");
     }
 
-    await this.schedulerService.cancel(appointment);
+    // Tirar de PENDING antes de mexer na cadeia: senão o scheduleNext chamado por
+    // cancel reescolheria este mesmo atendimento como próximo líder.
+    const cancelled = appointment.cancel();
+    await this.appointmentRepository.save(cancelled);
+    await this.schedulerService.cancel(cancelled);
     await this.appointmentRepository.delete(request.id);
 
     return success(undefined);

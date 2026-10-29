@@ -38,11 +38,72 @@ export class AnamneseResponse {
     public readonly educatorId: Uuid,
     public readonly studentId: Uuid,
     public readonly answers: AnamneseAnswer[],
-    public readonly answeredAt: Date
+    public readonly answeredAt: Date,
+    public readonly updatedAt?: Date
   ) {}
 
   static create(props: CreateAnamneseResponseProps, template: AnamneseTemplate) {
-    const answersById = new Map(props.answers.map((a) => [a.questionId, a]));
+    const builtAnswers = AnamneseResponse.buildAnswers(props.answers, template);
+    if (!builtAnswers.ok) {
+      return builtAnswers;
+    }
+
+    return success(
+      new AnamneseResponse(
+        props.id ?? Uuid.random(),
+        props.templateId,
+        props.educatorId,
+        props.studentId,
+        builtAnswers.value,
+        props.answeredAt ?? new Date()
+      )
+    );
+  }
+
+  updateAnswers(inputs: AnamneseAnswerInput[], template: AnamneseTemplate) {
+    const builtAnswers = AnamneseResponse.buildAnswers(inputs, template);
+    if (!builtAnswers.ok) {
+      return builtAnswers;
+    }
+
+    return success(
+      new AnamneseResponse(
+        this.id,
+        this.templateId,
+        this.educatorId,
+        this.studentId,
+        builtAnswers.value,
+        this.answeredAt,
+        new Date()
+      )
+    );
+  }
+
+  static fromPersistence(props: {
+    id: Uuid;
+    templateId: Uuid;
+    educatorId: Uuid;
+    studentId: Uuid;
+    answers: AnamneseAnswer[];
+    answeredAt: Date;
+    updatedAt?: Date;
+  }) {
+    return new AnamneseResponse(
+      props.id,
+      props.templateId,
+      props.educatorId,
+      props.studentId,
+      props.answers,
+      props.answeredAt,
+      props.updatedAt
+    );
+  }
+
+  private static buildAnswers(
+    inputs: AnamneseAnswerInput[],
+    template: AnamneseTemplate
+  ) {
+    const answersById = new Map(inputs.map((a) => [a.questionId, a]));
 
     for (const question of template.questions) {
       const input = answersById.get(question.id);
@@ -54,7 +115,7 @@ export class AnamneseResponse {
     const questionMap = new Map(template.questions.map((q) => [q.id, q]));
     const builtAnswers: AnamneseAnswer[] = [];
 
-    for (const input of props.answers) {
+    for (const input of inputs) {
       const question = questionMap.get(input.questionId);
       if (!question) {
         return failure("INVALID_QUESTION_ID");
@@ -67,34 +128,7 @@ export class AnamneseResponse {
       builtAnswers.push(answer.value);
     }
 
-    return success(
-      new AnamneseResponse(
-        props.id ?? Uuid.random(),
-        props.templateId,
-        props.educatorId,
-        props.studentId,
-        builtAnswers,
-        props.answeredAt ?? new Date()
-      )
-    );
-  }
-
-  static fromPersistence(props: {
-    id: Uuid;
-    templateId: Uuid;
-    educatorId: Uuid;
-    studentId: Uuid;
-    answers: AnamneseAnswer[];
-    answeredAt: Date;
-  }) {
-    return new AnamneseResponse(
-      props.id,
-      props.templateId,
-      props.educatorId,
-      props.studentId,
-      props.answers,
-      props.answeredAt
-    );
+    return success(builtAnswers);
   }
 
   private static buildAnswer(input: AnamneseAnswerInput, question: AnamneseQuestion) {
