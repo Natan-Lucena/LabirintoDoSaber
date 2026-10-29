@@ -22,6 +22,9 @@ export interface UpdateStudentProps {
   housenumber?: string;
   phonenumber?: string;
   learningTopics?: string[];
+  guardianName?: string;
+  guardianPhone?: string;
+  guardianRelationship?: string;
 }
 
 export interface CreateStudentProps {
@@ -39,6 +42,9 @@ export interface CreateStudentProps {
   educatorId: Uuid;
   photoUrl?: string;
   documents?: StudentDocument[];
+  guardianName?: string;
+  guardianPhone?: string;
+  guardianRelationship?: string;
 }
 
 export class Student {
@@ -56,7 +62,10 @@ export class Student {
     public readonly educators: Educator[],
     public readonly educatorId: Uuid,
     private _photoUrl?: string,
-    private _documents: StudentDocument[] = []
+    private _documents: StudentDocument[] = [],
+    private _guardianName?: string,
+    private _guardianPhone?: string,
+    private _guardianRelationship?: string
   ) {}
 
   static create(props: CreateStudentProps) {
@@ -74,7 +83,10 @@ export class Student {
       props.educators,
       props.educatorId,
       props.photoUrl,
-      props.documents ?? []
+      props.documents ?? [],
+      props.guardianName,
+      props.guardianPhone,
+      props.guardianRelationship
     );
   }
 
@@ -98,6 +110,10 @@ export class Student {
     this._road = props.road ?? this._road;
     this._housenumber = props.housenumber ?? this._housenumber;
     this._phonenumber = props.phonenumber ?? this._phonenumber;
+    this._guardianName = props.guardianName ?? this._guardianName;
+    this._guardianPhone = props.guardianPhone ?? this._guardianPhone;
+    this._guardianRelationship =
+      props.guardianRelationship ?? this._guardianRelationship;
   }
 
   get photoUrl(): string | undefined {
@@ -138,5 +154,17 @@ export class Student {
 
   get learningTopics(): string[] {
     return this._learningTopics;
+  }
+
+  get guardianName(): string | undefined {
+    return this._guardianName;
+  }
+
+  get guardianPhone(): string | undefined {
+    return this._guardianPhone;
+  }
+
+  get guardianRelationship(): string | undefined {
+    return this._guardianRelationship;
   }
 }

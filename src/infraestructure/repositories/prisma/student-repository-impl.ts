@@ -25,6 +25,9 @@ export class StudentRepositoryImpl implements StudentRepository {
         learningTopics: student.learningTopics,
         photoUrl: student.photoUrl,
         documents: student.documents,
+        guardianName: student.guardianName ?? null,
+        guardianPhone: student.guardianPhone ?? null,
+        guardianRelationship: student.guardianRelationship ?? null,
       },
       create: {
         educatorId: student.educatorId.value,
@@ -40,6 +43,9 @@ export class StudentRepositoryImpl implements StudentRepository {
         createdAt: student.createdAt,
         photoUrl: student.photoUrl,
         documents: student.documents,
+        guardianName: student.guardianName ?? null,
+        guardianPhone: student.guardianPhone ?? null,
+        guardianRelationship: student.guardianRelationship ?? null,
       },
       include: {
         educatorStudents: {
@@ -128,6 +134,7 @@ export class StudentRepositoryImpl implements StudentRepository {
         email: rel.educator.email,
         password: rel.educator.password,
         createdAt: rel.educator.createdAt,
+        profession: rel.educator.profession ?? undefined,
       })) ?? [];
 
     return Student.create({
@@ -151,6 +158,9 @@ export class StudentRepositoryImpl implements StudentRepository {
           url: doc.url,
           uploadedAt: doc.uploadedAt,
         })) ?? [],
+      guardianName: prismaStudent.guardianName ?? undefined,
+      guardianPhone: prismaStudent.guardianPhone ?? undefined,
+      guardianRelationship: prismaStudent.guardianRelationship ?? undefined,
     });
   }
 

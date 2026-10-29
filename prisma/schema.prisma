@@ -14,8 +14,9 @@ model Educator {
   password  String
   createdAt DateTime @default(now())
 
-  contact  String?
-  photoUrl String?
+  contact    String?
+  photoUrl   String?
+  profession String?
 
   notebooks TaskNotebook[]
   tokens    AuthToken[]
@@ -35,6 +36,11 @@ model Student {
   learningTopics String[]
   photoUrl       String?
   documents      StudentDocument[]
+
+  guardianName         String?
+  guardianPhone        String?
+  guardianRelationship String?
+
   createdAt      DateTime          @default(now())
   educatorId     String
 
@@ -181,6 +187,7 @@ model AnamneseResponse {
   educatorId String
   studentId  String
   answeredAt DateTime         @default(now())
+  updatedAt  DateTime?
   answers    AnamneseAnswer[]
 
   @@index([templateId])
