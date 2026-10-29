@@ -9,6 +9,9 @@ import {
   makeAnamneseTemplateRepository,
   makeAnamneseResponseRepository,
   makeAiStudentAnalysisService,
+  makeAppointmentRepository,
+  makeAppointmentSchedulerService,
+  makeTaskGroupRepository,
 } from "../../../../infraestructure/factories";
 import { makeAuthMiddleware } from "../../../../infraestructure/middlewares";
 import { StartTaskNotebookSessionUseCase } from "../use-cases/start-task-notebook-session/start-task-session-use-case";
@@ -43,22 +46,29 @@ const studentAnalysisReportRepository = makeStudentAnalysisReportRepository();
 const anamneseTemplateRepository = makeAnamneseTemplateRepository();
 const anamneseResponseRepository = makeAnamneseResponseRepository();
 const aiStudentAnalysisService = makeAiStudentAnalysisService();
+const appointmentRepository = makeAppointmentRepository();
+const schedulerService = makeAppointmentSchedulerService(appointmentRepository);
+const taskGroupRepository = makeTaskGroupRepository();
 const authMiddleware = makeAuthMiddleware(educatorRepository);
 
 const startTaskNotebookSessionUseCase = new StartTaskNotebookSessionUseCase(
   taskNotebookRepository,
   taskSessionRepository,
-  studentRepository
+  studentRepository,
+  appointmentRepository
 );
 
 const answerTaskNotebookSessionUseCase = new AnswerTaskNotebookSessionUseCase(
   taskSessionRepository,
   taskRepository,
-  taskNotebookRepository
+  taskNotebookRepository,
+  taskGroupRepository
 );
 
 const finishTaskNotebookSessionUseCase = new FinishTaskNotebookSessionUseCase(
-  taskSessionRepository
+  taskSessionRepository,
+  appointmentRepository,
+  schedulerService
 );
 
 const listTaskNotebookSessionByStudentIdUseCase =

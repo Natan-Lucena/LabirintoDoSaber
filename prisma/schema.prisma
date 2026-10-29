@@ -131,14 +131,16 @@ enum TaskNotebookCategory {
 }
 
 model TaskNotebookSession {
-  id          String       @id @map("_id")
-  educatorId  String
-  studentId   String
-  name        String
-  startedAt   DateTime
-  finishedAt  DateTime?
-  observation String?
-  answers     TaskAnswer[]
+  id             String       @id @map("_id")
+  educatorId     String
+  studentId      String
+  name           String
+  startedAt      DateTime
+  finishedAt     DateTime?
+  observation    String?
+  answers        TaskAnswer[]
+  taskNotebookId String?
+  appointmentId  String?
 
   @@index([educatorId])
   @@index([studentId])

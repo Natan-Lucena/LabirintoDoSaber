@@ -4,7 +4,11 @@ import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
 import { TaskNotebookRepository } from "../../../../../domain/repositories/task-notebook-repository";
-import { TaskAnswer } from "../../../../../domain/entities/task-notebook-session";
+import {
+  TaskAnswer,
+  TaskNotebookSession,
+} from "../../../../../domain/entities/task-notebook-session";
+import { TaskGroupRepository } from "../../../../../domain/repositories/task-group-repository";
 import { AnswerTaskNotebookSessionUseCase } from "./answer-task-notebook-session-use-case";
 
 const ID = {
@@ -66,21 +70,29 @@ const mockNotebookRepository = (): TaskNotebookRepository =>
     getById: vi.fn(),
   } as unknown as TaskNotebookRepository);
 
+const mockTaskGroupRepository = (): TaskGroupRepository =>
+  ({
+    findByIds: vi.fn(),
+  } as unknown as TaskGroupRepository);
+
 describe("AnswerTaskNotebookSessionUseCase", () => {
   let sessionRepo: TaskNotebookSessionRepository;
   let taskRepo: TaskRepository;
   let notebookRepo: TaskNotebookRepository;
+  let taskGroupRepo: TaskGroupRepository;
   let useCase: AnswerTaskNotebookSessionUseCase;
 
   beforeEach(() => {
     sessionRepo = mockSessionRepository();
     taskRepo = mockTaskRepository();
     notebookRepo = mockNotebookRepository();
+    taskGroupRepo = mockTaskGroupRepository();
 
     useCase = new AnswerTaskNotebookSessionUseCase(
       sessionRepo,
       taskRepo,
-      notebookRepo
+      notebookRepo,
+      taskGroupRepo
     );
   });
 
@@ -187,5 +199,113 @@ describe("AnswerTaskNotebookSessionUseCase", () => {
 
     expect(saved.answers.length).toBe(1);
     expect(saved.answers[0].isCorrect).toBe(true);
+  });
+
+  describe("session linked to a notebook", () => {
+    const makeLinkedSession = (taskNotebookId?: Uuid) =>
+      new TaskNotebookSession(
+        new Uuid(ID.session),
+        Uuid.random(),
+        Uuid.random(),
+        "sessao",
+        new Date(),
+        undefined,
+        [],
+        undefined,
+        taskNotebookId
+      );
+
+    const answerRequest = {
+      sessionId: ID.session,
+      taskId: ID.task,
+      selectedAlternativeId: ID.altCorrect,
+      timeToAnswer: 8,
+    };
+
+    beforeEach(() => {
+      (taskRepo.getById as any).mockResolvedValue(
+        makeTask(ID.task, ID.altCorrect)
+      );
+    });
+
+    it("should accept a task that is directly in the notebook", async () => {
+      (sessionRepo.getById as any).mockResolvedValue(
+        makeLinkedSession(new Uuid(ID.notebook))
+      );
+      (notebookRepo.getById as any).mockResolvedValue({
+        ...makeNotebook(ID.notebook, [ID.task]),
+        taskGroupsIds: [],
+      });
+
+      const result = await useCase.execute(answerRequest);
+
+      expect(result.ok).toBe(true);
+      expect(taskGroupRepo.findByIds).not.toHaveBeenCalled();
+      const saved = (sessionRepo.save as any).mock.calls[0][0] as TaskNotebookSession;
+      expect(saved.answers).toHaveLength(1);
+      expect(saved.taskNotebookId?.value).toBe(ID.notebook);
+    });
+
+    it("should accept a task that belongs to a group of the notebook", async () => {
+      const groupId = Uuid.random().value;
+      (sessionRepo.getById as any).mockResolvedValue(
+        makeLinkedSession(new Uuid(ID.notebook))
+      );
+      (notebookRepo.getById as any).mockResolvedValue({
+        ...makeNotebook(ID.notebook, [Uuid.random().value]),
+        taskGroupsIds: [groupId],
+      });
+      (taskGroupRepo.findByIds as any).mockResolvedValue([
+        { id: new Uuid(groupId), tasksIds: [ID.task] },
+      ]);
+
+      const result = await useCase.execute(answerRequest);
+
+      expect(result.ok).toBe(true);
+      const ids = (taskGroupRepo.findByIds as any).mock.calls[0][0] as Uuid[];
+      expect(ids.map((id) => id.value)).toEqual([groupId]);
+      expect(sessionRepo.save).toHaveBeenCalled();
+    });
+
+    it("should return TASK_NOT_IN_NOTEBOOK when the task is outside the notebook", async () => {
+      (sessionRepo.getById as any).mockResolvedValue(
+        makeLinkedSession(new Uuid(ID.notebook))
+      );
+      (notebookRepo.getById as any).mockResolvedValue({
+        ...makeNotebook(ID.notebook, [Uuid.random().value]),
+        taskGroupsIds: [Uuid.random().value],
+      });
+      (taskGroupRepo.findByIds as any).mockResolvedValue([
+        { id: Uuid.random(), tasksIds: [Uuid.random().value] },
+      ]);
+
+      const result = await useCase.execute(answerRequest);
+
+      expect(result).toEqual({ ok: false, error: "TASK_NOT_IN_NOTEBOOK" });
+      expect(sessionRepo.save).not.toHaveBeenCalled();
+    });
+
+    it("should return NOTEBOOK_NOT_FOUND when the notebook was deleted", async () => {
+      (sessionRepo.getById as any).mockResolvedValue(
+        makeLinkedSession(new Uuid(ID.notebook))
+      );
+      (notebookRepo.getById as any).mockResolvedValue(null);
+
+      const result = await useCase.execute(answerRequest);
+
+      expect(result).toEqual({ ok: false, error: "NOTEBOOK_NOT_FOUND" });
+      expect(sessionRepo.save).not.toHaveBeenCalled();
+    });
+
+    it("should accept any task when the session has no notebook", async () => {
+      (sessionRepo.getById as any).mockResolvedValue(makeLinkedSession());
+
+      const result = await useCase.execute(answerRequest);
+
+      expect(result.ok).toBe(true);
+      expect(notebookRepo.getById).not.toHaveBeenCalled();
+      expect(taskGroupRepo.findByIds).not.toHaveBeenCalled();
+      expect(sessionRepo.save).toHaveBeenCalled();
+    });
   });
 });
