@@ -264,3 +264,81 @@ type CategoryAccuracyData {
   correct  Int
   accuracy Float
 }
+
+model Plan {
+  id                     String       @id @map("_id")
+  educatorId             String
+  studentId              String
+  type                   PlanType
+  status                 PlanStatus
+  source                 PlanSource
+  title                  String
+  generalObjective       String
+  professionalNotes      String?
+  focus                  String?
+  consideredDifficulties String[]
+  // Datas sem hora no formato AAAA-MM-DD (fuso America/Sao_Paulo).
+  startDate              String
+  endDate                String
+  nextReviewDate         String?
+  parentPlanId           String?
+  sessionDate            String?
+  appointmentId          String?
+  goals                  PlanGoal[]
+  createdAt              DateTime
+  updatedAt              DateTime
+  closedAt               DateTime?
+
+  @@index([educatorId, studentId])
+  @@index([studentId, type, status])
+}
+
+type PlanGoal {
+  id               String
+  order            Int
+  description      String
+  successCriterion String?
+  status           GoalStatus
+  achievedAt       DateTime?
+  updatedAt        DateTime
+}
+
+model PlanReview {
+  id             String                 @id @map("_id")
+  planId         String
+  educatorId     String
+  reviewedAt     DateTime
+  note           String
+  nextReviewDate String?
+  goalStatuses   PlanReviewGoalStatus[]
+
+  @@index([planId])
+}
+
+type PlanReviewGoalStatus {
+  goalId String
+  status GoalStatus
+}
+
+enum PlanType {
+  PDI
+  PE
+}
+
+enum PlanStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum GoalStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  ACHIEVED
+  DISCONTINUED
+}
+
+enum PlanSource {
+  AI
+  MANUAL
+}
