@@ -3,6 +3,7 @@ import {
   formatValidationErrors,
 } from "@wave-telecom/framework/controllers";
 import { Request, Response } from "express";
+import { mapAppointmentToResponse } from "../../../../infraestructure/mappers/map-appointment";
 import { createAppointmentSchema } from "../schemas/appointment-schemas";
 import { CreateAppointmentUseCase } from "../use-cases/create-appointment/create-appointment-use-case";
 
@@ -24,15 +25,24 @@ export class CreateAppointmentController extends BaseController {
       return this.clientError(res, undefined, errors);
     }
 
-    const { studentId, scheduledAt, observation } = validation.data;
+    const { studentId, scheduledAt, observation, type, durationMinutes } = validation.data;
 
     const result = await this.useCase.execute({
       educatorId: educator.id,
       studentId,
       scheduledAt: new Date(scheduledAt),
       observation,
+      type,
+      durationMinutes,
     });
 
-    return this.created(res, result.value);
+    if (!result.ok) {
+      return res.status(409).json({
+        message: result.error.code,
+        conflictingAppointmentId: result.error.conflictingAppointmentId,
+      });
+    }
+
+    return this.created(res, mapAppointmentToResponse(result.value));
   }
 }

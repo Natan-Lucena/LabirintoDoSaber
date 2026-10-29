@@ -221,6 +221,8 @@ model Appointment {
   studentId   String
   scheduledAt DateTime
   observation String?
+  type            String?
+  durationMinutes Int?
   status      AppointmentStatus @default(PENDING)
   notifiedAt  DateTime?
   metadata    Json              @default("{}")
