@@ -111,6 +111,9 @@ export class TaskNotebookRepositoryImpl implements TaskNotebookRepository {
       email: prismaNotebook.educator.email,
       password: prismaNotebook.educator.password,
       createdAt: prismaNotebook.educator.createdAt,
+      photoUrl: prismaNotebook.educator.photoUrl ?? undefined,
+      contact: prismaNotebook.educator.contact ?? undefined,
+      profession: prismaNotebook.educator.profession ?? undefined,
     });
 
     const tasks: Task[] =

@@ -18,6 +18,10 @@ export const mapStudentToResponse = (student: Student) => {
     guardianName: student.guardianName ?? null,
     guardianPhone: student.guardianPhone ?? null,
     guardianRelationship: student.guardianRelationship ?? null,
-    educators: student.educators,
+    educators: student.educators.map((educator) => ({
+      id: educator.id.value,
+      name: educator.name,
+      profession: educator.profession ?? null,
+    })),
   };
 };

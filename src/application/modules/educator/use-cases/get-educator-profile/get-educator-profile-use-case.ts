@@ -1,17 +1,9 @@
 import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
+import { mapEducatorToResponse } from "../../../../../infraestructure/mappers/map-educator";
 
 interface GetEducatorProfileUseCaseRequest {
   educatorId: Uuid;
-}
-
-interface EducatorProfileResponse {
-  id: string;
-  name: string;
-  email: string;
-  photoUrl: string | undefined;
-  contact: string | undefined;
-  profession: string | undefined;
 }
 
 export class GetEducatorProfileUseCase {
@@ -30,15 +22,6 @@ export class GetEducatorProfileUseCase {
 
     const educator = educators[0];
 
-    const educatorDetails: EducatorProfileResponse = {
-      id: educator.id.toString(),
-      name: educator.name,
-      email: educator.email,
-      photoUrl: educator.photoUrl,
-      contact: educator.contact,
-      profession: educator.profession,
-    };
-
-    return success(educatorDetails);
+    return success(mapEducatorToResponse(educator));
   }
 }
