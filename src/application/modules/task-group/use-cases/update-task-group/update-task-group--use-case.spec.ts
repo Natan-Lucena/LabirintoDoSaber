@@ -1,119 +1,108 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Uuid } from "@wave-telecom/framework/core";
 import { UpdateTaskGroupUseCase } from "./update-task-group-use-case";
-import { success, failure, Uuid } from "@wave-telecom/framework/core";
+import { TaskGroup } from "../../../../../domain/entities/task-group";
+import { TaskCategory } from "../../../../../domain/entities/task";
+import { TaskGroupRepository } from "../../../../../domain/repositories/task-group-repository";
+import { UpdateTaskGroupSchema } from "../../schemas/update-task-group-schema";
 
-// Mock do Repositório
-const mockRepo = {
-  findById: vi.fn(), // Nome do método usado no Use Case
-  save: vi.fn(),
-};
-
-// Dados de Mock
-const validId = Uuid.random().toString();
-const validUpdateProps = { id: validId, name: "Novo Nome", educatorId: Uuid.random().toString() };
-const invalidIdProps = { id: "id-invalido" };
+const makeGroup = (educatorId: Uuid) =>
+  TaskGroup.create({
+    name: "Grupo",
+    educatorId,
+    category: TaskCategory.Reading,
+  });
 
 describe("UpdateTaskGroupUseCase", () => {
+  let repository: TaskGroupRepository;
   let useCase: UpdateTaskGroupUseCase;
+  const ownerId = Uuid.random();
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    useCase = new UpdateTaskGroupUseCase(mockRepo as any);
+    repository = {
+      findById: vi.fn(),
+      save: vi.fn(),
+    } as unknown as TaskGroupRepository;
+    useCase = new UpdateTaskGroupUseCase(repository);
   });
 
-  // --- CENÁRIOS DE VALIDAÇÃO DE PRÉ-CONDIÇÕES ---
+  it("atualiza o grupo quando o educador é o dono, mantendo o dono", async () => {
+    const group = makeGroup(ownerId);
+    (repository.findById as any).mockResolvedValue(group);
 
-  it("deve retornar erro se o ID for inválido", async () => {
-    const result = await useCase.execute(invalidIdProps as any);
-    expect(result).toEqual(failure("INVALID_TASK_GROUP_ID"));
-    expect(mockRepo.findById).not.toHaveBeenCalled();
+    const result = await useCase.execute({
+      id: group.id.value,
+      educatorId: ownerId,
+      name: "Novo Nome",
+      category: TaskCategory.Writing,
+    });
+
+    expect(result).toEqual({ ok: true, value: undefined });
+    const saved = (repository.save as any).mock.calls[0][0] as TaskGroup;
+    expect(saved.id.value).toBe(group.id.value);
+    expect(saved.name).toBe("Novo Nome");
+    expect(saved.category).toBe(TaskCategory.Writing);
+    expect(saved.educatorId.value).toBe(ownerId.value);
   });
 
-  it("deve retornar erro se o grupo de tarefas não for encontrado", async () => {
-    mockRepo.findById.mockResolvedValue(null);
+  it("o schema descarta educatorId do corpo, então o dono não muda", () => {
+    const id = Uuid.random().value;
+    const parsed = UpdateTaskGroupSchema.parse({
+      id,
+      name: "Novo Nome",
+      educatorId: Uuid.random().value,
+    });
 
-    const result = await useCase.execute(validUpdateProps);
-
-    // O Use Case tenta buscar no repositório
-    expect(mockRepo.findById).toHaveBeenCalled();
-    expect(result).toEqual(failure("TASK_GROUP_NOT_FOUND"));
-    expect(mockRepo.save).not.toHaveBeenCalled();
+    expect(parsed).toEqual({ id, name: "Novo Nome" });
   });
 
-  // --- CENÁRIOS DE FALHA DE DOMÍNIO ---
+  it("devolve NOT_GROUP_OWNER sem salvar quando o grupo é de outro educador", async () => {
+    const group = makeGroup(Uuid.random());
+    (repository.findById as any).mockResolvedValue(group);
 
-  it("deve retornar erro se updateTaskGroup falhar (falha de domínio)", async () => {
-    // 1. Simular uma Entidade que falha ao tentar atualizar
-    const fakeTaskGroup = {
-      // O método da Entidade deve retornar um failure
-      updateTaskGroup: vi.fn().mockReturnValue(failure("INVALID_TASK_GROUP_DATA")),
-    };
+    const result = await useCase.execute({
+      id: group.id.value,
+      educatorId: ownerId,
+      name: "Tentativa",
+    });
 
-    mockRepo.findById.mockResolvedValue(fakeTaskGroup);
-
-    const result = await useCase.execute(validUpdateProps);
-
-    // 2. Deve ter chamado o método de atualização
-    expect(fakeTaskGroup.updateTaskGroup).toHaveBeenCalledWith(validUpdateProps);
-    
-    // 3. Deve retornar o erro de domínio
-    expect(result).toEqual(failure("INVALID_TASK_GROUP_DATA"));
-    expect(mockRepo.save).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: false, error: "NOT_GROUP_OWNER" });
+    expect(repository.save).not.toHaveBeenCalled();
   });
 
-  // --- CENÁRIOS DE SUCESSO ---
+  it("devolve TASK_GROUP_NOT_FOUND quando o grupo não existe", async () => {
+    (repository.findById as any).mockResolvedValue(null);
 
-  it("deve atualizar o grupo de tarefas com sucesso", async () => {
-    // 1. O objeto atualizado que o método da Entidade retorna
-    const updatedTaskGroup = { id: validId, name: "Novo Nome", tasksIds: ["task-a"], educatorId: Uuid.random() };
+    const result = await useCase.execute({
+      id: Uuid.random().value,
+      educatorId: ownerId,
+    });
 
-    // 2. Simular uma Entidade que atualiza com sucesso
-    const fakeTaskGroup = {
-      // O método da Entidade deve retornar sucesso com o objeto atualizado
-      updateTaskGroup: vi.fn().mockReturnValue(success(updatedTaskGroup)),
-    };
-
-    mockRepo.findById.mockResolvedValue(fakeTaskGroup);
-    mockRepo.save.mockResolvedValue(void 0); // Simular salvamento bem-sucedido
-
-    const result = await useCase.execute(validUpdateProps);
-
-    // 3. Verifica se a lógica de atualização foi chamada
-    expect(fakeTaskGroup.updateTaskGroup).toHaveBeenCalledWith(validUpdateProps);
-    
-    // 4. Verifica se o repositório salvou o objeto retornado (o desempacotado)
-    expect(mockRepo.save).toHaveBeenCalledWith(updatedTaskGroup);
-    
-    // 5. Verifica o sucesso
-    expect(result).toEqual(success(void 0));
+    expect(result).toEqual({ ok: false, error: "TASK_GROUP_NOT_FOUND" });
+    expect(repository.save).not.toHaveBeenCalled();
   });
 
-  // --- CENÁRIOS DE FALHA DE INFRAESTRUTURA (TRY...CATCH) ---
-  
-  it("deve retornar erro genérico se a infraestrutura falhar durante a busca", async () => {
-    // Simular que a busca falhou
-    mockRepo.findById.mockRejectedValue(new Error("Database connection error"));
+  it("devolve INVALID_TASK_GROUP_ID sem consultar o banco", async () => {
+    const result = await useCase.execute({
+      id: "id-invalido",
+      educatorId: ownerId,
+    });
 
-    // O Use Case deve ter um try...catch para retornar a falha genérica
-    const result = await useCase.execute(validUpdateProps);
-    
-    expect(result).toEqual(failure("UPDATE_TASK_GROUP_FAILED"));
-    expect(mockRepo.save).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: false, error: "INVALID_TASK_GROUP_ID" });
+    expect(repository.findById).not.toHaveBeenCalled();
   });
-  
-  it("deve retornar erro genérico se a infraestrutura falhar durante o salvamento", async () => {
-    const updatedTaskGroup = { id: validId, name: "Novo Nome" };
-    const fakeTaskGroup = {
-      updateTaskGroup: vi.fn().mockReturnValue(success(updatedTaskGroup)),
-    };
-    
-    mockRepo.findById.mockResolvedValue(fakeTaskGroup);
-    // Simular que o salvamento falhou
-    mockRepo.save.mockRejectedValue(new Error("Network timeout"));
 
-    const result = await useCase.execute(validUpdateProps);
-    
-    expect(result).toEqual(failure("UPDATE_TASK_GROUP_FAILED"));
-    expect(mockRepo.save).toHaveBeenCalled();
+  it("devolve UPDATE_TASK_GROUP_FAILED quando o salvamento falha", async () => {
+    const group = makeGroup(ownerId);
+    (repository.findById as any).mockResolvedValue(group);
+    (repository.save as any).mockRejectedValue(new Error("timeout"));
+
+    const result = await useCase.execute({
+      id: group.id.value,
+      educatorId: ownerId,
+      name: "Novo Nome",
+    });
+
+    expect(result).toEqual({ ok: false, error: "UPDATE_TASK_GROUP_FAILED" });
   });
 });

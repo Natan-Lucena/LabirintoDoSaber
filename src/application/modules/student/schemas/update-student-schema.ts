@@ -1,6 +1,7 @@
 import z from "zod";
 import { Gender } from "../../../../domain/entities/student";
 import { guardianFields } from "./guardian-fields";
+import { learningTopicsField } from "./learning-topics-field";
 
 export const updateStudentSchema = z.object({
   id: z.string().uuid(),
@@ -11,6 +12,6 @@ export const updateStudentSchema = z.object({
   road: z.string().min(1).max(100).optional(),
   housenumber: z.string().min(1).max(10).optional(),
   phonenumber: z.string().min(7).max(15).optional(),
-  learningTopics: z.array(z.string().min(1).max(50)).min(1).optional(),
+  learningTopics: learningTopicsField.optional(),
   ...guardianFields,
 });

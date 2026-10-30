@@ -1,5 +1,6 @@
 import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
+import { mapEducatorToResponse } from "../../../../../infraestructure/mappers/map-educator";
 import { FileStorage } from "../../../../services/file-storage";
 
 interface EducatorUpdateProfilePictureRequest {
@@ -30,6 +31,6 @@ export class EducatorUpdateProfilePictureUseCase {
     educator.updateProfilePicture(fileResult.url);
 
     const result = await this.educatorRepository.save(educator);
-    return success(result);
+    return success(mapEducatorToResponse(result));
   }
 }

@@ -110,6 +110,9 @@ export class Student {
     this._road = props.road ?? this._road;
     this._housenumber = props.housenumber ?? this._housenumber;
     this._phonenumber = props.phonenumber ?? this._phonenumber;
+    this._learningTopics = props.learningTopics
+      ? [...props.learningTopics]
+      : this._learningTopics;
     this._guardianName = props.guardianName ?? this._guardianName;
     this._guardianPhone = props.guardianPhone ?? this._guardianPhone;
     this._guardianRelationship =

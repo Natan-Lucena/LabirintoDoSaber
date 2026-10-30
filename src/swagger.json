@@ -610,7 +610,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EducatorEntity"
+                  "$ref": "#/components/schemas/EducatorProfile"
                 }
               }
             }
@@ -724,7 +724,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EducatorEntity"
+                  "$ref": "#/components/schemas/EducatorProfile"
                 }
               }
             }
@@ -1088,7 +1088,7 @@
                       "minLength": 1,
                       "maxLength": 50
                     },
-                    "description": "Array JSON (`[\"a\",\"b\"]`) ou lista separada por vírgula. Mínimo 1 item."
+                    "description": "Opcional. Quando enviado, substitui a lista inteira (não mescla); quando omitido, a lista atual é mantida. Array JSON (`[\"a\",\"b\"]`) ou lista separada por vírgula. A lista não pode ser vazia e cada item deve ser texto de 1 a 50 caracteres; caso contrário, 400 de validação e o aluno não é alterado."
                   },
                   "guardianName": {
                     "type": "string",
@@ -1155,6 +1155,17 @@
                   "STUDENT_NOT_ASSIGNED_TO_CURRENT_EDUCATOR": {
                     "value": {
                       "message": "STUDENT_NOT_ASSIGNED_TO_CURRENT_EDUCATOR"
+                    }
+                  },
+                  "learningTopics vazio": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Array must contain at least 1 element(s)",
+                          "field": "learningTopics"
+                        }
+                      ]
                     }
                   }
                 }
@@ -2845,11 +2856,18 @@
             "description": "Sucesso, sem corpo JSON (Express responde o texto \"OK\")."
           },
           "400": {
-            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`).",
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `INVALID_TASK_GROUP_ID`, `INVALID_TASK_GROUP_DATA`.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ValidationError"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
                 },
                 "examples": {
                   "validation": {
@@ -2861,6 +2879,16 @@
                           "field": "id"
                         }
                       ]
+                    }
+                  },
+                  "INVALID_TASK_GROUP_ID": {
+                    "value": {
+                      "message": "INVALID_TASK_GROUP_ID"
+                    }
+                  },
+                  "INVALID_TASK_GROUP_DATA": {
+                    "value": {
+                      "message": "INVALID_TASK_GROUP_DATA"
                     }
                   }
                 }
@@ -2894,32 +2922,48 @@
               }
             }
           },
+          "403": {
+            "description": "`NOT_GROUP_OWNER`: o grupo pertence a outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "NOT_GROUP_OWNER": {
+                    "value": {
+                      "message": "NOT_GROUP_OWNER"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`TASK_GROUP_NOT_FOUND`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "TASK_GROUP_NOT_FOUND": {
+                    "value": {
+                      "message": "TASK_GROUP_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "500": {
-            "description": "`INVALID_TASK_GROUP_ID`, `TASK_GROUP_NOT_FOUND`, `INVALID_TASK_GROUP_DATA`, `UPDATE_TASK_GROUP_FAILED`. Qualquer exceção não tratada também cai aqui com `An unexpected error occurred`.",
+            "description": "`UPDATE_TASK_GROUP_FAILED`. Qualquer exceção não tratada também cai aqui com `An unexpected error occurred`.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InternalError"
                 },
                 "examples": {
-                  "INVALID_TASK_GROUP_ID": {
-                    "value": {
-                      "message": "INVALID_TASK_GROUP_ID",
-                      "error": "Error not specified."
-                    }
-                  },
-                  "TASK_GROUP_NOT_FOUND": {
-                    "value": {
-                      "message": "TASK_GROUP_NOT_FOUND",
-                      "error": "Error not specified."
-                    }
-                  },
-                  "INVALID_TASK_GROUP_DATA": {
-                    "value": {
-                      "message": "INVALID_TASK_GROUP_DATA",
-                      "error": "Error not specified."
-                    }
-                  },
                   "UPDATE_TASK_GROUP_FAILED": {
                     "value": {
                       "message": "UPDATE_TASK_GROUP_FAILED",
@@ -2935,7 +2979,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Só o educador dono do grupo pode editar ou excluir."
       }
     },
     "/task-group/delete/{taskGroupId}": {
@@ -3010,20 +3055,48 @@
               }
             }
           },
+          "403": {
+            "description": "`NOT_GROUP_OWNER`: o grupo pertence a outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "NOT_GROUP_OWNER": {
+                    "value": {
+                      "message": "NOT_GROUP_OWNER"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`TASK_GROUP_NOT_FOUND`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "TASK_GROUP_NOT_FOUND": {
+                    "value": {
+                      "message": "TASK_GROUP_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "500": {
-            "description": "`TASK_GROUP_NOT_FOUND`, `DELETE_TASK_GROUP_FAILED`. Qualquer exceção não tratada também cai aqui com `An unexpected error occurred`.",
+            "description": "`DELETE_TASK_GROUP_FAILED`. Qualquer exceção não tratada também cai aqui com `An unexpected error occurred`.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InternalError"
                 },
                 "examples": {
-                  "TASK_GROUP_NOT_FOUND": {
-                    "value": {
-                      "message": "TASK_GROUP_NOT_FOUND",
-                      "error": "Error not specified."
-                    }
-                  },
                   "DELETE_TASK_GROUP_FAILED": {
                     "value": {
                       "message": "DELETE_TASK_GROUP_FAILED",
@@ -3039,7 +3112,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Só o educador dono do grupo pode editar ou excluir."
       }
     },
     "/task-group/{id}": {
@@ -3422,7 +3496,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "A listagem é compartilhada: devolve cadernos de qualquer educador (use `educatorId` para filtrar). Editar e excluir é permitido só ao dono do caderno."
       }
     },
     "/task-notebook/update": {
@@ -3446,11 +3521,18 @@
             "description": "Sucesso, sem corpo JSON (Express responde o texto \"OK\")."
           },
           "400": {
-            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`).",
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `INVALID_TASK_NOTEBOOK_ID`, `INVALID_TASK_NOTEBOOK_DATA`.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ValidationError"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
                 },
                 "examples": {
                   "validation": {
@@ -3462,6 +3544,16 @@
                           "field": "taskNotebookId"
                         }
                       ]
+                    }
+                  },
+                  "INVALID_TASK_NOTEBOOK_ID": {
+                    "value": {
+                      "message": "INVALID_TASK_NOTEBOOK_ID"
+                    }
+                  },
+                  "INVALID_TASK_NOTEBOOK_DATA": {
+                    "value": {
+                      "message": "INVALID_TASK_NOTEBOOK_DATA"
                     }
                   }
                 }
@@ -3495,29 +3587,51 @@
               }
             }
           },
+          "403": {
+            "description": "`NOT_NOTEBOOK_OWNER`: o caderno pertence a outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "NOT_NOTEBOOK_OWNER": {
+                    "value": {
+                      "message": "NOT_NOTEBOOK_OWNER"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`TASK_NOTEBOOK_NOT_FOUND`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "TASK_NOTEBOOK_NOT_FOUND": {
+                    "value": {
+                      "message": "TASK_NOTEBOOK_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "500": {
-            "description": "`INVALID_TASK_NOTEBOOK_ID`, `TASK_NOTEBOOK_NOT_FOUND`, `INVALID_TASK_NOTEBOOK_DATA`. Qualquer exceção não tratada também cai aqui com `An unexpected error occurred`.",
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InternalError"
                 },
                 "examples": {
-                  "INVALID_TASK_NOTEBOOK_ID": {
+                  "An unexpected error occurred": {
                     "value": {
-                      "message": "INVALID_TASK_NOTEBOOK_ID",
-                      "error": "Error not specified."
-                    }
-                  },
-                  "TASK_NOTEBOOK_NOT_FOUND": {
-                    "value": {
-                      "message": "TASK_NOTEBOOK_NOT_FOUND",
-                      "error": "Error not specified."
-                    }
-                  },
-                  "INVALID_TASK_NOTEBOOK_DATA": {
-                    "value": {
-                      "message": "INVALID_TASK_NOTEBOOK_DATA",
+                      "message": "An unexpected error occurred",
                       "error": "Error not specified."
                     }
                   }
@@ -3530,7 +3644,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Só o educador dono do caderno pode editar ou excluir. A listagem (`GET /task-notebook`) é compartilhada entre educadores."
       }
     },
     "/task-notebook/delete/{taskNotebookId}": {
@@ -3605,20 +3720,48 @@
               }
             }
           },
+          "403": {
+            "description": "`NOT_NOTEBOOK_OWNER`: o caderno pertence a outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "NOT_NOTEBOOK_OWNER": {
+                    "value": {
+                      "message": "NOT_NOTEBOOK_OWNER"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`TASK_NOTEBOOK_NOT_FOUND`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "TASK_NOTEBOOK_NOT_FOUND": {
+                    "value": {
+                      "message": "TASK_NOTEBOOK_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "500": {
-            "description": "`TASK_NOTEBOOK_NOT_FOUND`, `DELETE_TASK_NOTEBOOK_FAILED`. Qualquer exceção não tratada também cai aqui com `An unexpected error occurred`.",
+            "description": "`DELETE_TASK_NOTEBOOK_FAILED`. Qualquer exceção não tratada também cai aqui com `An unexpected error occurred`.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InternalError"
                 },
                 "examples": {
-                  "TASK_NOTEBOOK_NOT_FOUND": {
-                    "value": {
-                      "message": "TASK_NOTEBOOK_NOT_FOUND",
-                      "error": "Error not specified."
-                    }
-                  },
                   "DELETE_TASK_NOTEBOOK_FAILED": {
                     "value": {
                       "message": "DELETE_TASK_NOTEBOOK_FAILED",
@@ -3634,7 +3777,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Só o educador dono do caderno pode editar ou excluir. A listagem (`GET /task-notebook`) é compartilhada entre educadores."
       }
     },
     "/task-notebook-session/start": {
@@ -5825,18 +5969,13 @@
             }
           },
           "401": {
-            "description": "Token inválido (authMiddleware) ou modelo de outro educador (`Unauthorized`).",
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 },
                 "examples": {
-                  "Unauthorized": {
-                    "value": {
-                      "message": "Unauthorized"
-                    }
-                  },
                   "Missing or invalid token": {
                     "value": {
                       "message": "Missing or invalid token"
@@ -5850,6 +5989,23 @@
                   "Educator not found": {
                     "value": {
                       "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: o modelo pertence a outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
                     }
                   }
                 }
@@ -5977,18 +6133,13 @@
             }
           },
           "401": {
-            "description": "Token inválido (authMiddleware) ou modelo de outro educador (`Unauthorized`).",
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 },
                 "examples": {
-                  "Unauthorized": {
-                    "value": {
-                      "message": "Unauthorized"
-                    }
-                  },
                   "Missing or invalid token": {
                     "value": {
                       "message": "Missing or invalid token"
@@ -6002,6 +6153,23 @@
                   "Educator not found": {
                     "value": {
                       "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: o modelo pertence a outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
                     }
                   }
                 }
@@ -6089,18 +6257,13 @@
             }
           },
           "401": {
-            "description": "Token inválido (authMiddleware) ou modelo de outro educador (`Unauthorized`).",
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 },
                 "examples": {
-                  "Unauthorized": {
-                    "value": {
-                      "message": "Unauthorized"
-                    }
-                  },
                   "Missing or invalid token": {
                     "value": {
                       "message": "Missing or invalid token"
@@ -6114,6 +6277,23 @@
                   "Educator not found": {
                     "value": {
                       "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: o modelo pertence a outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
                     }
                   }
                 }
@@ -6563,18 +6743,13 @@
             }
           },
           "401": {
-            "description": "Token inválido (authMiddleware) ou resposta de outro educador (`Unauthorized`).",
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 },
                 "examples": {
-                  "Unauthorized": {
-                    "value": {
-                      "message": "Unauthorized"
-                    }
-                  },
                   "Missing or invalid token": {
                     "value": {
                       "message": "Missing or invalid token"
@@ -6588,6 +6763,23 @@
                   "Educator not found": {
                     "value": {
                       "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: a resposta pertence a outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
                     }
                   }
                 }
@@ -6767,7 +6959,7 @@
             }
           },
           "403": {
-            "description": "`UNAUTHORIZED`",
+            "description": "`UNAUTHORIZED`: a resposta pertence a outro educador.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9072,43 +9264,8 @@
           "id",
           "name",
           "email"
-        ]
-      },
-      "EducatorEntity": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "_name": {
-            "type": "string"
-          },
-          "_email": {
-            "type": "string",
-            "format": "email"
-          },
-          "_password": {
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "_photoUrl": {
-            "type": "string",
-            "nullable": true
-          },
-          "_contact": {
-            "type": "string",
-            "nullable": true
-          },
-          "_profession": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "description": "Educador no formato da entidade (campos com prefixo `_`)."
+        ],
+        "description": "Educador (mesmo formato de `GET /educator/me`). Nunca inclui senha."
       },
       "EducatorLastSession": {
         "type": "object",
@@ -9251,23 +9408,17 @@
           "name": {
             "type": "string"
           },
-          "email": {
-            "type": "string",
-            "format": "email"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
           "profession": {
             "type": "string",
             "nullable": true
-          },
-          "password": {
-            "type": "string"
           }
         },
-        "description": "Educador vinculado."
+        "required": [
+          "id",
+          "name",
+          "profession"
+        ],
+        "description": "Educador vinculado ao aluno (só id, nome e profissão)."
       },
       "Student": {
         "type": "object",
@@ -9748,10 +9899,6 @@
               "format": "uuid"
             }
           },
-          "educatorId": {
-            "type": "string",
-            "format": "uuid"
-          },
           "category": {
             "type": "string",
             "enum": [
@@ -9764,7 +9911,8 @@
         },
         "required": [
           "id"
-        ]
+        ],
+        "description": "Campos editáveis do grupo. O dono do grupo não pode ser alterado."
       },
       "TaskNotebook": {
         "type": "object",
@@ -9774,7 +9922,7 @@
             "format": "uuid"
           },
           "educator": {
-            "$ref": "#/components/schemas/EducatorEntity"
+            "$ref": "#/components/schemas/EducatorProfile"
           },
           "tasks": {
             "type": "array",
@@ -9806,7 +9954,7 @@
             }
           }
         },
-        "description": "Caderno criado, com o educador e as tarefas completos."
+        "description": "Caderno criado, com o educador (formato `EducatorProfile`) e as tarefas completas."
       },
       "TaskNotebookListItem": {
         "type": "object",
@@ -11610,14 +11758,7 @@
           "educators": {
             "type": "array",
             "items": {
-              "oneOf": [
-                {
-                  "$ref": "#/components/schemas/StudentEducator"
-                },
-                {
-                  "$ref": "#/components/schemas/EducatorEntity"
-                }
-              ]
+              "$ref": "#/components/schemas/StudentEducator"
             }
           }
         },
@@ -11630,7 +11771,7 @@
           "learningTopics",
           "documents"
         ],
-        "description": "Aluno; cada item de `educators` pode vir no formato StudentEducator ou EducatorEntity."
+        "description": "Aluno com os educadores vinculados (`educators[]` no formato StudentEducator)."
       }
     }
   }

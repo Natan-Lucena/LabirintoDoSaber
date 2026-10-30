@@ -6,6 +6,7 @@ import {
 import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
 import { TaskNotebookRepository } from "../../../../../domain/repositories/task-notebook-repository";
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
+import { mapTaskNotebookToResponse } from "../../../../../infraestructure/mappers/map-task-notebook";
 
 export interface CreateTaskNotebookRequest {
   educatorEmail: string;
@@ -60,6 +61,6 @@ export class CreateTaskNotebookUseCase {
       taskNotebookResult.value
     );
 
-    return success(savedNotebook);
+    return success(mapTaskNotebookToResponse(savedNotebook));
   }
 }

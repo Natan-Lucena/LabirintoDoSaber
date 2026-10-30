@@ -10,10 +10,8 @@ export interface CreateTaskGroupProps {
 }
 
 export interface UpdateTaskGroupProps {
-  id?: string;
   name?: string;
   tasksIds?: string[];
-  educatorId?: string;
   category?: TaskCategory;
 }
 
@@ -43,7 +41,7 @@ export class TaskGroup {
         this.id,
         props.name ?? this.name,
         props.tasksIds ?? this.tasksIds,
-        props.educatorId ? new Uuid(props.educatorId) : this.educatorId,
+        this.educatorId,
         props.category ?? this.category
       );
 

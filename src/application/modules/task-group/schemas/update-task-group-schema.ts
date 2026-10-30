@@ -5,6 +5,5 @@ export const UpdateTaskGroupSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1).optional(),
   tasksIds: z.array(z.string().uuid()).optional(),
-  educatorId: z.string().uuid().optional(),
   category: z.nativeEnum(TaskCategory).optional(),
 });

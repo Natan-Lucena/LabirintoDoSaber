@@ -17,13 +17,6 @@ export class UpdateStudentController extends BaseController {
       req.body.age = Number(req.body.age);
     }
 
-    if (typeof req.body.learningTopics === "string") {
-      try {
-        req.body.learningTopics = JSON.parse(req.body.learningTopics);
-      } catch {
-        req.body.learningTopics = req.body.learningTopics.split(",");
-      }
-    }
     const validation = await updateStudentSchema.safeParseAsync({
       ...req.body,
       ...req.params,

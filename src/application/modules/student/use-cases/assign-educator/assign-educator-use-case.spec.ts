@@ -100,12 +100,15 @@ describe("AssignEducatorUseCase", () => {
     });
 
     expect(result.ok).toBe(true);
-    const updatedStudent = (result as any).value as Student;
-    expect(updatedStudent.educators.map((e) => e.email)).toContain(
-      currentEducator.email
+    // A resposta expõe só { id, name, profession } dos educadores.
+    const updatedStudent = (result as any).value as {
+      educators: { id: string; name: string }[];
+    };
+    expect(updatedStudent.educators.map((e) => e.id)).toContain(
+      currentEducator.id.value
     );
-    expect(updatedStudent.educators.map((e) => e.email)).toContain(
-      newEducator.email
+    expect(updatedStudent.educators.map((e) => e.id)).toContain(
+      newEducator.id.value
     );
 
     // Garantir que o repositório foi atualizado

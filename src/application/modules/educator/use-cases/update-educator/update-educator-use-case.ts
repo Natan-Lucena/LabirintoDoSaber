@@ -1,5 +1,6 @@
 import { failure, success } from "@wave-telecom/framework/core";
 import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
+import { mapEducatorToResponse } from "../../../../../infraestructure/mappers/map-educator";
 
 interface UpdateEducatorUseCaseRequest {
   email: string;
@@ -26,6 +27,6 @@ export class UpdateEducatorUseCase {
 
     const result = await this.educatorRepository.save(educator);
 
-    return success(result);
+    return success(mapEducatorToResponse(result));
   }
 }

@@ -21,7 +21,7 @@ export class GetAnamneseResponseController extends BaseController {
         case "RESPONSE_NOT_FOUND":
           return this.notFound(res, "RESPONSE_NOT_FOUND");
         case "UNAUTHORIZED":
-          return this.unauthorized(res);
+          return this.forbidden(res, "UNAUTHORIZED");
         default:
           return this.fail(res, "INTERNAL_SERVER_ERROR");
       }
