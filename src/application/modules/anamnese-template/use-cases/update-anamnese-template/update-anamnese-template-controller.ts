@@ -32,7 +32,7 @@ export class UpdateAnamneseTemplateController extends BaseController {
         case "TEMPLATE_NOT_FOUND":
           return this.notFound(res, "TEMPLATE_NOT_FOUND");
         case "UNAUTHORIZED":
-          return this.unauthorized(res);
+          return this.forbidden(res, "UNAUTHORIZED");
         case "TEMPLATE_HAS_RESPONSES":
           return this.clientError(res, "TEMPLATE_HAS_RESPONSES");
         case "INVALID_TEMPLATE_DATA":

@@ -23,7 +23,7 @@ export class GetAnamneseTemplateController extends BaseController {
         case "TEMPLATE_NOT_FOUND":
           return this.notFound(res, "TEMPLATE_NOT_FOUND");
         case "UNAUTHORIZED":
-          return this.unauthorized(res);
+          return this.forbidden(res, "UNAUTHORIZED");
         default:
           return this.fail(res, "INTERNAL_SERVER_ERROR");
       }
