@@ -1,6 +1,7 @@
 import z from "zod";
 import { Gender } from "../../../../domain/entities/student";
 import { guardianFields } from "./guardian-fields";
+import { learningTopicsField } from "./learning-topics-field";
 
 export const createStudentSchema = z.object({
   name: z.string().min(1).max(100),
@@ -10,6 +11,6 @@ export const createStudentSchema = z.object({
   road: z.string().min(1).max(100),
   housenumber: z.string().min(1).max(10),
   phonenumber: z.string().min(7).max(15),
-  learningTopics: z.array(z.string().min(1).max(50)).min(1),
+  learningTopics: learningTopicsField,
   ...guardianFields,
 });

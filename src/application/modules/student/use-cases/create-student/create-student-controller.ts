@@ -16,14 +16,6 @@ export class CreateStudentController extends BaseController {
       req.body.age = Number(req.body.age);
     }
 
-    if (typeof req.body.learningTopics === "string") {
-      try {
-        req.body.learningTopics = JSON.parse(req.body.learningTopics);
-      } catch {
-        req.body.learningTopics = req.body.learningTopics.split(",");
-      }
-    }
-
     const validation = await createStudentSchema.safeParseAsync(req.body);
 
     if (!validation.success) {
