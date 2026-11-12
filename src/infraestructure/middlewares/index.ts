@@ -18,6 +18,21 @@ export function requireJobApiKey(
 
 const authService = new JwtAuthService();
 
+// Tolerância para o token emitido no mesmo segundo da troca de senha: o `iat`
+// do JWT é truncado em segundos.
+const PASSWORD_CHANGE_TOLERANCE_MS = 1000;
+
+function issuedBeforePasswordChange(
+  iatSeconds: number,
+  passwordChangedAt?: Date
+): boolean {
+  if (!passwordChangedAt) return false;
+  return (
+    iatSeconds * 1000 <
+    passwordChangedAt.getTime() - PASSWORD_CHANGE_TOLERANCE_MS
+  );
+}
+
 export function makeAuthMiddleware(educatorRepository: EducatorRepository) {
   return async function authMiddleware(
     req: Request,
@@ -31,18 +46,22 @@ export function makeAuthMiddleware(educatorRepository: EducatorRepository) {
     }
 
     const token = authHeader.split(" ")[1];
-    const educatorId = await authService.verifyToken(token);
+    const verified = await authService.verifyToken(token);
 
-    if (!educatorId) {
+    if (!verified) {
       return res.status(401).json({ message: "Invalid or expired token" });
     }
 
     const educator = await educatorRepository.search({
-      id: new Uuid(educatorId),
+      id: new Uuid(verified.id),
     });
 
     if (!educator || educator.length === 0) {
       return res.status(401).json({ message: "Educator not found" });
+    }
+
+    if (issuedBeforePasswordChange(verified.iat, educator[0].passwordChangedAt)) {
+      return res.status(401).json({ message: "Invalid or expired token" });
     }
 
     req.user = educator[0];

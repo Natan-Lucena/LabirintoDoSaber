@@ -5,21 +5,22 @@ import { AuthTokenRepository } from "../../../domain/repositories/auth-token-rep
 export class MockAuthTokenRepository implements AuthTokenRepository {
   private tokens: AuthToken[] = [];
 
-  create(token: AuthToken): Promise<AuthToken> {
-    this.tokens.push(token);
-    return Promise.resolve(token);
-  }
-  findByUserId(userId: Uuid): Promise<AuthToken | null> {
-    const token = this.tokens.find((token) => token.userId === userId);
-    return Promise.resolve(token || null);
-  }
-  update(authToken: AuthToken): Promise<void> {
+  save(authToken: AuthToken): Promise<void> {
     const index = this.tokens.findIndex(
-      (token) => token.userId === authToken.userId
+      (token) => token.id.value === authToken.id.value
     );
-    if (index !== -1) {
+    if (index === -1) {
+      this.tokens.push(authToken);
+    } else {
       this.tokens[index] = authToken;
     }
     return Promise.resolve();
+  }
+
+  findByUserId(userId: Uuid): Promise<AuthToken | null> {
+    const token = this.tokens.find(
+      (token) => token.userId.value === userId.value
+    );
+    return Promise.resolve(token || null);
   }
 }

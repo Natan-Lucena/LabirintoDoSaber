@@ -1,89 +1,114 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Uuid } from "@wave-telecom/framework/core";
 import { GenerateAuthTokenUseCase } from "./generate-auth-token-use-case";
 import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
 import { AuthTokenRepository } from "../../../../../domain/repositories/auth-token-repository";
 import { MailService } from "../../../../services/mail-service";
 import { AuthToken } from "../../../../../domain/entities/auth-token";
-import { Uuid, success, failure } from "@wave-telecom/framework/core";
-
-const mockEducatorRepository = (): EducatorRepository => ({
-  search: vi.fn(),
-} as unknown as EducatorRepository);
-
-const mockAuthTokenRepository = (): AuthTokenRepository => ({
-  findByUserId: vi.fn(),
-  create: vi.fn(),
-  update: vi.fn(),
-} as unknown as AuthTokenRepository);
-
-const mockMailService = (): MailService => ({
-  sendMail: vi.fn(),
-} as unknown as MailService);
+import { Educator } from "../../../../../domain/entities/educator";
 
 describe("GenerateAuthTokenUseCase", () => {
   let educatorRepository: EducatorRepository;
   let authTokenRepository: AuthTokenRepository;
-  let mailerService: MailService;
+  let mailService: MailService;
   let useCase: GenerateAuthTokenUseCase;
+  let educator: Educator;
 
   beforeEach(() => {
-    educatorRepository = mockEducatorRepository();
-    authTokenRepository = mockAuthTokenRepository();
-    mailerService = mockMailService();
+    educatorRepository = {
+      getByEmail: vi.fn(),
+    } as unknown as EducatorRepository;
+    authTokenRepository = {
+      findByUserId: vi.fn().mockResolvedValue(null),
+      save: vi.fn(),
+    } as unknown as AuthTokenRepository;
+    mailService = {
+      sendMail: vi.fn().mockResolvedValue(undefined),
+    } as unknown as MailService;
     useCase = new GenerateAuthTokenUseCase(
       educatorRepository,
       authTokenRepository,
-      mailerService
+      mailService
     );
+    educator = Educator.create({
+      name: "Maria",
+      email: "maria@example.com",
+      password: "hash",
+    });
   });
 
-  it("should fail if educator is not found", async () => {
-    (educatorRepository.search as any).mockResolvedValue([]);
+  it("e-mail inexistente responde sucesso sem gravar nem enviar nada", async () => {
+    vi.mocked(educatorRepository.getByEmail).mockResolvedValue(null);
 
-    const result = await useCase.execute("notfound@example.com");
+    const result = await useCase.execute("ninguem@example.com");
 
-    expect(result).toEqual(failure("EDUCATOR_NOT_FOUND"));
+    expect(result).toEqual({ ok: true, value: undefined });
+    expect(authTokenRepository.save).not.toHaveBeenCalled();
+    expect(mailService.sendMail).not.toHaveBeenCalled();
   });
 
-  it("should generate a new token if educator exists and no previous token", async () => {
-    const educatorId = Uuid.random();
-    const educator = [{ id: educatorId, name: "John Doe", email: "john@example.com" }];
+  it("grava um código novo e envia por e-mail", async () => {
+    vi.mocked(educatorRepository.getByEmail).mockResolvedValue(educator);
 
-    (educatorRepository.search as any).mockResolvedValue(educator);
-    (authTokenRepository.findByUserId as any).mockResolvedValue(null);
-    (authTokenRepository.create as any).mockResolvedValue(void 0);
-    (mailerService.sendMail as any).mockResolvedValue(void 0);
+    const result = await useCase.execute("maria@example.com");
 
-    const result = await useCase.execute("john@example.com");
+    expect(result).toEqual({ ok: true, value: undefined });
+    expect(authTokenRepository.save).toHaveBeenCalledTimes(1);
+    const saved = vi.mocked(authTokenRepository.save).mock.calls[0][0];
+    expect(saved.userId.value).toBe(educator.id.value);
 
-    expect(result).toEqual(success(void 0));
-    expect(authTokenRepository.create).toHaveBeenCalled();
-    expect(mailerService.sendMail).toHaveBeenCalledWith(
-      "john@example.com",
-      expect.any(String),
-      expect.stringContaining("Your authentication token is")
-    );
+    expect(mailService.sendMail).toHaveBeenCalledTimes(1);
+    const [to, , body] = vi.mocked(mailService.sendMail).mock.calls[0];
+    expect(to).toBe("maria@example.com");
+    const code = body.match(/\b\d{6}\b/)?.[0];
+    expect(code).toBeDefined();
+    expect(saved.check(code!, new Date()).result.ok).toBe(true);
+    expect(body).not.toMatch(/https?:\/\//);
   });
 
-  it("should regenerate token if educator already has a token", async () => {
-    const educatorId = Uuid.random();
-    const educator = [{ id: educatorId, name: "Jane Doe", email: "jane@example.com" }];
-    const existingToken = AuthToken.create(educatorId);
+  it("código novo substitui o anterior no mesmo registro", async () => {
+    vi.mocked(educatorRepository.getByEmail).mockResolvedValue(educator);
+    const issued = AuthToken.issue({ userId: educator.id, now: new Date() });
+    if (!issued.ok) throw new Error("issue falhou");
+    const previous = issued.value.authToken;
+    vi.mocked(authTokenRepository.findByUserId).mockResolvedValue(previous);
 
-    (educatorRepository.search as any).mockResolvedValue(educator);
-    (authTokenRepository.findByUserId as any).mockResolvedValue(existingToken);
-    (authTokenRepository.update as any).mockResolvedValue(void 0);
-    (mailerService.sendMail as any).mockResolvedValue(void 0);
+    await useCase.execute("maria@example.com");
 
-    const result = await useCase.execute("jane@example.com");
+    const saved = vi.mocked(authTokenRepository.save).mock.calls[0][0];
+    expect(saved.id.value).toBe(previous.id.value);
+    expect(saved.tokenHash).not.toBe(previous.tokenHash);
+    expect(saved.sendCount).toBe(2);
+  });
 
-    expect(result).toEqual(success(void 0));
-    expect(existingToken.token).toBeDefined();
-    expect(authTokenRepository.update).toHaveBeenCalledWith(existingToken);
-    expect(mailerService.sendMail).toHaveBeenCalledWith(
-      "jane@example.com",
-      expect.any(String),
-      expect.stringContaining("Your new authentication token is")
+  it("4º envio em 15 minutos devolve TOO_MANY_REQUESTS sem enviar", async () => {
+    vi.mocked(educatorRepository.getByEmail).mockResolvedValue(educator);
+    vi.mocked(authTokenRepository.findByUserId).mockResolvedValue(
+      AuthToken.fromPersistence({
+        id: Uuid.random(),
+        userId: educator.id,
+        tokenHash: "x",
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        attempts: 0,
+        sendCount: 3,
+        sendWindowStart: new Date(Date.now() - 5 * 60 * 1000),
+      })
     );
+
+    const result = await useCase.execute("maria@example.com");
+
+    expect(result).toEqual({ ok: false, error: "TOO_MANY_REQUESTS" });
+    expect(authTokenRepository.save).not.toHaveBeenCalled();
+    expect(mailService.sendMail).not.toHaveBeenCalled();
+  });
+
+  it("falha no envio do e-mail não muda a resposta", async () => {
+    vi.mocked(educatorRepository.getByEmail).mockResolvedValue(educator);
+    vi.mocked(mailService.sendMail).mockRejectedValue(new Error("SMTP down"));
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const result = await useCase.execute("maria@example.com");
+
+    expect(result).toEqual({ ok: true, value: undefined });
   });
 });

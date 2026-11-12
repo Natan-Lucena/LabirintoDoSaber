@@ -21,6 +21,7 @@ export class EducatorRepositoryImpl implements EducatorRepository {
         photoUrl: educator.photoUrl,
         contact: educator.contact,
         profession: educator.profession ?? null,
+        passwordChangedAt: educator.passwordChangedAt ?? null,
       },
       update: {
         name: educator.name,
@@ -29,6 +30,7 @@ export class EducatorRepositoryImpl implements EducatorRepository {
         photoUrl: educator.photoUrl,
         contact: educator.contact,
         profession: educator.profession ?? null,
+        passwordChangedAt: educator.passwordChangedAt ?? null,
       },
     });
     return this.mapToEntity(result);
@@ -65,6 +67,7 @@ export class EducatorRepositoryImpl implements EducatorRepository {
       photoUrl: prismaEducator.photoUrl ?? undefined,
       contact: prismaEducator.contact ?? undefined,
       profession: prismaEducator.profession ?? undefined,
+      passwordChangedAt: prismaEducator.passwordChangedAt ?? undefined,
     });
   }
 }

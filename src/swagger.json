@@ -243,7 +243,8 @@
         "tags": [
           "Educator - Auth"
         ],
-        "summary": "Troca a senha do educador pelo e-mail.",
+        "summary": "Redefine a senha com o código recebido por e-mail.",
+        "description": "Consome o código. Depois da troca, os JWT emitidos antes dela deixam de valer (401).",
         "requestBody": {
           "required": true,
           "content": {
@@ -259,7 +260,7 @@
             "description": "Sucesso, sem corpo JSON (Express responde o texto \"OK\")."
           },
           "400": {
-            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `EDUCATOR_NOT_FOUND`.",
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `INVALID_TOKEN`, `EXPIRED_TOKEN`, `PASSWORD_SAME_AS_OLD`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -279,14 +280,41 @@
                       "errors": [
                         {
                           "message": "Required",
-                          "field": "email"
+                          "field": "token"
                         }
                       ]
                     }
                   },
-                  "EDUCATOR_NOT_FOUND": {
+                  "INVALID_TOKEN": {
                     "value": {
-                      "message": "EDUCATOR_NOT_FOUND"
+                      "message": "INVALID_TOKEN"
+                    }
+                  },
+                  "EXPIRED_TOKEN": {
+                    "value": {
+                      "message": "EXPIRED_TOKEN"
+                    }
+                  },
+                  "PASSWORD_SAME_AS_OLD": {
+                    "value": {
+                      "message": "PASSWORD_SAME_AS_OLD"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`TOO_MANY_ATTEMPTS`: 5 tentativas erradas invalidaram o código. Peça um novo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "TOO_MANY_ATTEMPTS": {
+                    "value": {
+                      "message": "TOO_MANY_ATTEMPTS"
                     }
                   }
                 }
@@ -320,7 +348,8 @@
         "tags": [
           "Educator - Auth"
         ],
-        "summary": "Gera um token de autenticação e envia por e-mail.",
+        "summary": "Envia por e-mail um código de 6 dígitos para redefinir a senha.",
+        "description": "O código vale por 15 minutos, é de uso único e um código novo invalida o anterior. A resposta é a mesma exista ou não uma conta com o e-mail. Limite de 3 envios por e-mail a cada 15 minutos.",
         "requestBody": {
           "required": true,
           "content": {
@@ -333,7 +362,14 @@
         },
         "responses": {
           "200": {
-            "description": "Sucesso, sem corpo JSON (Express responde o texto \"OK\")."
+            "description": "Pedido aceito.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenSentResponse"
+                }
+              }
+            }
           },
           "400": {
             "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`).",
@@ -349,7 +385,7 @@
                       "errors": [
                         {
                           "message": "Required",
-                          "field": "educatorEmail"
+                          "field": "email"
                         }
                       ]
                     }
@@ -358,17 +394,17 @@
               }
             }
           },
-          "404": {
-            "description": "`EDUCATOR_NOT_FOUND`",
+          "429": {
+            "description": "`TOO_MANY_REQUESTS`: limite de envios da janela de 15 minutos atingido.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 },
                 "examples": {
-                  "EDUCATOR_NOT_FOUND": {
+                  "TOO_MANY_REQUESTS": {
                     "value": {
-                      "message": "EDUCATOR_NOT_FOUND"
+                      "message": "TOO_MANY_REQUESTS"
                     }
                   }
                 }
@@ -376,16 +412,16 @@
             }
           },
           "500": {
-            "description": "`INTERNAL_ERROR`. Qualquer exceção não tratada também cai aqui com `An unexpected error occurred`.",
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InternalError"
                 },
                 "examples": {
-                  "INTERNAL_ERROR": {
+                  "An unexpected error occurred": {
                     "value": {
-                      "message": "INTERNAL_ERROR",
+                      "message": "An unexpected error occurred",
                       "error": "Error not specified."
                     }
                   }
@@ -395,6 +431,233 @@
           }
         },
         "security": []
+      }
+    },
+    "/educator/verify-token": {
+      "post": {
+        "tags": [
+          "Educator - Auth"
+        ],
+        "summary": "Confere o código de recuperação sem consumi-lo.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyTokenBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Código válido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyTokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `INVALID_TOKEN`, `EXPIRED_TOKEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "token"
+                        }
+                      ]
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "message": "INVALID_TOKEN"
+                    }
+                  },
+                  "EXPIRED_TOKEN": {
+                    "value": {
+                      "message": "EXPIRED_TOKEN"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`TOO_MANY_ATTEMPTS`: 5 tentativas erradas invalidaram o código. Peça um novo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "TOO_MANY_ATTEMPTS": {
+                    "value": {
+                      "message": "TOO_MANY_ATTEMPTS"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/educator/change-password": {
+      "put": {
+        "tags": [
+          "Educator - Auth"
+        ],
+        "summary": "Troca a senha do educador logado.",
+        "description": "Depois da troca, os JWT emitidos antes dela deixam de valer (401). A resposta traz um JWT novo para a sessão atual.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sucesso, com o JWT novo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthToken"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `INVALID_CURRENT_PASSWORD`, `PASSWORD_SAME_AS_OLD`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "newPassword"
+                        }
+                      ]
+                    }
+                  },
+                  "INVALID_CURRENT_PASSWORD": {
+                    "value": {
+                      "message": "INVALID_CURRENT_PASSWORD"
+                    }
+                  },
+                  "PASSWORD_SAME_AS_OLD": {
+                    "value": {
+                      "message": "PASSWORD_SAME_AS_OLD"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido, de educador inexistente ou emitido antes da última troca de senha (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/educator/me": {
@@ -9328,6 +9591,12 @@
             "type": "string",
             "format": "email"
           },
+          "token": {
+            "type": "string",
+            "pattern": "^\\d{6}$",
+            "example": "042917",
+            "description": "Código de 6 dígitos recebido por e-mail."
+          },
           "newPassword": {
             "type": "string",
             "minLength": 6,
@@ -9336,19 +9605,20 @@
         },
         "required": [
           "email",
+          "token",
           "newPassword"
         ]
       },
       "GenerateAuthTokenBody": {
         "type": "object",
         "properties": {
-          "educatorEmail": {
+          "email": {
             "type": "string",
             "format": "email"
           }
         },
         "required": [
-          "educatorEmail"
+          "email"
         ]
       },
       "EducatorUpdateBody": {
@@ -11772,6 +12042,71 @@
           "documents"
         ],
         "description": "Aluno com os educadores vinculados (`educators[]` no formato StudentEducator)."
+      },
+      "TokenSentResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "enum": [
+              "TOKEN_SENT"
+            ]
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "VerifyTokenBody": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "token": {
+            "type": "string",
+            "pattern": "^\\d{6}$",
+            "example": "042917",
+            "description": "Código de 6 dígitos recebido por e-mail."
+          }
+        },
+        "required": [
+          "email",
+          "token"
+        ]
+      },
+      "VerifyTokenResponse": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "valid"
+        ]
+      },
+      "ChangePasswordBody": {
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "minLength": 1
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 6,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ]
       }
     }
   }

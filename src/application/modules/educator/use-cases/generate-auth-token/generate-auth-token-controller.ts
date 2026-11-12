@@ -3,7 +3,7 @@ import {
   formatValidationErrors,
 } from "@wave-telecom/framework/controllers";
 import { GenerateAuthTokenUseCase } from "./generate-auth-token-use-case";
-import { Request, response, Response } from "express";
+import { Request, Response } from "express";
 import { generateAuthTokenSchema } from "../../schemas/generate-auth-token-schema";
 
 export class GenerateAuthTokenController extends BaseController {
@@ -19,15 +19,17 @@ export class GenerateAuthTokenController extends BaseController {
       return this.clientError(res, undefined, errors);
     }
 
-    const result = await this.useCase.execute(validation.data.educatorEmail);
+    const result = await this.useCase.execute(validation.data.email);
 
     if (!result.ok) {
-      if (result.error === "EDUCATOR_NOT_FOUND") {
-        return this.notFound(res, "EDUCATOR_NOT_FOUND");
+      switch (result.error) {
+        case "TOO_MANY_REQUESTS":
+          return res.status(429).json({ message: result.error });
+        default:
+          return this.fail(res, "INTERNAL_ERROR");
       }
-      return this.fail(res, "INTERNAL_ERROR");
     }
 
-    return this.ok(res);
+    return this.ok(res, { message: "TOKEN_SENT" });
   }
 }
