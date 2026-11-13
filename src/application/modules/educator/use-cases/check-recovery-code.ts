@@ -17,7 +17,7 @@ export async function checkRecoveryCode(
   const usable = authToken.ensureUsable(now);
   if (!usable.ok) return usable;
 
-  const counted = await authTokenRepository.registerAttempt(authToken.id);
+  const counted = await authTokenRepository.registerAttempt(authToken);
   if (!counted) {
     // Outra requisição usou o código ou esgotou as tentativas no meio do
     // caminho: relê para responder com o erro certo.
@@ -27,5 +27,9 @@ export async function checkRecoveryCode(
     return recheck.ok ? failure("TOO_MANY_ATTEMPTS") : recheck;
   }
 
-  return authToken.check(code, now);
+  const checked = authToken.check(code, now);
+  // Só os erros contam: o acerto devolve a tentativa, para que um verify
+  // correto depois de 4 erros não bloqueie o update-password em seguida.
+  if (checked.ok) await authTokenRepository.refundAttempt(authToken);
+  return checked;
 }

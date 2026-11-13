@@ -15,11 +15,15 @@ export interface AuthTokenRepository {
   // false, sem gravar nada, quando o limite da janela foi atingido.
   saveIssued(authToken: AuthToken, now: Date): Promise<boolean>;
 
-  // Conta uma tentativa se o código não foi usado e ainda tem tentativas.
-  // Devolve false quando não contou.
-  registerAttempt(id: Uuid): Promise<boolean>;
+  // Conta uma tentativa se o código lido ainda é o atual, não foi usado e
+  // ainda tem tentativas. Devolve false quando não contou.
+  registerAttempt(authToken: AuthToken): Promise<boolean>;
 
-  // Marca o código como usado se ainda não foi. Devolve false quando outro
-  // uso chegou antes.
-  consume(id: Uuid, consumedAt: Date): Promise<boolean>;
+  // Devolve a tentativa de um código conferido com sucesso: só os erros
+  // contam para o limite.
+  refundAttempt(authToken: AuthToken): Promise<void>;
+
+  // Marca o código lido como usado se ele ainda é o atual e não foi usado.
+  // Devolve false quando outro uso ou um código novo chegou antes.
+  consume(authToken: AuthToken, consumedAt: Date): Promise<boolean>;
 }

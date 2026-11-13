@@ -72,10 +72,11 @@ export class AuthTokenRepositoryImpl implements AuthTokenRepository {
     return restarted.count === 1;
   }
 
-  async registerAttempt(id: Uuid): Promise<boolean> {
+  async registerAttempt(authToken: AuthToken): Promise<boolean> {
     const result = await this.prismaService.authToken.updateMany({
       where: {
-        id: id.value,
+        id: authToken.id.value,
+        tokenHash: authToken.tokenHash ?? null,
         attempts: { lt: AUTH_TOKEN_MAX_ATTEMPTS },
         consumedAt: null,
       },
@@ -84,9 +85,24 @@ export class AuthTokenRepositoryImpl implements AuthTokenRepository {
     return result.count === 1;
   }
 
-  async consume(id: Uuid, consumedAt: Date): Promise<boolean> {
+  async refundAttempt(authToken: AuthToken): Promise<void> {
+    await this.prismaService.authToken.updateMany({
+      where: {
+        id: authToken.id.value,
+        tokenHash: authToken.tokenHash ?? null,
+        attempts: { gt: 0 },
+      },
+      data: { attempts: { decrement: 1 } },
+    });
+  }
+
+  async consume(authToken: AuthToken, consumedAt: Date): Promise<boolean> {
     const result = await this.prismaService.authToken.updateMany({
-      where: { id: id.value, consumedAt: null },
+      where: {
+        id: authToken.id.value,
+        tokenHash: authToken.tokenHash ?? null,
+        consumedAt: null,
+      },
       data: { consumedAt },
     });
     return result.count === 1;

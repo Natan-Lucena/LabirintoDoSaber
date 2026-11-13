@@ -36,6 +36,7 @@ describe("UpdatePasswordEducatorUseCase", () => {
     authTokenRepository = {
       findByUserId: vi.fn().mockResolvedValue(null),
       registerAttempt: vi.fn().mockResolvedValue(true),
+      refundAttempt: vi.fn().mockResolvedValue(undefined),
       consume: vi.fn().mockResolvedValue(true),
     } as unknown as AuthTokenRepository;
     useCase = new UpdatePasswordEducatorUseCase(
@@ -152,7 +153,7 @@ describe("UpdatePasswordEducatorUseCase", () => {
 
     expect(result).toEqual({ ok: true, value: undefined });
     expect(authTokenRepository.consume).toHaveBeenCalledWith(
-      authToken.id,
+      authToken,
       expect.any(Date)
     );
     expect(educatorRepository.save).toHaveBeenCalledWith(educator);

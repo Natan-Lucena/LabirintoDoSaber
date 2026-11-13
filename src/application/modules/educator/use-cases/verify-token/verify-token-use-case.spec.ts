@@ -50,6 +50,7 @@ describe("VerifyTokenUseCase", () => {
     authTokenRepository = {
       findByUserId: vi.fn().mockResolvedValue(null),
       registerAttempt: vi.fn().mockResolvedValue(true),
+      refundAttempt: vi.fn().mockResolvedValue(undefined),
       consume: vi.fn(),
     } as unknown as AuthTokenRepository;
     useCase = new VerifyTokenUseCase(educatorRepository, authTokenRepository);
@@ -62,9 +63,8 @@ describe("VerifyTokenUseCase", () => {
     const result = await useCase.execute({ email: educator.email, token: code });
 
     expect(result).toEqual({ ok: true, value: { valid: true } });
-    expect(authTokenRepository.registerAttempt).toHaveBeenCalledWith(
-      authToken.id
-    );
+    expect(authTokenRepository.registerAttempt).toHaveBeenCalledWith(authToken);
+    expect(authTokenRepository.refundAttempt).toHaveBeenCalledWith(authToken);
     expect(authTokenRepository.consume).not.toHaveBeenCalled();
   });
 
@@ -188,7 +188,21 @@ describe("VerifyTokenUseCase", () => {
         { ok: true, value: { valid: true } },
         { ok: false, error: "TOO_MANY_ATTEMPTS" },
       ]);
-      expect((await repository.findByUserId(educator.id))!.attempts).toBe(5);
+      // O acerto devolve a tentativa: só os erros contam para o limite.
+      expect((await repository.findByUserId(educator.id))!.attempts).toBe(4);
+    });
+
+    it("acerto depois de 4 erros não gasta tentativa", async () => {
+      const { authToken, code } = issueFor(educator.id);
+      await repository.create(authToken);
+
+      for (let i = 0; i < 4; i++) {
+        await useCase.execute({ email: educator.email, token: wrongCodeFor(code) });
+      }
+      const result = await useCase.execute({ email: educator.email, token: code });
+
+      expect(result).toEqual({ ok: true, value: { valid: true } });
+      expect((await repository.findByUserId(educator.id))!.attempts).toBe(4);
     });
   });
 });

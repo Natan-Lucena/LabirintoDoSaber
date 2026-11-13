@@ -48,10 +48,11 @@ export class MockAuthTokenRepository implements AuthTokenRepository {
     return Promise.resolve(true);
   }
 
-  registerAttempt(id: Uuid): Promise<boolean> {
-    const current = this.get(id);
+  registerAttempt(authToken: AuthToken): Promise<boolean> {
+    const current = this.get(authToken.id);
     if (
       !current ||
+      current.tokenHash !== authToken.tokenHash ||
       current.consumedAt ||
       current.attempts >= AUTH_TOKEN_MAX_ATTEMPTS
     ) {
@@ -61,9 +62,23 @@ export class MockAuthTokenRepository implements AuthTokenRepository {
     return Promise.resolve(true);
   }
 
-  consume(id: Uuid, consumedAt: Date): Promise<boolean> {
-    const current = this.get(id);
-    if (!current || current.consumedAt) return Promise.resolve(false);
+  refundAttempt(authToken: AuthToken): Promise<void> {
+    const current = this.get(authToken.id);
+    if (current && current.tokenHash === authToken.tokenHash && current.attempts > 0) {
+      this.replace(current, { attempts: current.attempts - 1 });
+    }
+    return Promise.resolve();
+  }
+
+  consume(authToken: AuthToken, consumedAt: Date): Promise<boolean> {
+    const current = this.get(authToken.id);
+    if (
+      !current ||
+      current.tokenHash !== authToken.tokenHash ||
+      current.consumedAt
+    ) {
+      return Promise.resolve(false);
+    }
     this.replace(current, { consumedAt });
     return Promise.resolve(true);
   }

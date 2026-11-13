@@ -47,7 +47,7 @@ export class UpdatePasswordEducatorUseCase {
     }
 
     // Uso único: só troca a senha quem conseguiu consumir o código.
-    if (!(await this.authTokenRepository.consume(authToken.id, now))) {
+    if (!(await this.authTokenRepository.consume(authToken, now))) {
       return failure("INVALID_TOKEN");
     }
 
