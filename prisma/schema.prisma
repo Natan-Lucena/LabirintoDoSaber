@@ -445,3 +445,115 @@ enum CriterionResult {
   NOT_ACHIEVED
   NOT_OBSERVED
 }
+
+// Catálogo de escalas: carregado por seed versionado (scales/*.json) e
+// somente leitura para o app. Versão publicada não muda.
+model ScaleTemplate {
+  id               String          @id @map("_id")
+  code             String
+  version          Int
+  name             String
+  description      String
+  instructions     String
+  respondent       ScaleRespondent
+  ageRange         ScaleAgeRange?
+  estimatedMinutes Int
+  options          ScaleOption[]
+  items            ScaleItem[]
+  subscales        ScaleSubscale[]
+  scoring          ScaleScoring
+  disclaimer       String
+  reference        String
+  active           Boolean
+
+  @@unique([code, version])
+}
+
+type ScaleAgeRange {
+  min Int
+  max Int
+}
+
+type ScaleOption {
+  value Float
+  label String
+}
+
+type ScaleItem {
+  id           String
+  order        Int
+  text         String
+  subscaleCode String?
+}
+
+type ScaleSubscale {
+  code String
+  name String
+}
+
+type ScaleScoring {
+  method ScoringMethod
+  bands  ScaleBand[]
+}
+
+type ScaleBand {
+  subscaleCode String?
+  min          Float
+  max          Float
+  label        String
+  severity     BandSeverity
+}
+
+enum ScaleRespondent {
+  PROFESSIONAL
+  GUARDIAN
+  TEACHER
+}
+
+enum BandSeverity {
+  LOW
+  MODERATE
+  HIGH
+}
+
+enum ScoringMethod {
+  SUM
+  MEAN
+}
+
+// O escore não é gravado: é recalculado com o template da versão gravada.
+model ScaleApplication {
+  id              String            @id @map("_id")
+  templateId      String
+  templateCode    String
+  templateVersion Int
+  templateName    String
+  studentId       String
+  educatorId      String
+  appointmentId   String?
+  status          ApplicationStatus
+  answers         ScaleAnswer[]
+  insight         ScaleInsight?
+  startedAt       DateTime
+  updatedAt       DateTime
+  completedAt     DateTime?
+
+  @@index([studentId, status, updatedAt])
+  @@index([studentId, templateCode, status])
+}
+
+type ScaleAnswer {
+  itemId String
+  value  Float
+}
+
+type ScaleInsight {
+  text        String
+  generatedAt DateTime
+  preliminary Boolean
+}
+
+enum ApplicationStatus {
+  DRAFT
+  COMPLETED
+}
