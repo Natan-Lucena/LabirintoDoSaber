@@ -180,6 +180,26 @@ describe("PlanSuggestion", () => {
           })
         ).toEqual(INVALID);
       });
+
+      it("rejects a rewrite with the same text as the current goal", () => {
+        expect(
+          create({
+            kind: SuggestionKind.REWRITE_GOAL,
+            goalId: goalId(),
+            text: "Reescrever.",
+            proposedChange: { description: "Ler sílabas" },
+          })
+        ).toEqual(INVALID);
+        // Compara sem espaços nas pontas e sem diferenciar maiúsculas.
+        expect(
+          create({
+            kind: SuggestionKind.REWRITE_GOAL,
+            goalId: goalId(),
+            text: "Reescrever.",
+            proposedChange: { description: "  LER Sílabas " },
+          })
+        ).toEqual(INVALID);
+      });
     });
 
     describe("SCHEDULE_REVIEW", () => {

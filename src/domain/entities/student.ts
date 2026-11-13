@@ -131,6 +131,11 @@ export class Student {
     return this._name;
   }
 
+  // Só o primeiro nome, para textos curtos como as notificações.
+  get firstName(): string {
+    return this._name.trim().split(/\s+/)[0];
+  }
+
   get age(): number {
     return this._age;
   }

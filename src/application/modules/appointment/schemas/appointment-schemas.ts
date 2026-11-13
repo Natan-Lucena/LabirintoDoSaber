@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MAX_APPOINTMENT_DURATION_MINUTES } from "../../../../domain/entities/appointment";
+import { dateOnlySchema } from "../../plan/schemas/plan-fields";
 
 const appointmentTypeSchema = z.string().min(1).max(50);
 const durationMinutesSchema = z.number().int().min(15).max(MAX_APPOINTMENT_DURATION_MINUTES);
@@ -18,4 +19,10 @@ export const updateAppointmentSchema = z.object({
   type: appointmentTypeSchema.optional(),
   durationMinutes: durationMinutesSchema.optional(),
   status: z.enum(["PENDING", "COMPLETED", "CANCELLED"]).optional(),
+});
+
+// Período da agenda em dias de São Paulo (AAAA-MM-DD), os dois inclusivos.
+export const listAppointmentsQuerySchema = z.object({
+  from: dateOnlySchema.optional(),
+  to: dateOnlySchema.optional(),
 });

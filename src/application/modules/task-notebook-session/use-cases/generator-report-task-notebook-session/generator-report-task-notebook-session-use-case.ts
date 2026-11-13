@@ -46,7 +46,7 @@ export class GeneratorReportTaskNotebookSessionUseCase {
 
     const averageTimePerQuestion =
       session.answers.reduce((acc, curr) => acc + curr.timeToAnswer, 0) /
-      totalQuestions; // segundos
+      totalQuestions; // milissegundos (timeToAnswer cru)
 
     const correctTimes = session.answers
       .filter((a) => a.isCorrect)
@@ -59,12 +59,12 @@ export class GeneratorReportTaskNotebookSessionUseCase {
     const averageCorrectTime =
       correctTimes.length > 0
         ? correctTimes.reduce((acc, n) => acc + n, 0) / correctTimes.length
-        : null; // segundos
+        : null; // milissegundos
 
     const averageIncorrectTime =
       incorrectTimes.length > 0
         ? incorrectTimes.reduce((acc, n) => acc + n, 0) / incorrectTimes.length
-        : null; // segundos
+        : null; // milissegundos
 
     const statsByCategory: Record<
       string,

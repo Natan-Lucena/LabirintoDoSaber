@@ -4,6 +4,7 @@ import {
 } from "@prisma/client";
 import {
   ListByEducatorIdParams,
+  ListFinishedBetweenParams,
   ListFinishedByEducatorSinceParams,
   TaskNotebookSessionRepository,
 } from "../../../domain/repositories/task-notebook-session-repository";
@@ -33,6 +34,15 @@ export class TaskNotebokSessionRepositoryImpl
         finishedAt: { gte: params.since },
       },
       orderBy: { finishedAt: "desc" },
+    });
+    return result.map((data) => this.mapToEntity(data));
+  }
+
+  async listFinishedBetween(
+    params: ListFinishedBetweenParams
+  ): Promise<TaskNotebookSession[]> {
+    const result = await this.prismaService.taskNotebookSession.findMany({
+      where: { finishedAt: { gte: params.from, lte: params.to } },
     });
     return result.map((data) => this.mapToEntity(data));
   }

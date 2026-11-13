@@ -16,6 +16,21 @@ export function requireJobApiKey(
   next();
 }
 
+// Cron da Vercel: envia `Authorization: Bearer <CRON_SECRET>`. Sem o segredo
+// configurado, recusa sempre.
+export function requireCronSecret(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  const secret = process.env.CRON_SECRET;
+  if (!secret || req.headers.authorization !== `Bearer ${secret}`) {
+    res.sendStatus(401);
+    return;
+  }
+  next();
+}
+
 const authService = new JwtAuthService();
 
 // Token emitido antes da última troca de senha deixa de valer. O `iat` do JWT

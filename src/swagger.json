@@ -69,6 +69,9 @@
     },
     {
       "name": "Report"
+    },
+    {
+      "name": "Notification"
     }
   ],
   "paths": {
@@ -5636,6 +5639,41 @@
               }
             }
           },
+          "400": {
+            "description": "Data fora do formato AAAA-MM-DD (Zod), ou `INVALID_PERIOD` (`from` depois de `to`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Data deve ser válida no formato AAAA-MM-DD",
+                          "field": "from"
+                        }
+                      ]
+                    }
+                  },
+                  "INVALID_PERIOD": {
+                    "value": {
+                      "message": "INVALID_PERIOD"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "401": {
             "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
             "content": {
@@ -5685,6 +5723,29 @@
         "security": [
           {
             "bearerAuth": []
+          }
+        ],
+        "description": "Sem `from` e `to`, devolve todos os atendimentos. Os dois são dias de São Paulo e inclusivos (um atendimento às 23:59 de `to` entra).",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "AAAA-MM-DD. Atendimentos a partir do início deste dia (São Paulo).",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "AAAA-MM-DD. Atendimentos até o fim deste dia (São Paulo), inclusive.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
           }
         ]
       }
@@ -12647,6 +12708,401 @@
           }
         ]
       }
+    },
+    "/notification": {
+      "get": {
+        "tags": [
+          "Notification"
+        ],
+        "summary": "Lista as notificações do educador, mais recentes primeiro.",
+        "description": "Paginada por cursor (`createdAt` + `id`). Geradas uma vez por dia pelo cron (06:00 de São Paulo) e apagadas após 90 dias. Notificações de pacientes que não são mais do educador não aparecem.",
+        "parameters": [
+          {
+            "name": "unreadOnly",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "`nextCursor` da página anterior.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod, ou `INVALID_CURSOR`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Number must be less than or equal to 50",
+                          "field": "limit"
+                        }
+                      ]
+                    }
+                  },
+                  "INVALID_CURSOR": {
+                    "value": {
+                      "message": "INVALID_CURSOR"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/notification/unread-count": {
+      "get": {
+        "tags": [
+          "Notification"
+        ],
+        "summary": "Quantidade de notificações não lidas (o número do sino).",
+        "description": "Conta só as que a lista mostra.",
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationUnreadCount"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/notification/read-all": {
+      "post": {
+        "tags": [
+          "Notification"
+        ],
+        "summary": "Marca todas as notificações não lidas do educador como lidas.",
+        "responses": {
+          "200": {
+            "description": "Sucesso. `updated` é quantas mudaram.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationReadAll"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/notification/{id}/read": {
+      "post": {
+        "tags": [
+          "Notification"
+        ],
+        "summary": "Marca uma notificação como lida.",
+        "description": "Se já estava lida, mantém o `readAt` da primeira leitura.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Id da notificação.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Notification"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: notificação de outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOTIFICATION_NOT_FOUND` (inclusive id que não é UUID).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "NOTIFICATION_NOT_FOUND": {
+                    "value": {
+                      "message": "NOTIFICATION_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -13656,8 +14112,9 @@
             "type": "boolean"
           },
           "timeToAnswer": {
-            "type": "number",
-            "description": "Segundos."
+            "type": "integer",
+            "minimum": 0,
+            "description": "Tempo de resposta em milissegundos (inteiro). Registros antigos, de antes de 2026-10-09, podem estar em segundos."
           },
           "answeredAt": {
             "type": "string",
@@ -13772,8 +14229,9 @@
             "format": "uuid"
           },
           "timeToAnswer": {
-            "type": "number",
-            "minimum": 0
+            "type": "integer",
+            "minimum": 0,
+            "description": "Tempo de resposta em milissegundos (inteiro)."
           }
         },
         "required": [
@@ -13819,21 +14277,25 @@
             "type": "string"
           },
           "totalTimeSession": {
-            "type": "number"
+            "type": "number",
+            "description": "Duração da sessão em segundos (de `startedAt` a `finishedAt`)."
           },
           "totalQuestions": {
             "type": "integer"
           },
           "averageTimePerQuestion": {
-            "type": "number"
+            "type": "number",
+            "description": "Média de `timeToAnswer`, em milissegundos."
           },
           "averageCorrectTime": {
             "type": "number",
-            "nullable": true
+            "nullable": true,
+            "description": "Média de `timeToAnswer`, em milissegundos."
           },
           "averageIncorrectTime": {
             "type": "number",
-            "nullable": true
+            "nullable": true,
+            "description": "Média de `timeToAnswer`, em milissegundos."
           },
           "percentageByCategory": {
             "type": "object",
@@ -17264,6 +17726,116 @@
         },
         "required": [
           "channel"
+        ]
+      },
+      "NotificationTarget": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "AGENDA_DAY",
+              "SESSION",
+              "PLAN",
+              "SCALE_APPLICATION"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "description": "Id do destino (uuid), ou a data `AAAA-MM-DD` quando `type` é `AGENDA_DAY`. O destino pode não existir mais; não é erro (NT-05)."
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ]
+      },
+      "Notification": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "APPOINTMENTS_TODAY",
+              "EVOLUTION_PENDING",
+              "PLAN_REVIEW_DUE",
+              "SCALE_DRAFT_STALE"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Pode trazer o primeiro nome do paciente."
+          },
+          "target": {
+            "$ref": "#/components/schemas/NotificationTarget"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "readAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Ausente enquanto a notificação não foi lida."
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "body",
+          "createdAt"
+        ]
+      },
+      "NotificationPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Notification"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "description": "Cursor da próxima página; ausente na última. A página pode vir com menos itens que `limit` quando há notificações de pacientes que não são mais do educador (NT-03)."
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "NotificationUnreadCount": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "count"
+        ]
+      },
+      "NotificationReadAll": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "updated"
         ]
       }
     }

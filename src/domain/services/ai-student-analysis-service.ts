@@ -9,7 +9,7 @@ export interface StudentAnalysisSessionAnswer {
   taskPrompt?: string;
   category?: string;
   isCorrect: boolean;
-  timeToAnswer: number;
+  timeToAnswer: number; // em milissegundos
 }
 
 export interface StudentAnalysisSessionSummary {
@@ -19,7 +19,7 @@ export interface StudentAnalysisSessionSummary {
   observation?: string;
   totalAnswers: number;
   correctAnswers: number;
-  averageTimeToAnswer?: number;
+  averageTimeToAnswer?: number; // em milissegundos
   answers: StudentAnalysisSessionAnswer[];
 }
 

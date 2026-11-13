@@ -51,6 +51,7 @@ export const makeApplicationRepository = (initial: ScaleApplication[] = []) => {
     delete: vi.fn(async (id: Uuid) => {
       store.delete(id.value);
     }),
+    listDraftsUpdatedBefore: vi.fn(),
   } satisfies ScaleApplicationRepository & { store: Map<string, ScaleApplication> };
 };
 

@@ -122,6 +122,13 @@ export class ScaleApplicationRepositoryImpl implements ScaleApplicationRepositor
     await this.prismaService.scaleApplication.delete({ where: { id: id.value } });
   }
 
+  async listDraftsUpdatedBefore(date: Date): Promise<ScaleApplication[]> {
+    const records = await this.prismaService.scaleApplication.findMany({
+      where: { status: ApplicationStatus.DRAFT, updatedAt: { lte: date } },
+    });
+    return records.map((record) => this.mapToEntity(record));
+  }
+
   private mapToEntity(record: PrismaScaleApplication): ScaleApplication {
     return ScaleApplication.fromPersistence({
       id: new Uuid(record.id),

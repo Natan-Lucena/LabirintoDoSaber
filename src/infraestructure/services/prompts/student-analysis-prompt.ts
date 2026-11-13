@@ -2,6 +2,9 @@ import { StudentAnalysisAiInput } from "../../../domain/services/ai-student-anal
 
 const percent = (value: number) => `${Math.round(value * 100)}%`;
 
+// O tempo de resposta chega em milissegundos; o prompt mostra em segundos.
+const seconds = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
+
 function renderMetrics(input: StudentAnalysisAiInput): string {
   const { total, categories } = input.metrics;
   const byCategory = categories
@@ -32,7 +35,7 @@ function renderSessions(input: StudentAnalysisAiInput): string {
         : `${session.startedAt} (não finalizada)`;
       const avg =
         session.averageTimeToAnswer !== undefined
-          ? `${session.averageTimeToAnswer.toFixed(1)}s`
+          ? seconds(session.averageTimeToAnswer)
           : "n/d";
 
       const answers = session.answers
@@ -40,7 +43,7 @@ function renderSessions(input: StudentAnalysisAiInput): string {
           (a) =>
             `    • [${a.isCorrect ? "ACERTOU" : "ERROU"}] (${
               a.category ?? "?"
-            }, ${a.timeToAnswer}s) ${a.taskPrompt ?? "(enunciado indisponível)"}`
+            }, ${seconds(a.timeToAnswer)}) ${a.taskPrompt ?? "(enunciado indisponível)"}`
         )
         .join("\n");
 

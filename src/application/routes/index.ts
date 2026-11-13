@@ -14,6 +14,7 @@ import { sessionEvolutionRouter } from "../modules/session-evolution/routes";
 import { scaleTemplateRouter } from "../modules/scale-template/routes";
 import { scaleApplicationRouter } from "../modules/scale-application/routes";
 import { reportRouter } from "../modules/report/routes";
+import { notificationRouter } from "../modules/notification/routes";
 
 const router = Router();
 
@@ -32,5 +33,6 @@ router.use("/session-evolution", sessionEvolutionRouter);
 router.use("/scale-template", scaleTemplateRouter);
 router.use("/scale-application", scaleApplicationRouter);
 router.use("/report", reportRouter);
+router.use("/notification", notificationRouter);
 
 export { router };

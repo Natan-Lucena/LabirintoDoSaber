@@ -4,7 +4,7 @@ export interface TaskAnswer {
   taskId: Uuid;
   selectedAlternativeId: Uuid;
   isCorrect: boolean;
-  timeToAnswer: number; // em segundos
+  timeToAnswer: number; // em milissegundos
   answeredAt: Date;
 }
 

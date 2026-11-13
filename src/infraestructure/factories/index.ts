@@ -42,6 +42,8 @@ import { ScaleApplicationRepository } from "../../domain/repositories/scale-appl
 import { ScaleApplicationRepositoryImpl } from "../repositories/prisma/scale-application-repository-impl";
 import { ReportRepository } from "../../domain/repositories/report-repository";
 import { ReportRepositoryImpl } from "../repositories/prisma/report-repository-impl";
+import { NotificationRepository } from "../../domain/repositories/notification-repository";
+import { NotificationRepositoryImpl } from "../repositories/prisma/notification-repository-impl";
 
 const prismaClient = new PrismaClient();
 
@@ -159,4 +161,8 @@ export const makeScaleApplicationRepository = (): ScaleApplicationRepository => 
 
 export const makeReportRepository = (): ReportRepository => {
   return new ReportRepositoryImpl(prismaClient);
+};
+
+export const makeNotificationRepository = (): NotificationRepository => {
+  return new NotificationRepositoryImpl(prismaClient);
 };

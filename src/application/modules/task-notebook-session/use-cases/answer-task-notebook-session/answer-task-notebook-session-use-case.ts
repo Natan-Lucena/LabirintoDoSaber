@@ -10,7 +10,7 @@ export interface AnswerTaskNotebookSessionUseCaseRequest {
   sessionId: string;
   taskId: string;
   selectedAlternativeId: string;
-  timeToAnswer: number; // em segundos
+  timeToAnswer: number; // em milissegundos
 }
 
 export class AnswerTaskNotebookSessionUseCase {

@@ -11,6 +11,12 @@ export interface ListFinishedByEducatorSinceParams {
   since: Date;
 }
 
+export interface ListFinishedBetweenParams {
+  // Inclusivos, comparados com finishedAt.
+  from: Date;
+  to: Date;
+}
+
 export interface TaskNotebookSessionRepository {
   save(session: TaskNotebookSession): Promise<void>;
   getById(id: Uuid): Promise<TaskNotebookSession | null>;
@@ -22,4 +28,6 @@ export interface TaskNotebookSessionRepository {
   listFinishedByEducatorSince(
     params: ListFinishedByEducatorSinceParams
   ): Promise<TaskNotebookSession[]>;
+  // Sessões de todos os educadores finalizadas no intervalo (cron de notificações).
+  listFinishedBetween(params: ListFinishedBetweenParams): Promise<TaskNotebookSession[]>;
 }

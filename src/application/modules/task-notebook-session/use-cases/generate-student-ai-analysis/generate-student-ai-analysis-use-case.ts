@@ -78,6 +78,7 @@ export class GenerateStudentAiAnalysisUseCase {
           observation: session.observation,
           totalAnswers: session.answers.length,
           correctAnswers,
+          // Em milissegundos; o prompt converte para segundos.
           averageTimeToAnswer: session.answers.length
             ? totalTime / session.answers.length
             : undefined,
