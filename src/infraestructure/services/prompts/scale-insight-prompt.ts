@@ -4,7 +4,9 @@ import { COMMON_RULES, PERSONA } from "./clinical-prompt-rules";
 export function buildScaleInsightPrompt(params: ScaleInsightParams): string {
   const status = params.preliminary
     ? `A aplicação ainda é um RASCUNHO (${params.score.answered} de ${params.score.total} itens respondidos).
-Deixe claro no texto que o insight é preliminar e pode mudar quando a escala for concluída.`
+Deixe claro no texto que o insight é preliminar e pode mudar quando a escala for concluída.
+A faixa foi calculada só sobre os itens respondidos e pode subestimar o resultado final:
+não trate a faixa parcial como definitiva.`
     : "A aplicação foi concluída.";
 
   return `${PERSONA}

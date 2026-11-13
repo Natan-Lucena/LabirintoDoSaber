@@ -55,6 +55,13 @@ describe("GetAnamneseResponseUseCase", () => {
     expect(result).toEqual(failure("RESPONSE_NOT_FOUND"));
   });
 
+  it("should return RESPONSE_NOT_FOUND for an id that is not a uuid", async () => {
+    const result = await useCase.execute({ responseId: "nao-e-uuid", educatorId });
+
+    expect(result).toEqual(failure("RESPONSE_NOT_FOUND"));
+    expect(responseRepository.findById).not.toHaveBeenCalled();
+  });
+
   it("should return failure when educator is not the owner", async () => {
     const response = makeResponse(Uuid.random());
     (responseRepository.findById as any).mockResolvedValue(response);

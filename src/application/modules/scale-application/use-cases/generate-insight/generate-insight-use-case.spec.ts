@@ -5,7 +5,7 @@ import {
   ScaleApplication,
 } from "../../../../../domain/entities/scale-application";
 import { Gender } from "../../../../../domain/entities/student";
-import { AiInvalidOutputError } from "../../../../../domain/services/ai-plan-generator-service";
+import { AiInvalidOutputError } from "../../../../../domain/services/ai-errors";
 import { AiClinicalService } from "../../../../../domain/services/ai-clinical-service";
 import { GenerateInsightUseCase } from "./generate-insight-use-case";
 import {
@@ -90,7 +90,12 @@ describe("GenerateInsightUseCase", () => {
     // Gerar insight não muda o status nem as respostas.
     expect(application.status).toBe(ApplicationStatus.DRAFT);
     expect(application.answers).toEqual(draft.answers);
-    expect(applicationRepository.save).toHaveBeenCalledWith(application);
+    expect(applicationRepository.saveInsight).toHaveBeenCalledWith(
+      draft.id,
+      application.insight
+    );
+    // Nunca regrava o documento inteiro com o snapshot lido antes da IA.
+    expect(applicationRepository.save).not.toHaveBeenCalled();
     expect(aiParams().preliminary).toBe(true);
   });
 
@@ -158,7 +163,7 @@ describe("GenerateInsightUseCase", () => {
     const result = await generate(draft.id.value);
 
     expect(result).toEqual({ ok: false, error: "AI_GENERATION_FAILED" });
-    expect(applicationRepository.save).not.toHaveBeenCalled();
+    expect(applicationRepository.saveInsight).not.toHaveBeenCalled();
     expect(JSON.stringify(consoleError.mock.calls)).not.toContain("overloaded");
     consoleError.mockRestore();
   });
@@ -170,7 +175,7 @@ describe("GenerateInsightUseCase", () => {
     (aiService.scaleInsight as any).mockResolvedValueOnce({ text: "  " });
     expect(await generate(draft.id.value)).toEqual({ ok: false, error: "AI_INVALID_OUTPUT" });
 
-    expect(applicationRepository.save).not.toHaveBeenCalled();
+    expect(applicationRepository.saveInsight).not.toHaveBeenCalled();
   });
 
   it("truncates the insight to 800 characters", async () => {
@@ -181,6 +186,59 @@ describe("GenerateInsightUseCase", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.application.insight?.text).toHaveLength(800);
+  });
+
+  it("does not revert a completion made while the AI was answering", async () => {
+    const fullDraft = unwrap<ScaleApplication>(
+      startApplication(template, student).saveAnswers(
+        template,
+        demoAnswers([1, 1, 1, 1, 1, 1, 1, 1])
+      )
+    );
+    applicationRepository.store.set(fullDraft.id.value, fullDraft);
+    (aiService.scaleInsight as any).mockImplementation(async () => {
+      // Outra requisição conclui a aplicação no meio da chamada.
+      applicationRepository.store.set(
+        fullDraft.id.value,
+        unwrap<ScaleApplication>(fullDraft.complete(template))
+      );
+      return { text: "Insight." };
+    });
+
+    const result = await generate(fullDraft.id.value);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const stored = applicationRepository.store.get(fullDraft.id.value) as ScaleApplication;
+    expect(stored.status).toBe(ApplicationStatus.COMPLETED);
+    expect(stored.completedAt).toBeDefined();
+    expect(stored.insight?.text).toBe("Insight.");
+    expect(result.value.application.status).toBe(ApplicationStatus.COMPLETED);
+    expect(applicationRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("returns APPLICATION_NOT_FOUND when the application is deleted during the AI call", async () => {
+    (aiService.scaleInsight as any).mockImplementation(async () => {
+      applicationRepository.store.delete(draft.id.value);
+      return { text: "Insight." };
+    });
+
+    const result = await generate(draft.id.value);
+
+    expect(result).toEqual({ ok: false, error: "APPLICATION_NOT_FOUND" });
+    // Não recria o registro excluído.
+    expect(applicationRepository.store.has(draft.id.value)).toBe(false);
+    expect(applicationRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("returns NO_ANSWERS_YET for an application without answers", async () => {
+    const empty = startApplication(template, student);
+    applicationRepository.store.set(empty.id.value, empty);
+
+    const result = await generate(empty.id.value);
+
+    expect(result).toEqual({ ok: false, error: "NO_ANSWERS_YET" });
+    expect(aiService.scaleInsight).not.toHaveBeenCalled();
   });
 
   it("returns UNAUTHORIZED for an application of a student of another educator", async () => {

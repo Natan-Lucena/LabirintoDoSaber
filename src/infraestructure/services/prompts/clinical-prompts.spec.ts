@@ -46,7 +46,9 @@ describe("clinical prompts (IA-02, IA-04)", () => {
   );
 
   it("marks the insight of a draft as preliminary", () => {
-    expect(buildScaleInsightPrompt(insightParams(true))).toContain("preliminar");
+    const draft = buildScaleInsightPrompt(insightParams(true));
+    expect(draft).toContain("preliminar");
+    expect(draft).toContain("pode subestimar o resultado");
     expect(prompts.insight).not.toContain("RASCUNHO");
   });
 

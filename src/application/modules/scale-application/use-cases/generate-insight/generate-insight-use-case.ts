@@ -41,7 +41,11 @@ export class GenerateInsightUseCase {
     const template = await this.templateRepository.findById(application.templateId);
     if (!template) return failure("SCALE_NOT_FOUND");
 
+    // Sem resposta não há escore para interpretar.
+    if (application.answers.length === 0) return failure("NO_ANSWERS_YET");
+
     const preliminary = application.status !== ApplicationStatus.COMPLETED;
+    const generatedAt = new Date();
     const score = template.computeScore(application.answers);
 
     // Só o escore agregado: as respostas item a item ficam fora (IN-03).
@@ -84,15 +88,20 @@ export class GenerateInsightUseCase {
     const text = clipAiText(output.value?.text, INSIGHT_MAX);
     if (!text) return failure("AI_INVALID_OUTPUT");
 
-    const updated = application.withInsight({
+    // Grava só o insight: a aplicação pode ter sido concluída ou alterada
+    // enquanto a IA respondia, e o snapshot lido antes não pode voltar.
+    const saved = await this.applicationRepository.saveInsight(application.id, {
       text,
-      generatedAt: new Date(),
+      generatedAt,
       preliminary,
     });
-    await this.applicationRepository.save(updated);
+    if (!saved) return failure("APPLICATION_NOT_FOUND");
+
+    const current = await this.applicationRepository.findById(application.id);
+    if (!current) return failure("APPLICATION_NOT_FOUND");
 
     return success<ScaleApplicationView>({
-      application: updated,
+      application: current,
       template,
       studentName: student.name,
     });

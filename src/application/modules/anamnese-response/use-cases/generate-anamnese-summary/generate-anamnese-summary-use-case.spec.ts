@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Uuid } from "@wave-telecom/framework/core";
 import { GenerateAnamneseSummaryUseCase } from "./generate-anamnese-summary-use-case";
 import { UpdateAnamneseResponseUseCase } from "../update-anamnese-response/update-anamnese-response-use-case";
-import { AnamneseResponse } from "../../../../../domain/entities/anamnese-response";
+import {
+  AnamneseResponse,
+  AnamneseSummary,
+} from "../../../../../domain/entities/anamnese-response";
 import {
   AnamneseQuestionType,
   AnamneseTemplate,
@@ -11,7 +14,7 @@ import { Gender } from "../../../../../domain/entities/student";
 import { AnamneseResponseRepository } from "../../../../../domain/repositories/anamnese-response-repository";
 import { AnamneseTemplateRepository } from "../../../../../domain/repositories/anamnese-template-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
-import { AiInvalidOutputError } from "../../../../../domain/services/ai-plan-generator-service";
+import { AiInvalidOutputError } from "../../../../../domain/services/ai-errors";
 import { AiClinicalService } from "../../../../../domain/services/ai-clinical-service";
 import { AnamneseContextBuilder } from "../../../../services/anamnese-context-builder";
 import { mapAnamneseResponse } from "../../../../../infraestructure/mappers/map-anamnese-response";
@@ -85,6 +88,12 @@ describe("GenerateAnamneseSummaryUseCase", () => {
       save: vi.fn(async (saved: AnamneseResponse) => {
         store.set(saved.id.value, saved);
       }),
+      saveSummary: vi.fn(async (id: Uuid, summary: AnamneseSummary) => {
+        const current = store.get(id.value);
+        if (!current) return false;
+        store.set(id.value, current.withSummary(summary));
+        return true;
+      }),
       findById: vi.fn(async (id: Uuid) => store.get(id.value) ?? null),
       listByStudentId: vi.fn(async () => [...store.values()]),
       existsByTemplateId: vi.fn(),
@@ -134,7 +143,12 @@ describe("GenerateAnamneseSummaryUseCase", () => {
     expect(result.value.summaryOutdated).toBe(false);
     expect(result.value.answers).toEqual(response.answers);
     expect(result.value.updatedAt).toBeUndefined();
-    expect(responseRepository.save).toHaveBeenCalledWith(result.value);
+    expect(responseRepository.saveSummary).toHaveBeenCalledWith(
+      response.id,
+      result.value.summary
+    );
+    // Nunca regrava o documento inteiro com o snapshot lido antes da IA.
+    expect(responseRepository.save).not.toHaveBeenCalled();
   });
 
   it("sends the readable answers, age and gender, without file answers (AS-03)", async () => {
@@ -202,6 +216,54 @@ describe("GenerateAnamneseSummaryUseCase", () => {
     expect(regenerated.ok && regenerated.value.summaryOutdated).toBe(false);
   });
 
+  it("keeps an edit made while the AI was answering and marks the summary as outdated", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-12T15:00:00.000Z"));
+    (aiService.anamneseSummary as any).mockImplementation(async () => {
+      // Outra requisição edita a anamnese no meio da chamada.
+      vi.setSystemTime(new Date("2026-11-12T15:00:05.000Z"));
+      const edited = response.updateAnswers(
+        [{ questionId: complaint.id, textValue: "Texto editado" }],
+        template
+      );
+      if (!edited.ok) throw new Error("edit");
+      store.set(response.id.value, edited.value);
+      vi.setSystemTime(new Date("2026-11-12T15:00:10.000Z"));
+      return { text: "Síntese." };
+    });
+
+    const result = await generate();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const stored = store.get(response.id.value) as AnamneseResponse;
+    expect(stored.answers).toEqual([
+      expect.objectContaining({ questionId: complaint.id, textValue: "Texto editado" }),
+    ]);
+    expect(stored.summary).toEqual({
+      text: "Síntese.",
+      generatedAt: new Date("2026-11-12T15:00:00.000Z"),
+    });
+    expect(stored.summaryOutdated).toBe(true);
+    expect(result.value.summaryOutdated).toBe(true);
+    expect(result.value.answers).toEqual(stored.answers);
+    expect(responseRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("returns RESPONSE_NOT_FOUND when the response is deleted during the AI call", async () => {
+    (aiService.anamneseSummary as any).mockImplementation(async () => {
+      store.delete(response.id.value);
+      return { text: "Síntese." };
+    });
+
+    const result = await generate();
+
+    expect(result).toEqual({ ok: false, error: "RESPONSE_NOT_FOUND" });
+    // Não recria o registro excluído.
+    expect(store.has(response.id.value)).toBe(false);
+    expect(responseRepository.save).not.toHaveBeenCalled();
+  });
+
   it("returns AI_GENERATION_FAILED when the service throws, without saving", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     (aiService.anamneseSummary as any).mockRejectedValue(
@@ -211,7 +273,7 @@ describe("GenerateAnamneseSummaryUseCase", () => {
     const result = await generate();
 
     expect(result).toEqual({ ok: false, error: "AI_GENERATION_FAILED" });
-    expect(responseRepository.save).not.toHaveBeenCalled();
+    expect(responseRepository.saveSummary).not.toHaveBeenCalled();
     const logged = JSON.stringify(consoleError.mock.calls);
     expect(logged).not.toContain("overloaded");
     expect(logged).not.toContain("Troca letras");
@@ -225,7 +287,7 @@ describe("GenerateAnamneseSummaryUseCase", () => {
     (aiService.anamneseSummary as any).mockResolvedValueOnce({ text: "" });
     expect(await generate()).toEqual({ ok: false, error: "AI_INVALID_OUTPUT" });
 
-    expect(responseRepository.save).not.toHaveBeenCalled();
+    expect(responseRepository.saveSummary).not.toHaveBeenCalled();
   });
 
   it("truncates the summary to 1500 characters", async () => {

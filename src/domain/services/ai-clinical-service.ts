@@ -89,7 +89,7 @@ export interface ClinicalTextOutput {
   text: string;
 }
 
-// Lança AiInvalidOutputError (ai-plan-generator-service) quando a resposta do
+// Lança AiInvalidOutputError (ai-errors) quando a resposta do
 // modelo não dá para interpretar.
 export interface AiClinicalService {
   nextSessionSuggestion(

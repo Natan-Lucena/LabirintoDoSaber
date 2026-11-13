@@ -7060,7 +7060,7 @@
             }
           },
           "404": {
-            "description": "`RESPONSE_NOT_FOUND`",
+            "description": "`RESPONSE_NOT_FOUND` (também para id que não é UUID)",
             "content": {
               "application/json": {
                 "schema": {
@@ -7327,7 +7327,7 @@
             }
           },
           "400": {
-            "description": "`NO_ANSWERS_TO_SUMMARIZE`: a resposta só tem respostas do tipo arquivo.",
+            "description": "`NO_ANSWERS_TO_SUMMARIZE`: a resposta não tem nada a resumir (vazia ou só com respostas do tipo arquivo).",
             "content": {
               "application/json": {
                 "schema": {
@@ -7388,7 +7388,7 @@
             }
           },
           "404": {
-            "description": "`RESPONSE_NOT_FOUND`, `TEMPLATE_NOT_FOUND`, `STUDENT_NOT_FOUND`",
+            "description": "`RESPONSE_NOT_FOUND` (também para id que não é UUID ou resposta excluída durante a geração), `TEMPLATE_NOT_FOUND`, `STUDENT_NOT_FOUND`",
             "content": {
               "application/json": {
                 "schema": {
@@ -11761,7 +11761,7 @@
           "Scale Application"
         ],
         "summary": "Gera (ou gera de novo) o insight por IA da aplicação.",
-        "description": "Sob demanda, em DRAFT (`preliminary: true`) ou COMPLETED (`preliminary: false`). Gerar de novo substitui o anterior. Não muda o status. Envia ao provedor só o nome e as faixas da escala, o escore e as subescalas, idade e gênero; nunca as respostas item a item.",
+        "description": "Sob demanda, em DRAFT (`preliminary: true`) ou COMPLETED (`preliminary: false`). Gerar de novo substitui o anterior. Não muda o status. Exige ao menos uma resposta. Envia ao provedor só o nome e as faixas da escala, o escore e as subescalas, idade e gênero; nunca as respostas item a item.",
         "parameters": [
           {
             "name": "id",
@@ -11781,6 +11781,23 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ScaleApplication"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`NO_ANSWERS_YET`: a aplicação ainda não tem nenhuma resposta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "NO_ANSWERS_YET": {
+                    "value": {
+                      "message": "NO_ANSWERS_YET"
+                    }
+                  }
                 }
               }
             }
@@ -11830,7 +11847,7 @@
             }
           },
           "404": {
-            "description": "`APPLICATION_NOT_FOUND`, `STUDENT_NOT_FOUND`, `SCALE_NOT_FOUND`",
+            "description": "`APPLICATION_NOT_FOUND` (também para id que não é UUID ou aplicação excluída durante a geração), `STUDENT_NOT_FOUND`, `SCALE_NOT_FOUND`",
             "content": {
               "application/json": {
                 "schema": {

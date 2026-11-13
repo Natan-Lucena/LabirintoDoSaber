@@ -1,11 +1,16 @@
 import {
+  Prisma,
   PrismaClient,
   AnamneseResponse as PrismaAnamneseResponse,
   $Enums as PrismaEnums,
 } from "@prisma/client";
 import { Uuid } from "@wave-telecom/framework/core";
 import { AnamneseResponseRepository } from "../../../domain/repositories/anamnese-response-repository";
-import { AnamneseResponse, AnamneseAnswer } from "../../../domain/entities/anamnese-response";
+import {
+  AnamneseAnswer,
+  AnamneseResponse,
+  AnamneseSummary,
+} from "../../../domain/entities/anamnese-response";
 import { AnamneseQuestionType } from "../../../domain/entities/anamnese-template";
 
 export class AnamneseResponseRepositoryImpl implements AnamneseResponseRepository {
@@ -42,6 +47,25 @@ export class AnamneseResponseRepositoryImpl implements AnamneseResponseRepositor
         summary,
       },
     });
+  }
+
+  async saveSummary(id: Uuid, summary: AnamneseSummary): Promise<boolean> {
+    try {
+      await this.prismaService.anamneseResponse.update({
+        where: { id: id.value },
+        data: { summary: { text: summary.text, generatedAt: summary.generatedAt } },
+      });
+      return true;
+    } catch (error) {
+      // P2025: o registro foi excluído enquanto a IA respondia.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2025"
+      ) {
+        return false;
+      }
+      throw error;
+    }
   }
 
   async findById(id: Uuid): Promise<AnamneseResponse | null> {

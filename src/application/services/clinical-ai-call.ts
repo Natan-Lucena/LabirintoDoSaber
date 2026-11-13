@@ -1,5 +1,5 @@
 import { failure, success } from "@wave-telecom/framework/core";
-import { AiInvalidOutputError } from "../../domain/services/ai-plan-generator-service";
+import { AiInvalidOutputError } from "../../domain/services/ai-errors";
 
 // Chama a IA e converte as exceções em código (AI_INVALID_OUTPUT ou
 // AI_GENERATION_FAILED). O log leva só o código e o status: a mensagem do
@@ -21,6 +21,18 @@ export async function callClinicalAi<T>(label: string, call: () => Promise<T>) {
   }
 }
 
-// Corta o texto do modelo no limite; texto ausente ou só com espaços vira "".
-export const clipAiText = (value: unknown, max: number): string =>
-  typeof value === "string" ? value.trim().slice(0, max) : "";
+// Corta o texto do modelo no limite, no último espaço ou quebra de linha
+// antes dele, para não partir palavra. Sem espaço nenhum, corta no limite.
+// Texto ausente ou só com espaços vira "".
+export function clipAiText(value: unknown, max: number): string {
+  if (typeof value !== "string") return "";
+  const text = value.trim();
+  if (text.length <= max) return text;
+
+  const cut = text.slice(0, max);
+  // Se o próximo caractere já é espaço, o corte caiu entre palavras.
+  if (/\s/.test(text[max])) return cut.trimEnd();
+
+  const lastBreak = cut.search(/\s\S*$/);
+  return (lastBreak > 0 ? cut.slice(0, lastBreak) : cut).trimEnd();
+}

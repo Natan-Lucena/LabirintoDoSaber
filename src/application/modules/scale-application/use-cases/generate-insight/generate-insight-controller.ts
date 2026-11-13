@@ -25,6 +25,8 @@ export class GenerateInsightController extends BaseController {
           return this.notFound(res, result.error);
         case "UNAUTHORIZED":
           return this.forbidden(res, result.error);
+        case "NO_ANSWERS_YET":
+          return this.clientError(res, result.error);
         case "AI_GENERATION_FAILED":
         case "AI_INVALID_OUTPUT":
           return this.fail(res, result.error);

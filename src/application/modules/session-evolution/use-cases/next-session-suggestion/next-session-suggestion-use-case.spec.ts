@@ -8,7 +8,7 @@ import { PlanRepository } from "../../../../../domain/repositories/plan-reposito
 import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
-import { AiInvalidOutputError } from "../../../../../domain/services/ai-plan-generator-service";
+import { AiInvalidOutputError } from "../../../../../domain/services/ai-errors";
 import { AiClinicalService } from "../../../../../domain/services/ai-clinical-service";
 import { nextSessionSuggestionSchema } from "../../schemas/next-session-suggestion.schema";
 import {
@@ -147,7 +147,8 @@ describe("NextSessionSuggestionUseCase", () => {
       expect.objectContaining({ studentId: student.id })
     );
     expect(evolutionRepository.search).toHaveBeenCalledWith(
-      expect.objectContaining({ studentIds: [student.id] })
+      // Só até a data da sessão: evoluções posteriores não entram.
+      expect.objectContaining({ studentIds: [student.id], to: "2026-11-10" })
     );
     const params = aiParams();
     expect(params.student).toEqual({ age: 7, gender: Gender.Male });

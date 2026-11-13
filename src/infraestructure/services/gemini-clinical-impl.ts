@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { AiInvalidOutputError } from "../../domain/services/ai-plan-generator-service";
+import { AiInvalidOutputError } from "../../domain/services/ai-errors";
 import {
   AiClinicalService,
   AnamneseSummaryParams,
@@ -15,6 +15,7 @@ import { withGeminiRetry } from "./gemini-retry";
 
 const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const LABEL = "GeminiClinical";
+const ATTEMPT_TIMEOUT_MS = 40_000;
 
 const SUGGESTION_SCHEMA = {
   type: Type.OBJECT,
@@ -85,6 +86,10 @@ export class GeminiClinicalImpl implements AiClinicalService {
           config: {
             responseMimeType: "application/json",
             responseSchema,
+            // Por tentativa: 2 × 40 s + backoff cabem no corte de 90 s do app.
+            httpOptions: { timeout: ATTEMPT_TIMEOUT_MS },
+            // Textos curtos: sem raciocínio estendido, para responder rápido (IA-06).
+            thinkingConfig: { thinkingBudget: 0 },
           },
         }),
       // 2 tentativas para caber no tempo da função na Vercel e no corte de 90 s do app.

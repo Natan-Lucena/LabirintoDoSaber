@@ -49,6 +49,10 @@ export class GenerateAnamneseSummaryUseCase {
     });
     if (anamnese.answers.length === 0) return failure("NO_ANSWERS_TO_SUMMARIZE");
 
+    // Antes da chamada: uma edição feita enquanto a IA responde fica depois
+    // da síntese e deixa summaryOutdated = true (AS-02).
+    const generatedAt = new Date();
+
     const output = await callClinicalAi("generate-anamnese-summary", () =>
       this.aiClinicalService.anamneseSummary({
         student: { age: student.age, gender: student.gender },
@@ -60,9 +64,16 @@ export class GenerateAnamneseSummaryUseCase {
     const text = clipAiText(output.value?.text, SUMMARY_MAX);
     if (!text) return failure("AI_INVALID_OUTPUT");
 
-    const updated = response.withSummary({ text, generatedAt: new Date() });
-    await this.responseRepository.save(updated);
+    // Grava só a síntese, para não regravar as respostas lidas antes da IA.
+    const saved = await this.responseRepository.saveSummary(response.id, {
+      text,
+      generatedAt,
+    });
+    if (!saved) return failure("RESPONSE_NOT_FOUND");
 
-    return success(updated);
+    const current = await this.responseRepository.findById(response.id);
+    if (!current) return failure("RESPONSE_NOT_FOUND");
+
+    return success(current);
   }
 }

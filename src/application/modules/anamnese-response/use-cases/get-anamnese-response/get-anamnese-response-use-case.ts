@@ -10,6 +10,11 @@ export class GetAnamneseResponseUseCase {
   constructor(private responseRepository: AnamneseResponseRepository) {}
 
   async execute(request: GetAnamneseResponseUseCaseRequest) {
+    // Id que não é UUID vira 404, não 500.
+    if (!Uuid.isValid(request.responseId)) {
+      return failure("RESPONSE_NOT_FOUND");
+    }
+
     const response = await this.responseRepository.findById(
       new Uuid(request.responseId)
     );

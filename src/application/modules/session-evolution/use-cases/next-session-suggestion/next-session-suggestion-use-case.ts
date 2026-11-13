@@ -5,6 +5,7 @@ import {
   EvolutionCriterionInput,
   sessionDurationMinutes,
 } from "../../../../../domain/entities/session-evolution";
+import { dateInSaoPaulo } from "../../../../../domain/utils/date-only";
 import { selectEvolutionPlan } from "../../../../../domain/services/evolution-plan-selector";
 import {
   AiClinicalService,
@@ -59,9 +60,11 @@ export class NextSessionSuggestionUseCase {
         studentId: session.studentId,
         status: PlanStatus.ACTIVE,
       }),
-      // Uma a mais, porque a evolução desta mesma sessão (se houver) sai.
+      // Só evoluções até a data desta sessão, e uma a mais, porque a
+      // evolução desta mesma sessão (se houver) sai.
       this.evolutionRepository.search({
         studentIds: [student.id],
+        to: dateInSaoPaulo(session.startedAt),
         limit: RECENT_EVOLUTIONS + 1,
       }),
     ]);

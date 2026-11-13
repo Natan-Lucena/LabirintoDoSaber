@@ -11,6 +11,7 @@ import {
 import {
   ApplicationStatus,
   ScaleApplication,
+  ScaleInsight,
 } from "../../../domain/entities/scale-application";
 
 export class ScaleApplicationRepositoryImpl implements ScaleApplicationRepository {
@@ -48,6 +49,31 @@ export class ScaleApplicationRepositoryImpl implements ScaleApplicationRepositor
       update: { ...data, answers: { set: answers } },
       create: { id: application.id.value, ...data, answers },
     });
+  }
+
+  async saveInsight(id: Uuid, insight: ScaleInsight): Promise<boolean> {
+    try {
+      await this.prismaService.scaleApplication.update({
+        where: { id: id.value },
+        data: {
+          insight: {
+            text: insight.text,
+            generatedAt: insight.generatedAt,
+            preliminary: insight.preliminary,
+          },
+        },
+      });
+      return true;
+    } catch (error) {
+      // P2025: o registro foi excluído enquanto a IA respondia.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2025"
+      ) {
+        return false;
+      }
+      throw error;
+    }
   }
 
   async findById(id: Uuid): Promise<ScaleApplication | null> {
