@@ -103,6 +103,27 @@ describe("validateDefinition", () => {
     expect(errorCodes(definition)).toContain("MISSING_BANDS");
   });
 
+  it("should reject SUM band bounds that are not integers", () => {
+    const definition = replaceBands(loadDemoDefinition(), undefined, [
+      { min: 0, max: 7.5, severity: BandSeverity.LOW },
+      { min: 8.4, max: 16, severity: BandSeverity.MODERATE },
+      { min: 17, max: 24, severity: BandSeverity.HIGH },
+    ]);
+
+    const codes = errorCodes(definition);
+    expect(codes).toContain("INVALID_BAND_BOUND");
+    expect(codes).toContain("BAND_GAP");
+  });
+
+  it("should reject MEAN band bounds with more than two decimals", () => {
+    const definition = replaceBands(meanDefinition(), undefined, [
+      { min: 0, max: 1.985, severity: BandSeverity.LOW },
+      { min: 1.995, max: 3, severity: BandSeverity.HIGH },
+    ]);
+
+    expect(errorCodes(definition)).toContain("INVALID_BAND_BOUND");
+  });
+
   it("should reject MEAN bands with a gap above 0.01 or overlapping", () => {
     const gap = replaceBands(meanDefinition(), undefined, [
       { min: 0, max: 1.5, severity: BandSeverity.LOW },
@@ -283,6 +304,32 @@ describe("ScaleTemplate.computeScore (MEAN)", () => {
     expect(score.subscales[0]).toMatchObject({ value: 1.33, max: 3 });
     expect(score.subscales[1]).toMatchObject({ value: 0, max: 3 });
     expect(score.subscales[1].band).toBeUndefined();
+  });
+
+  it("should use the lowest option as the value when nothing was answered", () => {
+    let definition: ScaleDefinition = {
+      ...meanDefinition(),
+      options: [
+        { value: 1, label: "Nunca" },
+        { value: 2, label: "Às vezes" },
+        { value: 3, label: "Frequentemente" },
+        { value: 4, label: "Muito" },
+      ],
+    };
+    for (const target of [undefined, "ATENCAO", "INQUIETACAO"]) {
+      definition = replaceBands(definition, target, [
+        { min: 1, max: 2, severity: BandSeverity.LOW },
+        { min: 2.01, max: 4, severity: BandSeverity.HIGH },
+      ]);
+    }
+    expect(validateDefinition(definition)).toEqual([]);
+    const fromOne = ScaleTemplate.fromPersistence({ ...definition, id: template.id });
+
+    const score = fromOne.computeScore([]);
+
+    expect(score).toMatchObject({ partial: true, answered: 0, value: 1, max: 4 });
+    expect(score.band).toBeUndefined();
+    expect(score.subscales.map((subscale) => subscale.value)).toEqual([1, 1]);
   });
 
   it("should use the mean of a complete application", () => {

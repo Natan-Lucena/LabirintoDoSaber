@@ -90,6 +90,14 @@ export class ScaleTemplateRepositoryImpl implements ScaleTemplateRepository {
     return record ? this.mapToEntity(record) : null;
   }
 
+  async findLatestByCode(code: string): Promise<ScaleTemplate | null> {
+    const record = await this.prismaService.scaleTemplate.findFirst({
+      where: { code },
+      orderBy: { version: "desc" },
+    });
+    return record ? this.mapToEntity(record) : null;
+  }
+
   async listCatalog(): Promise<ScaleTemplate[]> {
     // O catálogo é pequeno (poucas escalas e versões): filtra em memória.
     const records = await this.prismaService.scaleTemplate.findMany({

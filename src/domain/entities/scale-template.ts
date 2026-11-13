@@ -140,10 +140,23 @@ function validateBandCoverage(
 
   if (bands.length === 0) return [`MISSING_BANDS: ${target} sem faixas`];
 
+  const isMean = definition.scoring.method === ScoringMethod.MEAN;
+  const step = isMean ? MEAN_STEP : 1;
+  // Limites no passo do escore: inteiros em SUM, até duas casas em MEAN.
+  const onStep = (value: number) =>
+    isMean
+      ? Math.abs(value * 100 - Math.round(value * 100)) <= 1e-6
+      : Number.isInteger(value);
+
   const errors: string[] = [];
   for (const band of bands) {
     if (band.min > band.max) {
       errors.push(`INVALID_BAND: ${target} com faixa ${band.min}–${band.max}`);
+    }
+    if (!onStep(band.min) || !onStep(band.max)) {
+      errors.push(
+        `INVALID_BAND_BOUND: ${target} com faixa ${band.min}–${band.max} fora do passo ${step}`
+      );
     }
   }
 
@@ -156,14 +169,13 @@ function validateBandCoverage(
     errors.push(`BAND_RANGE: ${target} deve terminar em ${range.max}, termina em ${last.max}`);
   }
 
-  // Faixas fechadas: o min de uma é o max da anterior mais um passo.
-  const isMean = definition.scoring.method === ScoringMethod.MEAN;
+  // Faixas fechadas: o min de uma é exatamente o max da anterior mais um passo.
   for (let i = 1; i < bands.length; i++) {
     const gap = bands[i].min - bands[i - 1].max;
     const between = `${bands[i - 1].max} e ${bands[i].min}`;
     if (gap <= EPSILON) {
       errors.push(`BAND_OVERLAP: ${target} entre ${between}`);
-    } else if (gap > (isMean ? MEAN_STEP : 1) + EPSILON) {
+    } else if (Math.abs(gap - step) > EPSILON) {
       errors.push(`BAND_GAP: ${target} entre ${between}`);
     }
   }
@@ -367,13 +379,19 @@ export class ScaleTemplate {
       .map((item) => answerByItem.get(item.id) as number);
     const sum = values.reduce((acc, value) => acc + value, 0);
     const isMean = this.props.scoring.method === ScoringMethod.MEAN;
-    const value = isMean ? (values.length > 0 ? round2(sum / values.length) : 0) : sum;
+    const range = possibleRange(this.props, items.length);
+    // MEAN sem resposta: o mínimo possível (a menor opção), dentro de [min, max].
+    const value = isMean
+      ? values.length > 0
+        ? round2(sum / values.length)
+        : range.min
+      : sum;
 
     return {
       answered: values.length,
       total: items.length,
       value,
-      max: possibleRange(this.props, items.length).max,
+      max: range.max,
       band: values.length > 0 ? this.findBand(subscaleCode, value) : undefined,
     };
   }

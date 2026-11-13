@@ -55,6 +55,15 @@ export const makeTemplateRepository = (templates: ScaleTemplate[]) =>
       templates.filter((template) => ids.some((id) => id.value === template.id.value))
     ),
     findByCodeAndVersion: vi.fn(),
+    findLatestByCode: vi.fn(async (code: string) =>
+      templates
+        .filter((template) => template.code === code)
+        .reduce<ScaleTemplate | null>(
+          (latest, template) =>
+            !latest || template.version > latest.version ? template : latest,
+          null
+        )
+    ),
     listCatalog: vi.fn().mockResolvedValue(templates),
   }) satisfies ScaleTemplateRepository;
 

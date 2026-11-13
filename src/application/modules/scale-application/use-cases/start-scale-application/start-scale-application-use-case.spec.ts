@@ -78,11 +78,62 @@ describe("StartScaleApplicationUseCase", () => {
     expect(result).toEqual({ ok: false, error: "SCALE_NOT_FOUND" });
   });
 
+  const useCaseWith = (templates: ReturnType<typeof makeDemoTemplate>[]) =>
+    new StartScaleApplicationUseCase(
+      applicationRepository,
+      makeTemplateRepository(templates),
+      studentRepository,
+      appointmentRepository
+    );
+
+  it("should return SCALE_INACTIVE for a superseded version, even if active", async () => {
+    const v1 = makeDemoTemplate();
+    const v2 = makeDemoTemplate({ version: 2 });
+
+    const result = await useCaseWith([v1, v2]).execute({
+      ...request(),
+      templateId: v1.id.value,
+    });
+
+    expect(result).toEqual({ ok: false, error: "SCALE_INACTIVE" });
+    expect(applicationRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("should return SCALE_INACTIVE for an active v1 when v2 is published inactive", async () => {
+    const v1 = makeDemoTemplate();
+    const v2 = makeDemoTemplate({ version: 2, active: false });
+
+    for (const target of [v1, v2]) {
+      const result = await useCaseWith([v1, v2]).execute({
+        ...request(),
+        templateId: target.id.value,
+      });
+      expect(result).toEqual({ ok: false, error: "SCALE_INACTIVE" });
+    }
+    expect(applicationRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("should start an application on the latest active version", async () => {
+    const v1 = makeDemoTemplate();
+    const v2 = makeDemoTemplate({ version: 2 });
+
+    const result = await useCaseWith([v1, v2]).execute({
+      ...request(),
+      templateId: v2.id.value,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.application.templateVersion).toBe(2);
+  });
+
   it("should return SCALE_INACTIVE for an inactive template", async () => {
     const inactive = makeDemoTemplate({ active: false });
-    templateRepository.findById.mockResolvedValue(inactive);
 
-    const result = await useCase.execute({ ...request(), templateId: inactive.id.value });
+    const result = await useCaseWith([inactive]).execute({
+      ...request(),
+      templateId: inactive.id.value,
+    });
 
     expect(result).toEqual({ ok: false, error: "SCALE_INACTIVE" });
     expect(applicationRepository.save).not.toHaveBeenCalled();

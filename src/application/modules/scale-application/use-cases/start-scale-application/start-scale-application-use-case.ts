@@ -34,6 +34,10 @@ export class StartScaleApplicationUseCase {
     const template = await this.templateRepository.findById(new Uuid(request.templateId));
     if (!template) return failure("SCALE_NOT_FOUND");
 
+    // AV-02: só a maior versão publicada, e ativa, aceita aplicação nova.
+    const latest = await this.templateRepository.findLatestByCode(template.code);
+    if (!latest || latest.id.value !== template.id.value) return failure("SCALE_INACTIVE");
+
     const appointmentId = request.appointmentId
       ? new Uuid(request.appointmentId)
       : undefined;

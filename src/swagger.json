@@ -10609,7 +10609,7 @@
             }
           },
           "409": {
-            "description": "`DRAFT_ALREADY_EXISTS` (com o `applicationId` do rascunho aberto) ou `SCALE_INACTIVE`.",
+            "description": "`DRAFT_ALREADY_EXISTS` (com o `applicationId` do rascunho aberto) ou `SCALE_INACTIVE` (escala inativa ou versão superada: só a maior versão publicada, se ativa, aceita aplicação nova).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10900,7 +10900,7 @@
             }
           },
           "404": {
-            "description": "`APPLICATION_NOT_FOUND`, `STUDENT_NOT_FOUND`",
+            "description": "`APPLICATION_NOT_FOUND`, `STUDENT_NOT_FOUND`, `SCALE_NOT_FOUND`. `SCALE_NOT_FOUND`: versão da escala gravada na aplicação não encontrada.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10915,6 +10915,11 @@
                   "STUDENT_NOT_FOUND": {
                     "value": {
                       "message": "STUDENT_NOT_FOUND"
+                    }
+                  },
+                  "SCALE_NOT_FOUND": {
+                    "value": {
+                      "message": "SCALE_NOT_FOUND"
                     }
                   }
                 }
@@ -11201,7 +11206,7 @@
             }
           },
           "404": {
-            "description": "`APPLICATION_NOT_FOUND`, `STUDENT_NOT_FOUND`",
+            "description": "`APPLICATION_NOT_FOUND`, `STUDENT_NOT_FOUND`, `SCALE_NOT_FOUND`. `SCALE_NOT_FOUND`: versão da escala gravada na aplicação não encontrada.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11216,6 +11221,11 @@
                   "STUDENT_NOT_FOUND": {
                     "value": {
                       "message": "STUDENT_NOT_FOUND"
+                    }
+                  },
+                  "SCALE_NOT_FOUND": {
+                    "value": {
+                      "message": "SCALE_NOT_FOUND"
                     }
                   }
                 }
@@ -11360,7 +11370,7 @@
             }
           },
           "404": {
-            "description": "`APPLICATION_NOT_FOUND`, `STUDENT_NOT_FOUND`",
+            "description": "`APPLICATION_NOT_FOUND`, `STUDENT_NOT_FOUND`, `SCALE_NOT_FOUND`. `SCALE_NOT_FOUND`: versão da escala gravada na aplicação não encontrada.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11375,6 +11385,11 @@
                   "STUDENT_NOT_FOUND": {
                     "value": {
                       "message": "STUDENT_NOT_FOUND"
+                    }
+                  },
+                  "SCALE_NOT_FOUND": {
+                    "value": {
+                      "message": "SCALE_NOT_FOUND"
                     }
                   }
                 }
