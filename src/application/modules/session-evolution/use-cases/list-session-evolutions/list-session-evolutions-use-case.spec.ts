@@ -49,12 +49,12 @@ describe("ListSessionEvolutionsUseCase", () => {
     } as unknown as SessionEvolutionRepository;
     studentRepository = {
       getById: vi.fn().mockResolvedValue(ana),
-      getByIds: vi.fn().mockResolvedValue([ana, bruno]),
+      search: vi.fn().mockResolvedValue([ana, bruno]),
     } as unknown as StudentRepository;
     useCase = new ListSessionEvolutionsUseCase(evolutionRepository, studentRepository);
   });
 
-  it("should pass the period, student and limit to the repository", async () => {
+  it("should search by the student only, without filtering by the recorded author", async () => {
     await useCase.execute({
       educatorId,
       studentId: ana.id.value,
@@ -64,15 +64,38 @@ describe("ListSessionEvolutionsUseCase", () => {
     });
 
     expect(evolutionRepository.search).toHaveBeenCalledWith({
-      educatorId,
-      studentId: ana.id,
+      studentIds: [ana.id],
       from: "2026-11-01",
       to: "2026-11-30",
       limit: 10,
     });
+    expect(studentRepository.search).not.toHaveBeenCalled();
   });
 
-  it("should build summaries keeping the most recent first", async () => {
+  it("should search by the educator's current students and let the database apply the limit", async () => {
+    await useCase.execute({ educatorId, limit: 5 });
+
+    expect(studentRepository.search).toHaveBeenCalledWith({ educatorId });
+    expect(evolutionRepository.search).toHaveBeenCalledWith({
+      studentIds: [ana.id, bruno.id],
+      from: undefined,
+      to: undefined,
+      limit: 5,
+    });
+  });
+
+  it("should include evolutions written by a previous owner of the student", async () => {
+    const previousOwner = Uuid.random();
+    const inherited = makeEvolution(ana, previousOwner, "2026-11-12T13:00:00.000Z");
+    (evolutionRepository.search as any).mockResolvedValue([inherited]);
+
+    const summaries = ((await useCase.execute({ educatorId, limit: 50 })) as any).value;
+
+    expect(summaries.map((s: any) => s.id)).toEqual([inherited.id.value]);
+    expect(summaries[0].studentName).toBe("Ana");
+  });
+
+  it("should build summaries keeping the repository order (most recent first)", async () => {
     const longRecord = "x".repeat(250);
     const recent = makeEvolution(ana, educatorId, "2026-11-12T13:00:00.000Z", longRecord);
     const older = makeEvolution(bruno, educatorId, "2026-11-05T13:00:00.000Z");
@@ -102,19 +125,6 @@ describe("ListSessionEvolutionsUseCase", () => {
         excerpt: "Registro",
       }),
     ]);
-    expect(studentRepository.getByIds).toHaveBeenCalledTimes(1);
-  });
-
-  it("should drop evolutions of students that are no longer the educator's", async () => {
-    const moved = makeStudent(Uuid.random(), "Carla");
-    const own = makeEvolution(ana, educatorId, "2026-11-12T13:00:00.000Z");
-    const foreign = makeEvolution(moved, educatorId, "2026-11-11T13:00:00.000Z");
-    (evolutionRepository.search as any).mockResolvedValue([own, foreign]);
-    (studentRepository.getByIds as any).mockResolvedValue([ana, moved]);
-
-    const summaries = ((await useCase.execute({ educatorId, limit: 50 })) as any).value;
-
-    expect(summaries.map((s: any) => s.id)).toEqual([own.id.value]);
   });
 
   it("should return UNAUTHORIZED for a student of another educator", async () => {

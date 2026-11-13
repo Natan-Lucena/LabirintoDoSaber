@@ -29,19 +29,29 @@ interface IssueAuthTokenProps {
   previous?: AuthToken | null;
 }
 
-export interface AuthTokenCheck {
-  result: Result<void, AuthTokenCheckError>;
-  // Instância depois da conferência: com a tentativa contada, quando o código
-  // está errado. Se for diferente da original, precisa ser gravada.
-  authToken: AuthToken;
+// HMAC com segredo do servidor: sem ele, o hash gravado não permite testar os
+// 10^6 códigos possíveis.
+function hashCode(code: string): string {
+  const secret =
+    process.env.PASSWORD_TOKEN_SECRET || process.env.JWT_SECRET || "dev-secret";
+  return crypto.createHmac("sha256", secret).update(code).digest("hex");
 }
 
-function hashCode(code: string): string {
-  return crypto.createHash("sha256").update(code).digest("hex");
+// A janela de envios começou há menos de 15 minutos.
+export function isSendWindowOpen(
+  sendWindowStart: Date | undefined,
+  now: Date
+): boolean {
+  return (
+    !!sendWindowStart &&
+    now.getTime() - sendWindowStart.getTime() < AUTH_TOKEN_SEND_WINDOW_MS
+  );
 }
 
 // Código de recuperação de senha: 6 dígitos, uso único, válido por 15 minutos.
 // Há um registro por educador; cada código novo sobrescreve o anterior.
+// Contar tentativas, contar envios e consumir são operações atômicas do
+// repositório; aqui ficam só as regras.
 export class AuthToken {
   readonly id: Uuid;
   readonly userId: Uuid;
@@ -74,10 +84,7 @@ export class AuthToken {
   ): Result<{ authToken: AuthToken; code: string }, "TOO_MANY_REQUESTS"> {
     const { userId, now, previous } = props;
 
-    const windowOpen =
-      !!previous?.sendWindowStart &&
-      now.getTime() - previous.sendWindowStart.getTime() <
-        AUTH_TOKEN_SEND_WINDOW_MS;
+    const windowOpen = isSendWindowOpen(previous?.sendWindowStart, now);
 
     if (windowOpen && previous!.sendCount >= AUTH_TOKEN_SEND_LIMIT) {
       return failure("TOO_MANY_REQUESTS");
@@ -99,54 +106,42 @@ export class AuthToken {
     return success({ authToken, code });
   }
 
-  check(code: string, now: Date): AuthTokenCheck {
+  // O código ainda pode ser conferido? Ordem: inexistente/usado, tentativas
+  // esgotadas, vencido.
+  ensureUsable(now: Date): Result<void, AuthTokenCheckError> {
     if (!this.tokenHash || !this.expiresAt || this.consumedAt) {
-      return { result: failure("INVALID_TOKEN"), authToken: this };
+      return failure("INVALID_TOKEN");
     }
-
     if (this.attempts >= AUTH_TOKEN_MAX_ATTEMPTS) {
-      return { result: failure("TOO_MANY_ATTEMPTS"), authToken: this };
+      return failure("TOO_MANY_ATTEMPTS");
     }
-
     if (this.expiresAt.getTime() < now.getTime()) {
-      return { result: failure("EXPIRED_TOKEN"), authToken: this };
+      return failure("EXPIRED_TOKEN");
     }
+    return success(undefined);
+  }
+
+  // Confere o código numa tentativa já contada pelo repositório. `attempts` é
+  // o valor lido antes de contar: se esta for a 5ª tentativa errada, a
+  // resposta já é TOO_MANY_ATTEMPTS.
+  check(code: string, now: Date): Result<void, AuthTokenCheckError> {
+    const usable = this.ensureUsable(now);
+    if (!usable.ok) return usable;
 
     const received = Buffer.from(hashCode(code), "hex");
-    const stored = Buffer.from(this.tokenHash, "hex");
+    const stored = Buffer.from(this.tokenHash!, "hex");
     const matches =
       received.length === stored.length &&
       crypto.timingSafeEqual(received, stored);
 
     if (!matches) {
-      const attempts = this.attempts + 1;
-      return {
-        result: failure(
-          attempts >= AUTH_TOKEN_MAX_ATTEMPTS
-            ? "TOO_MANY_ATTEMPTS"
-            : "INVALID_TOKEN"
-        ),
-        authToken: new AuthToken({ ...this.toProps(), attempts }),
-      };
+      return failure(
+        this.attempts + 1 >= AUTH_TOKEN_MAX_ATTEMPTS
+          ? "TOO_MANY_ATTEMPTS"
+          : "INVALID_TOKEN"
+      );
     }
 
-    return { result: success(undefined), authToken: this };
-  }
-
-  consume(now: Date): AuthToken {
-    return new AuthToken({ ...this.toProps(), consumedAt: now });
-  }
-
-  private toProps(): AuthTokenProps {
-    return {
-      id: this.id,
-      userId: this.userId,
-      tokenHash: this.tokenHash,
-      expiresAt: this.expiresAt,
-      attempts: this.attempts,
-      consumedAt: this.consumedAt,
-      sendCount: this.sendCount,
-      sendWindowStart: this.sendWindowStart,
-    };
+    return success(undefined);
   }
 }

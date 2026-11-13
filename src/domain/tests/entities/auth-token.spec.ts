@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import crypto from "crypto";
 import { Uuid } from "@wave-telecom/framework/core";
-import { AuthToken } from "../../entities/auth-token";
+import { AuthToken, AuthTokenProps } from "../../entities/auth-token";
 
 const MINUTE = 60 * 1000;
 const T0 = new Date("2026-11-12T12:00:00.000Z");
@@ -13,6 +13,20 @@ function issueAt(now: Date, previous?: AuthToken | null) {
   return result.value;
 }
 
+function withChanges(token: AuthToken, changes: Partial<AuthTokenProps>) {
+  return AuthToken.fromPersistence({
+    id: token.id,
+    userId: token.userId,
+    tokenHash: token.tokenHash,
+    expiresAt: token.expiresAt,
+    attempts: token.attempts,
+    consumedAt: token.consumedAt,
+    sendCount: token.sendCount,
+    sendWindowStart: token.sendWindowStart,
+    ...changes,
+  });
+}
+
 function wrongCodeFor(code: string) {
   return code === "000000" ? "111111" : "000000";
 }
@@ -20,6 +34,7 @@ function wrongCodeFor(code: string) {
 describe("AuthToken", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   describe("issue", () => {
@@ -40,11 +55,33 @@ describe("AuthToken", () => {
       expect(code).toBe("000042");
     });
 
-    it("não guarda o código em claro", () => {
+    it("não guarda o código em claro nem um sha256 simples dele", () => {
       const { authToken, code } = issueAt(T0);
+      const plainSha = crypto.createHash("sha256").update(code).digest("hex");
 
       expect(authToken.tokenHash).toBeDefined();
       expect(authToken.tokenHash).not.toContain(code);
+      expect(authToken.tokenHash).not.toBe(plainSha);
+    });
+
+    it("o hash depende do segredo do servidor", () => {
+      vi.spyOn(crypto, "randomInt")
+        .mockReturnValueOnce(123456 as never)
+        .mockReturnValueOnce(123456 as never);
+
+      vi.stubEnv("PASSWORD_TOKEN_SECRET", "segredo-a");
+      const a = issueAt(T0);
+      vi.stubEnv("PASSWORD_TOKEN_SECRET", "segredo-b");
+      const b = issueAt(T0);
+
+      expect(a.code).toBe(b.code);
+      expect(a.authToken.tokenHash).not.toBe(b.authToken.tokenHash);
+      expect(b.authToken.check(b.code, at(1)).ok).toBe(true);
+      vi.stubEnv("PASSWORD_TOKEN_SECRET", "segredo-a");
+      expect(b.authToken.check(b.code, at(1))).toEqual({
+        ok: false,
+        error: "INVALID_TOKEN",
+      });
     });
 
     it("código novo invalida o anterior e reaproveita o mesmo registro", () => {
@@ -55,19 +92,21 @@ describe("AuthToken", () => {
       const second = issueAt(at(1), first.authToken);
 
       expect(second.authToken.id.value).toBe(first.authToken.id.value);
-      expect(second.authToken.check(first.code, at(2)).result).toEqual({
+      expect(second.authToken.check(first.code, at(2))).toEqual({
         ok: false,
         error: "INVALID_TOKEN",
       });
-      expect(second.authToken.check(second.code, at(2)).result.ok).toBe(true);
+      expect(second.authToken.check(second.code, at(2)).ok).toBe(true);
     });
 
     it("código novo zera tentativas e uso do anterior", () => {
       const first = issueAt(T0);
-      const failed = first.authToken.check(wrongCodeFor(first.code), at(1));
-      const consumed = failed.authToken.consume(at(1));
+      const used = withChanges(first.authToken, {
+        attempts: 3,
+        consumedAt: at(1),
+      });
 
-      const second = issueAt(at(2), consumed);
+      const second = issueAt(at(2), used);
 
       expect(second.authToken.attempts).toBe(0);
       expect(second.authToken.consumedAt).toBeUndefined();
@@ -85,6 +124,7 @@ describe("AuthToken", () => {
         previous: third.authToken,
       });
 
+      expect(third.authToken.sendCount).toBe(3);
       expect(fourth).toEqual({ ok: false, error: "TOO_MANY_REQUESTS" });
     });
 
@@ -106,62 +146,60 @@ describe("AuthToken", () => {
     });
   });
 
-  describe("check", () => {
-    it("aceita o código correto dentro da validade, sem consumir", () => {
+  describe("ensureUsable e check", () => {
+    it("aceita o código correto dentro da validade", () => {
       const { authToken, code } = issueAt(T0);
 
-      const checked = authToken.check(code, at(14));
-
-      expect(checked.result).toEqual({ ok: true, value: undefined });
-      expect(checked.authToken.consumedAt).toBeUndefined();
-      expect(checked.authToken.check(code, at(14)).result.ok).toBe(true);
+      expect(authToken.ensureUsable(at(14))).toEqual({
+        ok: true,
+        value: undefined,
+      });
+      expect(authToken.check(code, at(14))).toEqual({
+        ok: true,
+        value: undefined,
+      });
     });
 
     it("recusa código vencido com EXPIRED_TOKEN", () => {
       const { authToken, code } = issueAt(T0);
 
-      expect(authToken.check(code, at(16)).result).toEqual({
+      expect(authToken.ensureUsable(at(16))).toEqual({
+        ok: false,
+        error: "EXPIRED_TOKEN",
+      });
+      expect(authToken.check(code, at(16))).toEqual({
         ok: false,
         error: "EXPIRED_TOKEN",
       });
     });
 
-    it("código errado devolve INVALID_TOKEN e conta a tentativa", () => {
+    it("código errado devolve INVALID_TOKEN enquanto restam tentativas", () => {
       const { authToken, code } = issueAt(T0);
 
-      const checked = authToken.check(wrongCodeFor(code), at(1));
-
-      expect(checked.result).toEqual({ ok: false, error: "INVALID_TOKEN" });
-      expect(checked.authToken.attempts).toBe(1);
-      expect(authToken.attempts).toBe(0);
+      for (const attempts of [0, 1, 2, 3]) {
+        expect(
+          withChanges(authToken, { attempts }).check(wrongCodeFor(code), at(1))
+        ).toEqual({ ok: false, error: "INVALID_TOKEN" });
+      }
     });
 
     it("a 5ª tentativa errada já devolve TOO_MANY_ATTEMPTS", () => {
       const { authToken, code } = issueAt(T0);
-      const wrong = wrongCodeFor(code);
 
-      let current = authToken;
-      for (let i = 0; i < 4; i++) {
-        const checked = current.check(wrong, at(1));
-        expect(checked.result).toEqual({ ok: false, error: "INVALID_TOKEN" });
-        current = checked.authToken;
-      }
-      const fifth = current.check(wrong, at(1));
-
-      expect(fifth.result).toEqual({ ok: false, error: "TOO_MANY_ATTEMPTS" });
-      expect(fifth.authToken.attempts).toBe(5);
+      expect(
+        withChanges(authToken, { attempts: 4 }).check(wrongCodeFor(code), at(1))
+      ).toEqual({ ok: false, error: "TOO_MANY_ATTEMPTS" });
     });
 
-    it("depois de 5 tentativas erradas, nem o código certo vale", () => {
+    it("depois de 5 tentativas, nem o código certo vale", () => {
       const { authToken, code } = issueAt(T0);
-      const wrong = wrongCodeFor(code);
+      const exhausted = withChanges(authToken, { attempts: 5 });
 
-      let current = authToken;
-      for (let i = 0; i < 5; i++) {
-        current = current.check(wrong, at(1)).authToken;
-      }
-
-      expect(current.check(code, at(1)).result).toEqual({
+      expect(exhausted.ensureUsable(at(1))).toEqual({
+        ok: false,
+        error: "TOO_MANY_ATTEMPTS",
+      });
+      expect(exhausted.check(code, at(1))).toEqual({
         ok: false,
         error: "TOO_MANY_ATTEMPTS",
       });
@@ -169,11 +207,22 @@ describe("AuthToken", () => {
 
     it("código já usado devolve INVALID_TOKEN (uso único)", () => {
       const { authToken, code } = issueAt(T0);
+      const consumed = withChanges(authToken, { consumedAt: at(1) });
 
-      const consumed = authToken.consume(at(1));
+      expect(consumed.check(code, at(2))).toEqual({
+        ok: false,
+        error: "INVALID_TOKEN",
+      });
+    });
 
-      expect(consumed.consumedAt).toEqual(at(1));
-      expect(consumed.check(code, at(2)).result).toEqual({
+    it("código usado tem precedência sobre tentativas e validade", () => {
+      const { authToken, code } = issueAt(T0);
+      const consumed = withChanges(authToken, {
+        consumedAt: at(1),
+        attempts: 5,
+      });
+
+      expect(consumed.check(code, at(30))).toEqual({
         ok: false,
         error: "INVALID_TOKEN",
       });
@@ -187,7 +236,7 @@ describe("AuthToken", () => {
         sendCount: 0,
       });
 
-      expect(legacy.check("123456", T0).result).toEqual({
+      expect(legacy.check("123456", T0)).toEqual({
         ok: false,
         error: "INVALID_TOKEN",
       });

@@ -85,10 +85,29 @@ describe("authMiddleware: invalidação depois da troca de senha", () => {
     expect(req.user).toBe(educator);
   });
 
-  it("token emitido no mesmo segundo da troca passa", async () => {
+  it("token emitido no segundo anterior ao da troca responde 401", async () => {
     const token = await tokenIssuedAt(
       educator,
-      new Date(CHANGED_AT.getTime() + 300)
+      new Date(CHANGED_AT.getTime() - 300)
+    );
+
+    const { res, next } = await run(token, new Date(CHANGED_AT.getTime() + HOUR));
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+
+  it("token emitido no mesmo segundo da troca passa, mesmo que antes dela", async () => {
+    educator = Educator.create({
+      name: "Maria",
+      email: "maria@example.com",
+      password: "hash",
+      passwordChangedAt: new Date(CHANGED_AT.getTime() + 700),
+    });
+    vi.mocked(educatorRepository.search).mockResolvedValue([educator]);
+    const token = await tokenIssuedAt(
+      educator,
+      new Date(CHANGED_AT.getTime() + 200)
     );
 
     const { next } = await run(token, new Date(CHANGED_AT.getTime() + HOUR));

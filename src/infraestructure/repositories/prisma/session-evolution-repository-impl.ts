@@ -6,6 +6,7 @@ import {
 import { Uuid } from "@wave-telecom/framework/core";
 import {
   SearchSessionEvolutionParams,
+  SessionEvolutionAlreadyExistsError,
   SessionEvolutionRepository,
 } from "../../../domain/repositories/session-evolution-repository";
 import {
@@ -50,15 +51,26 @@ export class SessionEvolutionRepositoryImpl implements SessionEvolutionRepositor
       status: update.status,
     }));
 
-    await this.prismaService.sessionEvolution.upsert({
-      where: { id: evolution.id.value },
-      update: {
-        ...data,
-        criteria: { set: criteria },
-        goalUpdates: { set: goalUpdates },
-      },
-      create: { id: evolution.id.value, ...data, criteria, goalUpdates },
-    });
+    try {
+      await this.prismaService.sessionEvolution.upsert({
+        where: { id: evolution.id.value },
+        update: {
+          ...data,
+          criteria: { set: criteria },
+          goalUpdates: { set: goalUpdates },
+        },
+        create: { id: evolution.id.value, ...data, criteria, goalUpdates },
+      });
+    } catch (error) {
+      // P2002: violação de unicidade; aqui só existe a de sessionId.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new SessionEvolutionAlreadyExistsError();
+      }
+      throw error;
+    }
   }
 
   async findById(id: Uuid): Promise<SessionEvolution | null> {
@@ -76,11 +88,12 @@ export class SessionEvolutionRepositoryImpl implements SessionEvolutionRepositor
   }
 
   async search(params: SearchSessionEvolutionParams): Promise<SessionEvolution[]> {
+    if (params.studentIds.length === 0) return [];
+
     const where: Prisma.SessionEvolutionWhereInput = {
-      educatorId: params.educatorId.value,
+      studentId: { in: params.studentIds.map((id) => id.value) },
     };
 
-    if (params.studentId) where.studentId = params.studentId.value;
     if (params.from || params.to) {
       where.sessionDate = {
         ...(params.from ? { gte: params.from } : {}),

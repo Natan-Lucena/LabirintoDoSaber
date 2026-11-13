@@ -442,6 +442,7 @@
           "Educator - Auth"
         ],
         "summary": "Confere o código de recuperação sem consumi-lo.",
+        "description": "Cada conferência conta como uma das 5 tentativas do código, inclusive a correta.",
         "requestBody": {
           "required": true,
           "content": {

@@ -35,18 +35,22 @@ export class GenerateAuthTokenUseCase {
 
     const previous = await this.authTokenRepository.findByUserId(educator.id);
 
-    const issued = AuthToken.issue({
-      userId: educator.id,
-      now: new Date(),
-      previous,
-    });
+    const now = new Date();
+    const issued = AuthToken.issue({ userId: educator.id, now, previous });
 
     if (!issued.ok) {
       return failure(issued.error);
     }
 
     const { authToken, code } = issued.value;
-    await this.authTokenRepository.save(authToken);
+
+    // O código só vale se o envio coube na janela, contado de forma atômica:
+    // pedidos em paralelo não passam do limite.
+    if (!previous) {
+      await this.authTokenRepository.create(authToken);
+    } else if (!(await this.authTokenRepository.saveIssued(authToken, now))) {
+      return failure("TOO_MANY_REQUESTS");
+    }
 
     try {
       await this.mailerService.sendMail(

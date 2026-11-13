@@ -1,4 +1,4 @@
-import { success, Uuid } from "@wave-telecom/framework/core";
+import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { Plan } from "../../../../../domain/entities/plan";
 import {
   EvolutionCriterionInput,
@@ -41,6 +41,15 @@ export class UpdateSessionEvolutionUseCase {
     const plan = evolution.planId
       ? (await this.planRepository.findById(evolution.planId)) ?? undefined
       : undefined;
+
+    // goalUpdates só mexem em plano do próprio educador (como em loadOwnedPlan).
+    if (
+      plan &&
+      request.goalUpdates &&
+      plan.educatorId.value !== request.educatorId.value
+    ) {
+      return failure("INVALID_PLAN");
+    }
 
     const updateResult = evolution.update(
       {

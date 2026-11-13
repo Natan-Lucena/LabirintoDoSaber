@@ -18,19 +18,14 @@ export function requireJobApiKey(
 
 const authService = new JwtAuthService();
 
-// Tolerância para o token emitido no mesmo segundo da troca de senha: o `iat`
-// do JWT é truncado em segundos.
-const PASSWORD_CHANGE_TOLERANCE_MS = 1000;
-
+// Token emitido antes da última troca de senha deixa de valer. O `iat` do JWT
+// é em segundos: um token emitido no mesmo segundo da troca continua válido.
 function issuedBeforePasswordChange(
   iatSeconds: number,
   passwordChangedAt?: Date
 ): boolean {
   if (!passwordChangedAt) return false;
-  return (
-    iatSeconds * 1000 <
-    passwordChangedAt.getTime() - PASSWORD_CHANGE_TOLERANCE_MS
-  );
+  return iatSeconds < Math.floor(passwordChangedAt.getTime() / 1000);
 }
 
 export function makeAuthMiddleware(educatorRepository: EducatorRepository) {

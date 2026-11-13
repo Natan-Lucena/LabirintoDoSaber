@@ -1,4 +1,5 @@
 import { success, Uuid } from "@wave-telecom/framework/core";
+import { Student } from "../../../../../domain/entities/student";
 import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
 import { mapSessionEvolutionToSummary } from "../../../../../infraestructure/mappers/map-session-evolution";
@@ -18,47 +19,43 @@ export class ListSessionEvolutionsUseCase {
     private studentRepository: StudentRepository
   ) {}
 
+  // Filtra pelo dono atual do aluno (EV-01), não pelo autor gravado na
+  // evolução: quem recebe o aluno vê o histórico dele.
   async execute(request: ListSessionEvolutionsUseCaseRequest) {
-    const studentId = request.studentId ? new Uuid(request.studentId) : undefined;
+    let students: Student[];
 
-    if (studentId) {
+    if (request.studentId) {
       const ownership = await assertStudentOwnership(
         this.studentRepository,
-        studentId,
+        new Uuid(request.studentId),
         request.educatorId
       );
       if (!ownership.ok) return ownership;
+      students = [ownership.value];
+    } else {
+      students = await this.studentRepository.search({
+        educatorId: request.educatorId,
+      });
     }
 
     const evolutions = await this.evolutionRepository.search({
-      educatorId: request.educatorId,
-      studentId,
+      studentIds: students.map((student) => student.id),
       from: request.from,
       to: request.to,
       limit: request.limit,
     });
 
-    const studentIds = [...new Set(evolutions.map((e) => e.studentId.value))];
-    const students = await this.studentRepository.getByIds(
-      studentIds.map((id) => new Uuid(id))
+    const studentNames = new Map(
+      students.map((student) => [student.id.value, student.name])
     );
 
-    // Evoluções de alunos que trocaram de dono somem para o educador antigo.
-    const ownedStudents = new Map(
-      students
-        .filter((student) => student.educatorId.value === request.educatorId.value)
-        .map((student) => [student.id.value, student])
-    );
-
-    const summaries = evolutions
-      .filter((evolution) => ownedStudents.has(evolution.studentId.value))
-      .map((evolution) =>
+    return success(
+      evolutions.map((evolution) =>
         mapSessionEvolutionToSummary(
           evolution,
-          ownedStudents.get(evolution.studentId.value)!.name
+          studentNames.get(evolution.studentId.value) ?? ""
         )
-      );
-
-    return success(summaries);
+      )
+    );
   }
 }

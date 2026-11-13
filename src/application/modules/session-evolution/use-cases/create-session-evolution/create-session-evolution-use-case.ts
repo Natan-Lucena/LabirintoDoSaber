@@ -6,7 +6,10 @@ import {
   SessionEvolution,
 } from "../../../../../domain/entities/session-evolution";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
-import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
+import {
+  SessionEvolutionAlreadyExistsError,
+  SessionEvolutionRepository,
+} from "../../../../../domain/repositories/session-evolution-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 import { applyGoalChanges, loadOwnedSession } from "../evolution-access";
@@ -20,6 +23,9 @@ export interface CreateSessionEvolutionUseCaseRequest {
   nextSessionSuggestion?: string;
   goalUpdates?: EvolutionGoalUpdate[];
 }
+
+const alreadyExists = (evolutionId?: string) =>
+  failure({ code: "EVOLUTION_ALREADY_EXISTS" as const, evolutionId });
 
 export class CreateSessionEvolutionUseCase {
   constructor(
@@ -42,12 +48,7 @@ export class CreateSessionEvolutionUseCase {
     if (!session.finishedAt) return failure("SESSION_NOT_FINISHED");
 
     const existing = await this.evolutionRepository.findBySessionId(session.id);
-    if (existing) {
-      return failure({
-        code: "EVOLUTION_ALREADY_EXISTS",
-        evolutionId: existing.id.value,
-      });
-    }
+    if (existing) return alreadyExists(existing.id.value);
 
     const goalUpdates = request.goalUpdates ?? [];
     let plan: Plan | undefined;
@@ -56,7 +57,11 @@ export class CreateSessionEvolutionUseCase {
       const found = Uuid.isValid(request.planId)
         ? await this.planRepository.findById(new Uuid(request.planId))
         : null;
-      if (!found || found.studentId.value !== session.studentId.value) {
+      if (
+        !found ||
+        found.studentId.value !== session.studentId.value ||
+        found.educatorId.value !== request.educatorId.value
+      ) {
         return failure("INVALID_PLAN");
       }
       // Plano encerrado: com goalUpdates a evolução inteira falha com 409
@@ -84,7 +89,14 @@ export class CreateSessionEvolutionUseCase {
 
     // Tudo validado em memória; grava em sequência, sem transação (EV-07).
     if (planResult.value) await this.planRepository.save(planResult.value);
-    await this.evolutionRepository.save(evolution);
+    try {
+      await this.evolutionRepository.save(evolution);
+    } catch (error) {
+      // Criação em paralelo: a outra requisição gravou primeiro.
+      if (!(error instanceof SessionEvolutionAlreadyExistsError)) throw error;
+      const winner = await this.evolutionRepository.findBySessionId(session.id);
+      return alreadyExists(winner?.id.value);
+    }
     await this.sessionRepository.save(
       session.withObservation(request.descriptiveRecord)
     );

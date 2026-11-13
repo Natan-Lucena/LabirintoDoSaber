@@ -1,13 +1,15 @@
 import { failure, success } from "@wave-telecom/framework/core";
 import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
 import { AuthTokenRepository } from "../../../../../domain/repositories/auth-token-repository";
+import { checkRecoveryCode } from "../check-recovery-code";
 
 interface VerifyTokenUseCaseRequest {
   email: string;
   token: string;
 }
 
-// Confere o código de recuperação sem consumi-lo.
+// Confere o código de recuperação sem consumi-lo. A conferência conta como
+// tentativa.
 export class VerifyTokenUseCase {
   constructor(
     private educatorRepository: EducatorRepository,
@@ -26,12 +28,14 @@ export class VerifyTokenUseCase {
       return failure("INVALID_TOKEN");
     }
 
-    const checked = authToken.check(request.token, new Date());
-    if (checked.authToken !== authToken) {
-      await this.authTokenRepository.save(checked.authToken);
-    }
-    if (!checked.result.ok) {
-      return failure(checked.result.error);
+    const checked = await checkRecoveryCode(
+      this.authTokenRepository,
+      authToken,
+      request.token,
+      new Date()
+    );
+    if (!checked.ok) {
+      return failure(checked.error);
     }
 
     return success({ valid: true });

@@ -5,6 +5,7 @@ import { EducatorRepository } from "../../../../../domain/repositories/educator-
 import { AuthTokenRepository } from "../../../../../domain/repositories/auth-token-repository";
 import { Educator } from "../../../../../domain/entities/educator";
 import { AuthToken } from "../../../../../domain/entities/auth-token";
+import { MockAuthTokenRepository } from "../../../../../infraestructure/repositories/mock/auth-token-repository-impl";
 import { UpdatePasswordEducatorUseCase } from "./update-password-educator-use-case";
 import { updatePasswordEducatorSchema } from "../../schemas/update-password-educator-schema";
 
@@ -13,6 +14,8 @@ function issueFor(userId: Uuid, now = new Date()) {
   if (!issued.ok) throw new Error("issue falhou");
   return issued.value;
 }
+
+const wrongCodeFor = (code: string) => (code === "000000" ? "111111" : "000000");
 
 describe("UpdatePasswordEducatorUseCase", () => {
   let educatorRepository: EducatorRepository;
@@ -32,7 +35,8 @@ describe("UpdatePasswordEducatorUseCase", () => {
     } as unknown as EducatorRepository;
     authTokenRepository = {
       findByUserId: vi.fn().mockResolvedValue(null),
-      save: vi.fn(),
+      registerAttempt: vi.fn().mockResolvedValue(true),
+      consume: vi.fn().mockResolvedValue(true),
     } as unknown as AuthTokenRepository;
     useCase = new UpdatePasswordEducatorUseCase(
       educatorRepository,
@@ -90,15 +94,16 @@ describe("UpdatePasswordEducatorUseCase", () => {
   it("token errado devolve INVALID_TOKEN e não troca a senha", async () => {
     const { authToken, code } = issueFor(educator.id);
     vi.mocked(authTokenRepository.findByUserId).mockResolvedValue(authToken);
-    const wrong = code === "000000" ? "111111" : "000000";
 
     const result = await useCase.execute({
       email: educator.email,
-      token: wrong,
+      token: wrongCodeFor(code),
       newPassword: "senhaNova123",
     });
 
     expect(result).toEqual({ ok: false, error: "INVALID_TOKEN" });
+    expect(authTokenRepository.registerAttempt).toHaveBeenCalledTimes(1);
+    expect(authTokenRepository.consume).not.toHaveBeenCalled();
     expect(educatorRepository.save).not.toHaveBeenCalled();
   });
 
@@ -131,10 +136,10 @@ describe("UpdatePasswordEducatorUseCase", () => {
 
     expect(result).toEqual({ ok: false, error: "PASSWORD_SAME_AS_OLD" });
     expect(educatorRepository.save).not.toHaveBeenCalled();
-    expect(authTokenRepository.save).not.toHaveBeenCalled();
+    expect(authTokenRepository.consume).not.toHaveBeenCalled();
   });
 
-  it("com código válido troca a senha, marca a data da troca e consome o código", async () => {
+  it("com código válido consome o código, troca a senha e marca a data da troca", async () => {
     const { authToken, code } = issueFor(educator.id);
     vi.mocked(authTokenRepository.findByUserId).mockResolvedValue(authToken);
     const before = Date.now();
@@ -146,15 +151,57 @@ describe("UpdatePasswordEducatorUseCase", () => {
     });
 
     expect(result).toEqual({ ok: true, value: undefined });
+    expect(authTokenRepository.consume).toHaveBeenCalledWith(
+      authToken.id,
+      expect.any(Date)
+    );
     expect(educatorRepository.save).toHaveBeenCalledWith(educator);
     expect(await bcrypt.compare("senhaNova123", educator.password)).toBe(true);
     expect(educator.passwordChangedAt!.getTime()).toBeGreaterThanOrEqual(before);
+  });
 
-    const savedToken = vi.mocked(authTokenRepository.save).mock.calls[0][0];
-    expect(savedToken.consumedAt).toBeDefined();
-    expect(savedToken.check(code, new Date()).result).toEqual({
-      ok: false,
-      error: "INVALID_TOKEN",
+  it("código já consumido por outra requisição devolve INVALID_TOKEN sem trocar a senha", async () => {
+    const { authToken, code } = issueFor(educator.id);
+    vi.mocked(authTokenRepository.findByUserId).mockResolvedValue(authToken);
+    vi.mocked(authTokenRepository.consume).mockResolvedValue(false);
+
+    const result = await useCase.execute({
+      email: educator.email,
+      token: code,
+      newPassword: "senhaNova123",
     });
+
+    expect(result).toEqual({ ok: false, error: "INVALID_TOKEN" });
+    expect(educatorRepository.save).not.toHaveBeenCalled();
+    expect(await bcrypt.compare("senhaAntiga", educator.password)).toBe(true);
+  });
+
+  it("duas trocas em paralelo com o mesmo código: só uma passa", async () => {
+    const repository = new MockAuthTokenRepository();
+    const { authToken, code } = issueFor(educator.id);
+    await repository.create(authToken);
+    useCase = new UpdatePasswordEducatorUseCase(educatorRepository, repository);
+
+    const results = await Promise.all([
+      useCase.execute({
+        email: educator.email,
+        token: code,
+        newPassword: "senhaNova123",
+      }),
+      useCase.execute({
+        email: educator.email,
+        token: code,
+        newPassword: "outraSenha456",
+      }),
+    ]);
+
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(results.filter((r) => !r.ok)).toEqual([
+      { ok: false, error: "INVALID_TOKEN" },
+    ]);
+    expect(educatorRepository.save).toHaveBeenCalledTimes(1);
+    expect(
+      (await repository.findByUserId(educator.id))!.consumedAt
+    ).toBeDefined();
   });
 });

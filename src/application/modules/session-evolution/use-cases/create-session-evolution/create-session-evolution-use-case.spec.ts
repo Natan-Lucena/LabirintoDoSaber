@@ -11,7 +11,10 @@ import {
 } from "../../../../../domain/entities/session-evolution";
 import { TaskNotebookSession } from "../../../../../domain/entities/task-notebook-session";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
-import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
+import {
+  SessionEvolutionAlreadyExistsError,
+  SessionEvolutionRepository,
+} from "../../../../../domain/repositories/session-evolution-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 import { closePlan, makePdi, makeSession, makeStudent } from "../test-fixtures";
@@ -266,5 +269,48 @@ describe("CreateSessionEvolutionUseCase", () => {
 
     expect(result).toEqual({ ok: false, error: "INVALID_ATTEMPTS" });
     expectNothingSaved();
+  });
+  it("should return INVALID_PLAN for a plan of another educator", async () => {
+    (planRepository.findById as any).mockResolvedValue(
+      makePdi(Uuid.random(), student.id)
+    );
+
+    const result = await useCase.execute(
+      request({
+        planId: plan.id.value,
+        goalUpdates: [{ goalId: plan.goals[0].id.value, status: GoalStatus.ACHIEVED }],
+      })
+    );
+
+    expect(result).toEqual({ ok: false, error: "INVALID_PLAN" });
+    expectNothingSaved();
+  });
+
+  it("should return 409 with the winner id when a parallel creation hits the unique sessionId", async () => {
+    const winnerResult = await useCase.execute(request());
+    const winner = (winnerResult as any).value as SessionEvolution;
+    vi.clearAllMocks();
+    (evolutionRepository.findBySessionId as any)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(winner);
+    (evolutionRepository.save as any).mockRejectedValue(
+      new SessionEvolutionAlreadyExistsError()
+    );
+
+    const result = await useCase.execute(request());
+
+    expect(result).toEqual({
+      ok: false,
+      error: { code: "EVOLUTION_ALREADY_EXISTS", evolutionId: winner.id.value },
+    });
+    expect(evolutionRepository.findBySessionId).toHaveBeenCalledTimes(2);
+    expect(sessionRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("should rethrow other repository errors", async () => {
+    (evolutionRepository.save as any).mockRejectedValue(new Error("db down"));
+
+    await expect(useCase.execute(request())).rejects.toThrow("db down");
+    expect(sessionRepository.save).not.toHaveBeenCalled();
   });
 });

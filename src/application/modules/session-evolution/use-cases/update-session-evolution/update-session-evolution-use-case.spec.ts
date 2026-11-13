@@ -182,4 +182,17 @@ describe("UpdateSessionEvolutionUseCase", () => {
     expect(result).toEqual({ ok: false, error: "EVOLUTION_NOT_FOUND" });
     expectNothingSaved();
   });
+  it("should return INVALID_PLAN for goalUpdates on a plan of another educator", async () => {
+    const foreignPlan = makePdi(Uuid.random(), student.id);
+    (planRepository.findById as any).mockResolvedValue(foreignPlan);
+
+    const result = await useCase.execute({
+      educatorId,
+      evolutionId: evolution.id.value,
+      goalUpdates: [{ goalId: foreignPlan.goals[0].id.value, status: GoalStatus.ACHIEVED }],
+    });
+
+    expect(result).toEqual({ ok: false, error: "INVALID_PLAN" });
+    expectNothingSaved();
+  });
 });
