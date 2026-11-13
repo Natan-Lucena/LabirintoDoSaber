@@ -169,6 +169,12 @@ export class ScaleApplication {
     );
   }
 
+  // IN-02: gerar de novo substitui o anterior. Vale também em COMPLETED e não
+  // mexe no status nem em updatedAt (que acompanha as respostas).
+  withInsight(insight: ScaleInsight) {
+    return new ScaleApplication({ ...this.props, insight });
+  }
+
   // AV-07: exige todos os itens; depois fica somente leitura.
   complete(template: ScaleTemplate) {
     if (!this.isEditable) return failure("APPLICATION_NOT_EDITABLE" as const);

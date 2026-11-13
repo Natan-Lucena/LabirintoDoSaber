@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  makeAiClinicalService,
   makeEducatorRepository,
   makePlanRepository,
   makeSessionEvolutionRepository,
@@ -19,6 +20,8 @@ import { UpdateSessionEvolutionUseCase } from "../use-cases/update-session-evolu
 import { UpdateSessionEvolutionController } from "../use-cases/update-session-evolution/update-session-evolution-controller";
 import { ListPendingEvolutionsUseCase } from "../use-cases/list-pending-evolutions/list-pending-evolutions-use-case";
 import { ListPendingEvolutionsController } from "../use-cases/list-pending-evolutions/list-pending-evolutions-controller";
+import { NextSessionSuggestionUseCase } from "../use-cases/next-session-suggestion/next-session-suggestion-use-case";
+import { NextSessionSuggestionController } from "../use-cases/next-session-suggestion/next-session-suggestion-controller";
 
 const sessionEvolutionRouter = Router();
 
@@ -27,6 +30,7 @@ const studentRepository = makeStudentRepository({ isMock: false });
 const sessionRepository = makeTaskNotebookSessionRepository();
 const planRepository = makePlanRepository();
 const evolutionRepository = makeSessionEvolutionRepository();
+const aiClinicalService = makeAiClinicalService();
 
 const getEvolutionContextUseCase = new GetEvolutionContextUseCase(
   sessionRepository,
@@ -59,6 +63,13 @@ const listPendingEvolutionsUseCase = new ListPendingEvolutionsUseCase(
   evolutionRepository,
   studentRepository
 );
+const nextSessionSuggestionUseCase = new NextSessionSuggestionUseCase(
+  sessionRepository,
+  studentRepository,
+  planRepository,
+  evolutionRepository,
+  aiClinicalService
+);
 
 const authMiddleware = makeAuthMiddleware(educatorRepository);
 
@@ -75,6 +86,10 @@ sessionEvolutionRouter.get("/", async (req, res) => {
 // Rotas literais antes de /:id.
 sessionEvolutionRouter.get("/context/:sessionId", async (req, res) => {
   new GetEvolutionContextController(getEvolutionContextUseCase).execute(req, res);
+});
+
+sessionEvolutionRouter.post("/next-session-suggestion", async (req, res) => {
+  new NextSessionSuggestionController(nextSessionSuggestionUseCase).execute(req, res);
 });
 
 sessionEvolutionRouter.get("/pending", async (req, res) => {

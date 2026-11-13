@@ -7296,6 +7296,156 @@
         ]
       }
     },
+    "/anamnese/responses/{responseId}/summary": {
+      "post": {
+        "tags": [
+          "Anamnese - Responses"
+        ],
+        "summary": "Gera (ou gera de novo) a síntese por IA da resposta de anamnese.",
+        "description": "Grava `summary = { text, generatedAt }`, até 1500 caracteres em tópicos (histórico, queixa, desenvolvimento, escola, pontos de atenção). Respostas do tipo arquivo não vão ao provedor; do aluno vão só idade e gênero.",
+        "parameters": [
+          {
+            "name": "responseId",
+            "in": "path",
+            "required": true,
+            "description": "Id da resposta.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resposta com `summary` e `summaryOutdated: false`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnamneseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`NO_ANSWERS_TO_SUMMARIZE`: a resposta só tem respostas do tipo arquivo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "NO_ANSWERS_TO_SUMMARIZE": {
+                    "value": {
+                      "message": "NO_ANSWERS_TO_SUMMARIZE"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: a resposta pertence a outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`RESPONSE_NOT_FOUND`, `TEMPLATE_NOT_FOUND`, `STUDENT_NOT_FOUND`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "RESPONSE_NOT_FOUND": {
+                    "value": {
+                      "message": "RESPONSE_NOT_FOUND"
+                    }
+                  },
+                  "TEMPLATE_NOT_FOUND": {
+                    "value": {
+                      "message": "TEMPLATE_NOT_FOUND"
+                    }
+                  },
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`AI_GENERATION_FAILED`, `AI_INVALID_OUTPUT`. Qualquer exceção não tratada também cai aqui com `An unexpected error occurred`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "AI_GENERATION_FAILED": {
+                    "value": {
+                      "message": "AI_GENERATION_FAILED",
+                      "error": "Error not specified."
+                    }
+                  },
+                  "AI_INVALID_OUTPUT": {
+                    "value": {
+                      "message": "AI_INVALID_OUTPUT",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/plan": {
       "post": {
         "tags": [
@@ -9882,6 +10032,172 @@
         ]
       }
     },
+    "/session-evolution/next-session-suggestion": {
+      "post": {
+        "tags": [
+          "Session Evolution"
+        ],
+        "summary": "Sugere por IA o que trabalhar na próxima sessão (não persiste).",
+        "description": "Usa idade e gênero do aluno, metas do plano da sessão (o mesmo de `GET /session-evolution/context/{sessionId}`), os critérios e o registro enviados, o acerto da sessão e as 3 últimas evoluções. Não envia nome, endereço, telefone, documentos nem dados do responsável.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NextSessionSuggestionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NextSessionSuggestion"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "sessionId"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: sessão de aluno de outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`SESSION_NOT_FOUND`, `STUDENT_NOT_FOUND`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "SESSION_NOT_FOUND": {
+                    "value": {
+                      "message": "SESSION_NOT_FOUND"
+                    }
+                  },
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`SESSION_NOT_FINISHED`: a sessão ainda não foi finalizada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "SESSION_NOT_FINISHED": {
+                    "value": {
+                      "message": "SESSION_NOT_FINISHED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`AI_GENERATION_FAILED`, `AI_INVALID_OUTPUT`. Qualquer exceção não tratada também cai aqui com `An unexpected error occurred`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "AI_GENERATION_FAILED": {
+                    "value": {
+                      "message": "AI_GENERATION_FAILED",
+                      "error": "Error not specified."
+                    }
+                  },
+                  "AI_INVALID_OUTPUT": {
+                    "value": {
+                      "message": "AI_INVALID_OUTPUT",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/session-evolution/pending": {
       "get": {
         "tags": [
@@ -11424,6 +11740,139 @@
                   "An unexpected error occurred": {
                     "value": {
                       "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/scale-application/{id}/insight": {
+      "post": {
+        "tags": [
+          "Scale Application"
+        ],
+        "summary": "Gera (ou gera de novo) o insight por IA da aplicação.",
+        "description": "Sob demanda, em DRAFT (`preliminary: true`) ou COMPLETED (`preliminary: false`). Gerar de novo substitui o anterior. Não muda o status. Envia ao provedor só o nome e as faixas da escala, o escore e as subescalas, idade e gênero; nunca as respostas item a item.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Id da aplicação. Id que não é UUID responde 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Aplicação completa, com `insight`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScaleApplication"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: aplicação de aluno de outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`APPLICATION_NOT_FOUND`, `STUDENT_NOT_FOUND`, `SCALE_NOT_FOUND`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "APPLICATION_NOT_FOUND": {
+                    "value": {
+                      "message": "APPLICATION_NOT_FOUND"
+                    }
+                  },
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  },
+                  "SCALE_NOT_FOUND": {
+                    "value": {
+                      "message": "SCALE_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`AI_GENERATION_FAILED`, `AI_INVALID_OUTPUT`. Qualquer exceção não tratada também cai aqui com `An unexpected error occurred`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "AI_GENERATION_FAILED": {
+                    "value": {
+                      "message": "AI_GENERATION_FAILED",
+                      "error": "Error not specified."
+                    }
+                  },
+                  "AI_INVALID_OUTPUT": {
+                    "value": {
+                      "message": "AI_INVALID_OUTPUT",
                       "error": "Error not specified."
                     }
                   }
@@ -13204,6 +13653,14 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          },
+          "summary": {
+            "$ref": "#/components/schemas/AnamneseSummary",
+            "description": "Ausente enquanto não houver síntese."
+          },
+          "summaryOutdated": {
+            "type": "boolean",
+            "description": "`true` quando a resposta foi editada depois da síntese."
           }
         },
         "required": [
@@ -13212,7 +13669,8 @@
           "educatorId",
           "studentId",
           "answers",
-          "answeredAt"
+          "answeredAt",
+          "summaryOutdated"
         ]
       },
       "AnamneseResponseSubmitBody": {
@@ -15097,14 +15555,16 @@
         "type": "object",
         "properties": {
           "text": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 800
           },
           "generatedAt": {
             "type": "string",
             "format": "date-time"
           },
           "preliminary": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "`true` quando gerado com a aplicação em DRAFT."
           }
         },
         "required": [
@@ -15293,6 +15753,68 @@
         "required": [
           "message",
           "missingItemIds"
+        ]
+      },
+      "NextSessionSuggestionBody": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Sessão finalizada de um aluno do educador."
+          },
+          "criteria": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/EvolutionCriterionInput"
+            },
+            "description": "Critérios já preenchidos na tela de evolução (opcional)."
+          },
+          "descriptiveRecord": {
+            "type": "string",
+            "maxLength": 5000,
+            "description": "Registro descritivo já escrito (opcional)."
+          }
+        },
+        "required": [
+          "sessionId"
+        ]
+      },
+      "NextSessionSuggestion": {
+        "type": "object",
+        "description": "Texto gerado por IA para o profissional revisar. Não é gravado.",
+        "properties": {
+          "suggestion": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "rationale": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Ausente quando o modelo não justifica."
+          }
+        },
+        "required": [
+          "suggestion"
+        ]
+      },
+      "AnamneseSummary": {
+        "type": "object",
+        "description": "Síntese da anamnese gerada por IA, em tópicos curtos.",
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 1500
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "text",
+          "generatedAt"
         ]
       }
     }

@@ -6,6 +6,7 @@ import {
   makeStudentRepository,
   makeEducatorRepository,
   makeFileStorage,
+  makeAiClinicalService,
 } from "../../../../infraestructure/factories";
 import { Multer } from "../../../../infraestructure/upload/multer-config";
 import { SubmitAnamneseResponseUseCase } from "../use-cases/submit-anamnese-response/submit-anamnese-response-use-case";
@@ -18,6 +19,9 @@ import { UploadAnamneseFileUseCase } from "../use-cases/upload-anamnese-file/upl
 import { UploadAnamneseFileController } from "../use-cases/upload-anamnese-file/upload-anamnese-file-controller";
 import { UpdateAnamneseResponseUseCase } from "../use-cases/update-anamnese-response/update-anamnese-response-use-case";
 import { UpdateAnamneseResponseController } from "../use-cases/update-anamnese-response/update-anamnese-response-controller";
+import { GenerateAnamneseSummaryUseCase } from "../use-cases/generate-anamnese-summary/generate-anamnese-summary-use-case";
+import { GenerateAnamneseSummaryController } from "../use-cases/generate-anamnese-summary/generate-anamnese-summary-controller";
+import { AnamneseContextBuilder } from "../../../services/anamnese-context-builder";
 
 const anamneseResponseRouter = Router();
 
@@ -39,6 +43,13 @@ const uploadFileUseCase = new UploadAnamneseFileUseCase(makeFileStorage());
 const updateUseCase = new UpdateAnamneseResponseUseCase(
   templateRepository,
   responseRepository
+);
+const generateSummaryUseCase = new GenerateAnamneseSummaryUseCase(
+  responseRepository,
+  templateRepository,
+  studentRepository,
+  new AnamneseContextBuilder(templateRepository, responseRepository),
+  makeAiClinicalService()
 );
 
 anamneseResponseRouter.use(authMiddleware);
@@ -62,6 +73,13 @@ anamneseResponseRouter.get(
   "/responses/student/:studentId",
   (req: Request, res: Response) => {
     new ListAnamneseResponsesByStudentController(listByStudentUseCase).execute(req, res);
+  }
+);
+
+anamneseResponseRouter.post(
+  "/responses/:responseId/summary",
+  (req: Request, res: Response) => {
+    new GenerateAnamneseSummaryController(generateSummaryUseCase).execute(req, res);
   }
 );
 

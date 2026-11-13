@@ -20,6 +20,9 @@ export class AnamneseResponseRepositoryImpl implements AnamneseResponseRepositor
       selectedOptionIds: a.selectedOptionIds ?? [],
       fileUrl: a.fileUrl ?? null,
     }));
+    const summary = response.summary
+      ? { text: response.summary.text, generatedAt: response.summary.generatedAt }
+      : null;
 
     await this.prismaService.anamneseResponse.upsert({
       where: { id: response.id.value },
@@ -31,10 +34,12 @@ export class AnamneseResponseRepositoryImpl implements AnamneseResponseRepositor
         answeredAt: response.answeredAt,
         updatedAt: response.updatedAt ?? null,
         answers,
+        summary,
       },
       update: {
         answers: { set: answers },
         updatedAt: response.updatedAt ?? null,
+        summary,
       },
     });
   }
@@ -79,6 +84,9 @@ export class AnamneseResponseRepositoryImpl implements AnamneseResponseRepositor
       answers,
       answeredAt: data.answeredAt,
       updatedAt: data.updatedAt ?? undefined,
+      summary: data.summary
+        ? { text: data.summary.text, generatedAt: data.summary.generatedAt }
+        : undefined,
     });
   }
 

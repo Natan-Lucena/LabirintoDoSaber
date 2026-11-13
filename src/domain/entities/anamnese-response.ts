@@ -22,6 +22,12 @@ export interface AnamneseAnswerInput {
   fileUrl?: string;
 }
 
+// Síntese gerada por IA (AS-01). Gerar de novo substitui a anterior.
+export interface AnamneseSummary {
+  text: string;
+  generatedAt: Date;
+}
+
 export interface CreateAnamneseResponseProps {
   id?: Uuid;
   templateId: Uuid;
@@ -39,8 +45,32 @@ export class AnamneseResponse {
     public readonly studentId: Uuid,
     public readonly answers: AnamneseAnswer[],
     public readonly answeredAt: Date,
-    public readonly updatedAt?: Date
+    public readonly updatedAt?: Date,
+    public readonly summary?: AnamneseSummary
   ) {}
+
+  // AS-02: a resposta foi editada depois da síntese.
+  get summaryOutdated(): boolean {
+    return (
+      this.summary !== undefined &&
+      this.updatedAt !== undefined &&
+      this.updatedAt.getTime() > this.summary.generatedAt.getTime()
+    );
+  }
+
+  // Não mexe em updatedAt: gerar a síntese não é editar a anamnese.
+  withSummary(summary: AnamneseSummary) {
+    return new AnamneseResponse(
+      this.id,
+      this.templateId,
+      this.educatorId,
+      this.studentId,
+      this.answers,
+      this.answeredAt,
+      this.updatedAt,
+      summary
+    );
+  }
 
   static create(props: CreateAnamneseResponseProps, template: AnamneseTemplate) {
     const builtAnswers = AnamneseResponse.buildAnswers(props.answers, template);
@@ -74,7 +104,8 @@ export class AnamneseResponse {
         this.studentId,
         builtAnswers.value,
         this.answeredAt,
-        new Date()
+        new Date(),
+        this.summary
       )
     );
   }
@@ -87,6 +118,7 @@ export class AnamneseResponse {
     answers: AnamneseAnswer[];
     answeredAt: Date;
     updatedAt?: Date;
+    summary?: AnamneseSummary;
   }) {
     return new AnamneseResponse(
       props.id,
@@ -95,7 +127,8 @@ export class AnamneseResponse {
       props.studentId,
       props.answers,
       props.answeredAt,
-      props.updatedAt
+      props.updatedAt,
+      props.summary
     );
   }
 

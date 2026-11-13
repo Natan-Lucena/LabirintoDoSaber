@@ -1,5 +1,6 @@
 import { BaseController } from "@wave-telecom/framework/controllers";
 import { Request, Response } from "express";
+import { mapAnamneseResponse } from "../../../../../infraestructure/mappers/map-anamnese-response";
 import { ListAnamneseResponsesByStudentUseCase } from "./list-anamnese-responses-by-student-use-case";
 
 export class ListAnamneseResponsesByStudentController extends BaseController {
@@ -15,6 +16,6 @@ export class ListAnamneseResponsesByStudentController extends BaseController {
       studentId: req.params.studentId,
     });
 
-    return this.ok(res, result.value);
+    return this.ok(res, result.value.map(mapAnamneseResponse));
   }
 }

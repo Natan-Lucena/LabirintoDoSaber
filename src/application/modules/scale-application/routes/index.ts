@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  makeAiClinicalService,
   makeAppointmentRepository,
   makeEducatorRepository,
   makeScaleApplicationRepository,
@@ -19,6 +20,8 @@ import { CompleteScaleApplicationUseCase } from "../use-cases/complete-scale-app
 import { CompleteScaleApplicationController } from "../use-cases/complete-scale-application/complete-scale-application-controller";
 import { DeleteScaleApplicationUseCase } from "../use-cases/delete-scale-application/delete-scale-application-use-case";
 import { DeleteScaleApplicationController } from "../use-cases/delete-scale-application/delete-scale-application-controller";
+import { GenerateInsightUseCase } from "../use-cases/generate-insight/generate-insight-use-case";
+import { GenerateInsightController } from "../use-cases/generate-insight/generate-insight-controller";
 
 const scaleApplicationRouter = Router();
 
@@ -58,6 +61,12 @@ const deleteScaleApplicationUseCase = new DeleteScaleApplicationUseCase(
   applicationRepository,
   studentRepository
 );
+const generateInsightUseCase = new GenerateInsightUseCase(
+  applicationRepository,
+  templateRepository,
+  studentRepository,
+  makeAiClinicalService()
+);
 
 const authMiddleware = makeAuthMiddleware(educatorRepository);
 
@@ -78,6 +87,10 @@ scaleApplicationRouter.put("/:id/answers", async (req, res) => {
 
 scaleApplicationRouter.post("/:id/complete", async (req, res) => {
   new CompleteScaleApplicationController(completeScaleApplicationUseCase).execute(req, res);
+});
+
+scaleApplicationRouter.post("/:id/insight", async (req, res) => {
+  new GenerateInsightController(generateInsightUseCase).execute(req, res);
 });
 
 scaleApplicationRouter.get("/:id", async (req, res) => {

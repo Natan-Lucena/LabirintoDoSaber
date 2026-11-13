@@ -1,5 +1,6 @@
 import { BaseController } from "@wave-telecom/framework/controllers";
 import { Request, Response } from "express";
+import { mapAnamneseResponse } from "../../../../../infraestructure/mappers/map-anamnese-response";
 import { GetAnamneseResponseUseCase } from "./get-anamnese-response-use-case";
 
 export class GetAnamneseResponseController extends BaseController {
@@ -27,6 +28,6 @@ export class GetAnamneseResponseController extends BaseController {
       }
     }
 
-    return this.ok(res, result.value);
+    return this.ok(res, mapAnamneseResponse(result.value));
   }
 }

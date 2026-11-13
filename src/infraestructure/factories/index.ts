@@ -26,6 +26,8 @@ import { AiStudentAnalysisService } from "../../domain/services/ai-student-analy
 import { GeminiStudentAnalysisImpl } from "../services/gemini-student-analysis-impl";
 import { AiPlanGeneratorService } from "../../domain/services/ai-plan-generator-service";
 import { GeminiPlanGeneratorImpl } from "../services/gemini-plan-generator-impl";
+import { AiClinicalService } from "../../domain/services/ai-clinical-service";
+import { GeminiClinicalImpl } from "../services/gemini-clinical-impl";
 import { PlanRepository } from "../../domain/repositories/plan-repository";
 import { PlanRepositoryImpl } from "../repositories/prisma/plan-repository-impl";
 import { PlanReviewRepository } from "../../domain/repositories/plan-review-repository";
@@ -123,6 +125,10 @@ export const makeAiStudentAnalysisService = (): AiStudentAnalysisService => {
 
 export const makeAiPlanGeneratorService = (): AiPlanGeneratorService => {
   return new GeminiPlanGeneratorImpl();
+};
+
+export const makeAiClinicalService = (): AiClinicalService => {
+  return new GeminiClinicalImpl();
 };
 
 export const makePlanRepository = (): PlanRepository => {
