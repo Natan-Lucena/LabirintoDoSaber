@@ -12006,7 +12006,7 @@
             }
           },
           "400": {
-            "description": "Falha de validação Zod; `INVALID_PERIOD` (from > to ou mais de 365 dias); `SECTION_NOT_ALLOWED` (seção fora do tipo); `REPORT_EMPTY_PERIOD` (sem sessão, evolução, plano nem aplicação no período, e sem síntese de anamnese).",
+            "description": "Falha de validação Zod; `INVALID_PERIOD` (from > to ou mais de 365 dias); `SECTION_NOT_ALLOWED` (seção fora do tipo); `REPORT_EMPTY_PERIOD` (nenhuma das seções pedidas que trazem dados — SESSION_METRICS, EVOLUTIONS, PLAN_PROGRESS, ASSESSMENTS, ANAMNESIS_SUMMARY — tem dado no período; PATIENT_DATA e AI_SYNTHESIS não contam).",
             "content": {
               "application/json": {
                 "schema": {
@@ -16865,7 +16865,7 @@
           },
           "planProgress": {
             "type": "array",
-            "description": "Seção PLAN_PROGRESS: planos ativos, ou concluídos com vigência no período.",
+            "description": "Seção PLAN_PROGRESS: planos ativos ou concluídos com vigência no período (início até o fim do período e fim a partir do início). Cancelados não entram.",
             "items": {
               "type": "object",
               "properties": {

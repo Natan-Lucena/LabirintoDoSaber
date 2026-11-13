@@ -124,6 +124,7 @@ export class ReportContentBuilder {
   }
 
   // Planos ativos ou concluídos com vigência no período; cancelados não entram.
+  // Plano ativo fora do período também não entra.
   private async loadPlanProgress(student: Student, period: ReportPeriod) {
     const plans = await this.deps.planRepository.search({
       educatorId: student.educatorId,
@@ -133,10 +134,9 @@ export class ReportContentBuilder {
     return plans
       .filter(
         (plan) =>
-          plan.status === PlanStatus.ACTIVE ||
-          (plan.status === PlanStatus.COMPLETED &&
-            plan.startDate <= period.to &&
-            plan.endDate >= period.from)
+          (plan.status === PlanStatus.ACTIVE || plan.status === PlanStatus.COMPLETED) &&
+          plan.startDate <= period.to &&
+          plan.endDate >= period.from
       )
       .map((plan) => ({
         title: plan.title,
@@ -201,15 +201,17 @@ export class ReportContentBuilder {
   }
 }
 
-// RP-05: sem sessão, evolução, plano nem aplicação no período, e sem anamnese.
-export function isEmptyPeriod(data: ReportPeriodData): boolean {
-  return (
-    data.sessionMetrics.sessions === 0 &&
-    data.evolutions.length === 0 &&
-    data.planProgress.length === 0 &&
-    data.assessments.length === 0 &&
-    !data.anamnesisSummary
-  );
+// RP-05: nenhuma das seções pedidas que trazem dados (todas menos PATIENT_DATA
+// e AI_SYNTHESIS) tem dado no período. Assim a IA nunca é chamada sem dados.
+export function isEmptyPeriod(data: ReportPeriodData, sections: ReportSection[]): boolean {
+  const hasData: Partial<Record<ReportSection, boolean>> = {
+    [ReportSection.SESSION_METRICS]: data.sessionMetrics.sessions > 0,
+    [ReportSection.EVOLUTIONS]: data.evolutions.length > 0,
+    [ReportSection.PLAN_PROGRESS]: data.planProgress.length > 0,
+    [ReportSection.ASSESSMENTS]: data.assessments.length > 0,
+    [ReportSection.ANAMNESIS_SUMMARY]: Boolean(data.anamnesisSummary),
+  };
+  return !sections.some((section) => hasData[section]);
 }
 
 // Monta o retrato campo a campo, só com as seções pedidas. Do cadastro do aluno

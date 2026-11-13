@@ -52,7 +52,13 @@ describe("ShareReportUseCase (RP-08)", () => {
       expect(share.at.getTime()).toBeGreaterThanOrEqual(before);
     }
     expect(shared.content).toEqual(report.content);
-    expect(reportRepository.save).toHaveBeenLastCalledWith(shared);
+    // Acrescenta o envio sem regravar o relatório (o conteúdo fica intocado).
+    expect(reportRepository.addShare).toHaveBeenLastCalledWith(
+      report.id,
+      shared.shares[1]
+    );
+    expect(reportRepository.save).not.toHaveBeenCalled();
+    expect(reportRepository.store.get(report.id.value)?.shares).toEqual(shared.shares);
     // A entidade é imutável: a instância original não muda.
     expect(report.shares).toEqual([]);
   });
@@ -65,7 +71,7 @@ describe("ShareReportUseCase (RP-08)", () => {
     });
 
     expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
-    expect(reportRepository.save).not.toHaveBeenCalled();
+    expect(reportRepository.addShare).not.toHaveBeenCalled();
   });
 
   it("should return REPORT_NOT_FOUND for an invalid id", async () => {

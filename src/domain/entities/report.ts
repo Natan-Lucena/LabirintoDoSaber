@@ -135,6 +135,7 @@ export interface CreateReportProps extends ReportRequestProps {
   audience: ReportAudience;
   content: ReportContent;
   synthesisFailed: boolean;
+  createdAt?: Date;
 }
 
 export type ReportError = "INVALID_PERIOD" | "NO_SECTIONS" | "SECTION_NOT_ALLOWED";
@@ -187,7 +188,7 @@ export class Report {
         content: props.content,
         synthesisFailed: props.synthesisFailed,
         shares: [],
-        createdAt: new Date(),
+        createdAt: props.createdAt ?? new Date(),
       })
     );
   }

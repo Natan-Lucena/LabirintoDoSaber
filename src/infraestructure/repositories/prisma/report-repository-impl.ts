@@ -5,6 +5,7 @@ import {
   ReportAudience,
   ReportContent,
   ReportSection,
+  ReportShare,
   ReportShareChannel,
   ReportSummaryProps,
   ReportType,
@@ -41,10 +42,10 @@ export class ReportRepositoryImpl implements ReportRepository {
       at: share.at,
     }));
 
-    // O conteúdo só é gravado na criação (RP-03); depois, só os envios mudam.
+    // O conteúdo só é gravado na criação (RP-03); os envios entram por addShare.
     await this.prismaService.report.upsert({
       where: { id: report.id.value },
-      update: { shares: { set: shares } },
+      update: {},
       create: {
         id: report.id.value,
         studentId: report.studentId.value,
@@ -88,8 +89,16 @@ export class ReportRepositoryImpl implements ReportRepository {
     return records.map((record) => this.mapToSummary(record));
   }
 
+  async addShare(id: Uuid, share: ReportShare): Promise<void> {
+    await this.prismaService.report.update({
+      where: { id: id.value },
+      data: { shares: { push: { channel: share.channel, at: share.at } } },
+    });
+  }
+
+  // deleteMany: exclusão concorrente do mesmo relatório não vira 500.
   async delete(id: Uuid): Promise<void> {
-    await this.prismaService.report.delete({ where: { id: id.value } });
+    await this.prismaService.report.deleteMany({ where: { id: id.value } });
   }
 
   private mapToSummary(record: ReportSummaryRecord): ReportSummaryProps {

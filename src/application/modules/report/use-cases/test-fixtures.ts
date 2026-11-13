@@ -6,6 +6,7 @@ import {
   Report,
   ReportAudience,
   ReportSection,
+  ReportShare,
   ReportType,
 } from "../../../../domain/entities/report";
 import {
@@ -201,6 +202,10 @@ export const makeReportRepository = (initial: Report[] = []) => {
       store.set(report.id.value, report);
     }),
     findById: vi.fn(async (id: Uuid) => store.get(id.value) ?? null),
+    addShare: vi.fn(async (id: Uuid, share: ReportShare) => {
+      const report = store.get(id.value);
+      if (report) store.set(id.value, report.share(share.channel, share.at));
+    }),
     search: vi.fn(async ({ studentIds, limit }: { studentIds: Uuid[]; limit: number }) =>
       [...store.values()]
         .filter((report) => studentIds.some((id) => id.value === report.studentId.value))

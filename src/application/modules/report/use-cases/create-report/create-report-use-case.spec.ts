@@ -7,6 +7,7 @@ import {
   ReportType,
 } from "../../../../../domain/entities/report";
 import { TaskCategory } from "../../../../../domain/entities/task";
+import { Plan, PlanSource, PlanType } from "../../../../../domain/entities/plan";
 import { AiClinicalService } from "../../../../../domain/services/ai-clinical-service";
 import { GenerateStudentAnalysisUseCase } from "../../../task-notebook-session/use-cases/generate-student-analisys/generate-student-analisys-use-case";
 import { ReportContentBuilder } from "../../report-content-builder";
@@ -46,6 +47,24 @@ describe("CreateReportUseCase", () => {
   const student = makeSensitiveStudent(educatorId);
   const otherStudent = makeStudent(Uuid.random(), "Caio");
   const emptyStudent = makeStudent(educatorId, "Bia");
+  // Só tem síntese de anamnese, nada no período.
+  const anamneseOnlyStudent = makeStudent(educatorId, "Duda");
+
+  // PDI ativo com vigência depois do período.
+  const futurePdi = (studentId: Uuid) =>
+    unwrap<Plan>(
+      Plan.create({
+        educatorId,
+        studentId,
+        type: PlanType.PDI,
+        source: PlanSource.MANUAL,
+        title: "PDI futuro",
+        generalObjective: "Ler textos curtos",
+        startDate: "2027-01-01",
+        endDate: "2027-06-01",
+        goals: [{ description: "Ler frases" }],
+      })
+    );
 
   const readingTask = makeTask(TaskCategory.Reading);
   const writingTask = makeTask(TaskCategory.Writing);
@@ -106,7 +125,12 @@ describe("CreateReportUseCase", () => {
 
   beforeEach(() => {
     const pdi = makePdi(educatorId, student.id, "PDI de leitura");
-    studentRepository = makeStudentRepository([student, otherStudent, emptyStudent]);
+    studentRepository = makeStudentRepository([
+      student,
+      otherStudent,
+      emptyStudent,
+      anamneseOnlyStudent,
+    ]);
     reportRepository = makeReportRepository();
     evolutionRepository = makeEvolutionRepository([
       makeEvolution(sessionA, "Leu sílabas com apoio visual.", pdi),
@@ -130,12 +154,17 @@ describe("CreateReportUseCase", () => {
         makeTaskRepository([readingTask, writingTask])
       ),
       evolutionRepository,
-      planRepository: makePlanRepository([pdi]),
+      planRepository: makePlanRepository([
+        pdi,
+        futurePdi(student.id),
+        futurePdi(emptyStudent.id),
+      ]),
       applicationRepository,
       templateRepository: makeTemplateRepository([template]),
       anamneseResponseRepository: makeAnamneseResponseRepository([
         makeAnamneseWithSummary(student, "- Queixa: troca letras", new Date("2026-06-01")),
         makeAnamneseWithSummary(student, "- Queixa: leitura lenta", new Date("2026-10-01")),
+        makeAnamneseWithSummary(anamneseOnlyStudent, "- Queixa: atenção", new Date("2026-10-01")),
       ]),
     });
 
@@ -191,7 +220,8 @@ describe("CreateReportUseCase", () => {
       ],
       synthesis: SYNTHESIS,
     });
-    expect(typeof report.content.generatedAt).toBe("string");
+    // Um único instante para a geração do conteúdo e a criação.
+    expect(report.content.generatedAt).toBe(report.createdAt.toISOString());
     // Seções fora do pedido não entram.
     expect(report.content).not.toHaveProperty("assessments");
     expect(report.content).not.toHaveProperty("anamnesisSummary");
@@ -378,7 +408,41 @@ describe("CreateReportUseCase", () => {
   });
 
   it("should return REPORT_EMPTY_PERIOD without sessions, evolutions, plans, assessments or anamnese (RP-05, BE-RP-02)", async () => {
+    // O aluno tem um PDI ativo, mas com vigência fora do período.
     const result = await useCase.execute(request({ studentId: emptyStudent.id.value }));
+
+    expect(result).toEqual({ ok: false, error: "REPORT_EMPTY_PERIOD" });
+    expect(aiClinicalService.reportSynthesis).not.toHaveBeenCalled();
+    expect(reportRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("should leave out an active plan whose validity is outside the period", async () => {
+    const report = unwrap<Report>(
+      await useCase.execute(request({ sections: [ReportSection.PLAN_PROGRESS] }))
+    );
+
+    expect(report.content.planProgress?.map((plan) => plan.title)).toEqual(["PDI de leitura"]);
+  });
+
+  it("should return REPORT_EMPTY_PERIOD when no requested section has data, even with sessions in the period", async () => {
+    // Sessão em 20/11, mas nenhuma aplicação concluída entre 16 e 30/11.
+    const result = await useCase.execute(
+      request({
+        type: ReportType.ASSESSMENT,
+        sections: [ReportSection.ASSESSMENTS, ReportSection.AI_SYNTHESIS],
+        period: { from: "2026-11-16", to: "2026-11-30" },
+      })
+    );
+
+    expect(result).toEqual({ ok: false, error: "REPORT_EMPTY_PERIOD" });
+    expect(aiClinicalService.reportSynthesis).not.toHaveBeenCalled();
+    expect(reportRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("should not create a progress report backed only by the anamnese summary", async () => {
+    const result = await useCase.execute(
+      request({ studentId: anamneseOnlyStudent.id.value })
+    );
 
     expect(result).toEqual({ ok: false, error: "REPORT_EMPTY_PERIOD" });
     expect(aiClinicalService.reportSynthesis).not.toHaveBeenCalled();

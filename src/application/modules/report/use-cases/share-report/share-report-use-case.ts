@@ -26,9 +26,9 @@ export class ShareReportUseCase {
     );
     if (!access.ok) return access;
 
-    const shared = access.value.share(request.channel);
-    await this.reportRepository.save(shared);
+    const share = { channel: request.channel, at: new Date() };
+    await this.reportRepository.addShare(access.value.id, share);
 
-    return success(shared);
+    return success(access.value.share(share.channel, share.at));
   }
 }

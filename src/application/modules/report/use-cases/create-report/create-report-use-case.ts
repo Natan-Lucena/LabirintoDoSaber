@@ -60,7 +60,10 @@ export class CreateReportUseCase {
 
     const data = await this.contentBuilder.load(student, period);
     if (!data.ok) return data;
-    if (isEmptyPeriod(data.value)) return failure("REPORT_EMPTY_PERIOD");
+    if (isEmptyPeriod(data.value, sections.value)) return failure("REPORT_EMPTY_PERIOD");
+
+    // Um único instante para content.generatedAt e createdAt.
+    const now = new Date();
 
     const content = assembleReportContent({
       data: data.value,
@@ -68,7 +71,7 @@ export class CreateReportUseCase {
       sections: sections.value,
       student,
       professional: request.professional,
-      generatedAt: new Date(),
+      generatedAt: now,
     });
 
     // RP-06: a síntese é opcional; se a IA falhar, o relatório sai sem ela.
@@ -103,6 +106,7 @@ export class CreateReportUseCase {
       sections: sections.value,
       content,
       synthesisFailed,
+      createdAt: now,
     });
     if (!report.ok) return report;
 
