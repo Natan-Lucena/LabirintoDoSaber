@@ -40,6 +40,8 @@ import { ScaleTemplateRepository } from "../../domain/repositories/scale-templat
 import { ScaleTemplateRepositoryImpl } from "../repositories/prisma/scale-template-repository-impl";
 import { ScaleApplicationRepository } from "../../domain/repositories/scale-application-repository";
 import { ScaleApplicationRepositoryImpl } from "../repositories/prisma/scale-application-repository-impl";
+import { ReportRepository } from "../../domain/repositories/report-repository";
+import { ReportRepositoryImpl } from "../repositories/prisma/report-repository-impl";
 
 const prismaClient = new PrismaClient();
 
@@ -153,4 +155,8 @@ export const makeScaleTemplateRepository = (): ScaleTemplateRepository => {
 
 export const makeScaleApplicationRepository = (): ScaleApplicationRepository => {
   return new ScaleApplicationRepositoryImpl(prismaClient);
+};
+
+export const makeReportRepository = (): ReportRepository => {
+  return new ReportRepositoryImpl(prismaClient);
 };

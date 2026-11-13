@@ -9,6 +9,9 @@ export interface SearchScaleApplicationParams {
   // Alunos cujo dono atual é o educador; o autor gravado na aplicação não entra.
   studentIds: Uuid[];
   status?: ApplicationStatus;
+  // Inclusivos, comparados com completedAt.
+  completedFrom?: Date;
+  completedTo?: Date;
   limit: number;
 }
 

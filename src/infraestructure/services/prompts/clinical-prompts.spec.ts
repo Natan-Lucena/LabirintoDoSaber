@@ -5,6 +5,8 @@ import { ScaleInsightParams } from "../../../domain/services/ai-clinical-service
 import { buildAnamneseSummaryPrompt } from "./anamnese-summary-prompt";
 import { buildNextSessionSuggestionPrompt } from "./next-session-suggestion-prompt";
 import { buildScaleInsightPrompt } from "./scale-insight-prompt";
+import { buildReportSynthesisPrompt } from "./report-synthesis-prompt";
+import { ReportAudience, ReportType } from "../../../domain/entities/report";
 
 const student = { age: 8, gender: "female" };
 
@@ -19,6 +21,15 @@ const insightParams = (preliminary: boolean): ScaleInsightParams => ({
   preliminary,
 });
 
+const reportPrompt = (audience: ReportAudience) =>
+  buildReportSynthesisPrompt({
+    student,
+    audience,
+    reportType: ReportType.PROGRESS,
+    period: { from: "2026-08-01", to: "2026-10-31" },
+    sessionMetrics: { sessions: 4, answered: 20, accuracy: 0.75, byCategory: [] },
+  });
+
 const prompts = {
   nextSession: buildNextSessionSuggestionPrompt({
     student,
@@ -31,6 +42,7 @@ const prompts = {
     student,
     anamnese: { answers: [{ question: "Queixa", answer: "Troca letras" }] },
   }),
+  report: reportPrompt(ReportAudience.PROFESSIONAL),
 };
 
 describe("clinical prompts (IA-02, IA-04)", () => {
@@ -56,5 +68,13 @@ describe("clinical prompts (IA-02, IA-04)", () => {
     expect(prompts.summary).toContain(
       "Histórico, Queixa, Desenvolvimento, Escola, Pontos de atenção"
     );
+  });
+
+  it("adapts the report synthesis language to the audience", () => {
+    expect(reportPrompt(ReportAudience.FAMILY)).toContain("linguagem simples");
+    expect(reportPrompt(ReportAudience.SCHOOL)).toContain("ESCOLA");
+    expect(prompts.report).toContain("linguagem técnica");
+    expect(prompts.report).not.toContain("linguagem simples");
+    expect(prompts.report).toContain("2500 caracteres");
   });
 });

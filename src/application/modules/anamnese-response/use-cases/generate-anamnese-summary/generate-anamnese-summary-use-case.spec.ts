@@ -110,6 +110,7 @@ describe("GenerateAnamneseSummaryUseCase", () => {
       anamneseSummary: vi.fn().mockResolvedValue({
         text: "- Queixa: trocas de letras na escrita.\n- Escola: frequenta.",
       }),
+      reportSynthesis: vi.fn(),
     };
 
     useCase = new GenerateAnamneseSummaryUseCase(

@@ -5,12 +5,16 @@ import { TaskRepository } from "../../../../../domain/repositories/task-reposito
 import { Task, TaskCategory } from "../../../../../domain/entities/task";
 import { TaskNotebookSession } from "../../../../../domain/entities/task-notebook-session";
 import { Student } from "../../../../../domain/entities/student";
+import { dateInSaoPaulo } from "../../../../../domain/utils/date-only";
 
 export interface GenerateStudentAnalysisUseCaseRequest {
   studentId: string;
   startDate?: Date;
   endDate?: Date;
   limit?: number;
+  // Só sessões finalizadas entre as datas (AAAA-MM-DD, inclusivas, em
+  // America/Sao_Paulo). Quando vem, substitui limit e startDate/endDate.
+  finishedBetween?: { from: string; to: string };
 }
 
 export interface CategoryAccuracyResult {
@@ -105,7 +109,14 @@ export class GenerateStudentAnalysisUseCase {
 
     let sessions = allSessions;
 
-    if (request.limit) {
+    if (request.finishedBetween) {
+      const { from, to } = request.finishedBetween;
+      sessions = allSessions.filter((session) => {
+        if (!session.finishedAt) return false;
+        const finishedOn = dateInSaoPaulo(session.finishedAt);
+        return finishedOn >= from && finishedOn <= to;
+      });
+    } else if (request.limit) {
       sessions = [...allSessions]
         .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())
         .slice(0, request.limit);

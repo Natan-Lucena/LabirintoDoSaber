@@ -1,5 +1,6 @@
 import { CriterionResult } from "../entities/session-evolution";
 import { BandSeverity, ScoringMethod } from "../entities/scale-template";
+import { ReportAudience, ReportContent, ReportType } from "../entities/report";
 
 // Do cadastro do aluno só saem idade e gênero (IA-05). Nunca nome, endereço,
 // telefone, documentos, foto ou dados do responsável.
@@ -85,6 +86,20 @@ export interface AnamneseSummaryParams {
   };
 }
 
+// Seções já montadas do relatório (só as pedidas), sem o paciente nem o
+// profissional: o nome não vai ao provedor. A audiência ajusta a linguagem.
+export interface ReportSynthesisParams {
+  student: ClinicalAiStudent;
+  audience: ReportAudience;
+  reportType: ReportType;
+  period: { from: string; to: string };
+  sessionMetrics?: ReportContent["sessionMetrics"];
+  evolutions?: ReportContent["evolutions"];
+  planProgress?: ReportContent["planProgress"];
+  assessments?: ReportContent["assessments"];
+  anamnesisSummary?: string;
+}
+
 export interface ClinicalTextOutput {
   text: string;
 }
@@ -97,4 +112,5 @@ export interface AiClinicalService {
   ): Promise<NextSessionSuggestionOutput>;
   scaleInsight(params: ScaleInsightParams): Promise<ClinicalTextOutput>;
   anamneseSummary(params: AnamneseSummaryParams): Promise<ClinicalTextOutput>;
+  reportSynthesis(params: ReportSynthesisParams): Promise<ClinicalTextOutput>;
 }

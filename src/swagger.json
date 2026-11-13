@@ -66,6 +66,9 @@
     },
     {
       "name": "Scale Application"
+    },
+    {
+      "name": "Report"
     }
   ],
   "paths": {
@@ -11904,6 +11907,746 @@
           }
         ]
       }
+    },
+    "/report/options": {
+      "get": {
+        "tags": [
+          "Report"
+        ],
+        "summary": "Opções do formulário de relatório: tipos, seções, audiências e períodos.",
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportOptions"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report": {
+      "post": {
+        "tags": [
+          "Report"
+        ],
+        "summary": "Gera um relatório com o retrato do período. A síntese da IA (AI_SYNTHESIS) é opcional e tolerante a falha.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportCreateBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Criado. Com `synthesisFailed: true` quando a IA falhou.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Report"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod; `INVALID_PERIOD` (from > to ou mais de 365 dias); `SECTION_NOT_ALLOWED` (seção fora do tipo); `REPORT_EMPTY_PERIOD` (nenhuma das seções pedidas que trazem dados — SESSION_METRICS, EVOLUTIONS, PLAN_PROGRESS, ASSESSMENTS, ANAMNESIS_SUMMARY — tem dado no período; PATIENT_DATA e AI_SYNTHESIS não contam).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Escolha ao menos uma seção",
+                          "field": "sections"
+                        }
+                      ]
+                    }
+                  },
+                  "INVALID_PERIOD": {
+                    "value": {
+                      "message": "INVALID_PERIOD"
+                    }
+                  },
+                  "SECTION_NOT_ALLOWED": {
+                    "value": {
+                      "message": "SECTION_NOT_ALLOWED"
+                    }
+                  },
+                  "REPORT_EMPTY_PERIOD": {
+                    "value": {
+                      "message": "REPORT_EMPTY_PERIOD"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: aluno de outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`STUDENT_NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Report"
+        ],
+        "summary": "Histórico de relatórios dos alunos do educador, mais recentes primeiro, sem o conteúdo.",
+        "parameters": [
+          {
+            "name": "studentId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReportSummary"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: aluno de outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`STUDENT_NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/{id}": {
+      "get": {
+        "tags": [
+          "Report"
+        ],
+        "summary": "Detalha um relatório, com o conteúdo gravado na geração.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Id do relatório. Id que não é UUID responde 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Report"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: aluno de outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`REPORT_NOT_FOUND` (inexistente ou id que não é UUID) ou `STUDENT_NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "REPORT_NOT_FOUND": {
+                    "value": {
+                      "message": "REPORT_NOT_FOUND"
+                    }
+                  },
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Report"
+        ],
+        "summary": "Exclui um relatório.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Id do relatório. Id que não é UUID responde 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Excluído."
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: aluno de outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`REPORT_NOT_FOUND` (inexistente ou id que não é UUID) ou `STUDENT_NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "REPORT_NOT_FOUND": {
+                    "value": {
+                      "message": "REPORT_NOT_FOUND"
+                    }
+                  },
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/report/{id}/share": {
+      "post": {
+        "tags": [
+          "Report"
+        ],
+        "summary": "Registra uma impressão ou um envio do relatório. O backend não manda e-mail.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Id do relatório. Id que não é UUID responde 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportShareBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Envio registrado em `shares`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Report"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: aluno de outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`REPORT_NOT_FOUND` (inexistente ou id que não é UUID) ou `STUDENT_NOT_FOUND`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "REPORT_NOT_FOUND": {
+                    "value": {
+                      "message": "REPORT_NOT_FOUND"
+                    }
+                  },
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -15832,6 +16575,695 @@
         "required": [
           "text",
           "generatedAt"
+        ]
+      },
+      "ReportOptions": {
+        "type": "object",
+        "description": "Opções do formulário. `defaultSections` traz todas as seções permitidas do tipo; para FAMILY e SCHOOL o app desmarca as seções `sensitive` (RP-01).",
+        "properties": {
+          "types": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "PROGRESS",
+                    "ASSESSMENT",
+                    "PDI_PROGRESS"
+                  ]
+                },
+                "label": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "allowedSections": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "PATIENT_DATA",
+                      "SESSION_METRICS",
+                      "EVOLUTIONS",
+                      "PLAN_PROGRESS",
+                      "ASSESSMENTS",
+                      "ANAMNESIS_SUMMARY",
+                      "AI_SYNTHESIS"
+                    ]
+                  }
+                },
+                "defaultSections": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "PATIENT_DATA",
+                      "SESSION_METRICS",
+                      "EVOLUTIONS",
+                      "PLAN_PROGRESS",
+                      "ASSESSMENTS",
+                      "ANAMNESIS_SUMMARY",
+                      "AI_SYNTHESIS"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "type",
+                "label",
+                "description",
+                "allowedSections",
+                "defaultSections"
+              ]
+            }
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "section": {
+                  "type": "string",
+                  "enum": [
+                    "PATIENT_DATA",
+                    "SESSION_METRICS",
+                    "EVOLUTIONS",
+                    "PLAN_PROGRESS",
+                    "ASSESSMENTS",
+                    "ANAMNESIS_SUMMARY",
+                    "AI_SYNTHESIS"
+                  ]
+                },
+                "label": {
+                  "type": "string"
+                },
+                "sensitive": {
+                  "type": "boolean",
+                  "description": "`ASSESSMENTS` e `ANAMNESIS_SUMMARY`."
+                }
+              },
+              "required": [
+                "section",
+                "label",
+                "sensitive"
+              ]
+            }
+          },
+          "audiences": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "audience": {
+                  "type": "string",
+                  "enum": [
+                    "FAMILY",
+                    "SCHOOL",
+                    "PROFESSIONAL"
+                  ]
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "audience",
+                "label"
+              ]
+            }
+          },
+          "periods": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "example": "30d"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "days": {
+                  "type": "integer",
+                  "enum": [
+                    30,
+                    90,
+                    180
+                  ]
+                }
+              },
+              "required": [
+                "key",
+                "label",
+                "days"
+              ]
+            }
+          },
+          "maxPeriodDays": {
+            "type": "integer",
+            "example": 365
+          }
+        },
+        "required": [
+          "types",
+          "sections",
+          "audiences",
+          "periods",
+          "maxPeriodDays"
+        ]
+      },
+      "ReportContent": {
+        "type": "object",
+        "description": "Retrato gravado na geração; não muda depois (RP-03). Só traz as seções pedidas. Nunca traz endereço, telefones, documentos, foto, dados do responsável nem CPF (RP-01).",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "professional": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "profession": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ]
+          },
+          "patient": {
+            "type": "object",
+            "description": "Seção PATIENT_DATA. `displayName` é o nome completo (RP-02).",
+            "properties": {
+              "displayName": {
+                "type": "string"
+              },
+              "ageYears": {
+                "type": "integer"
+              },
+              "schoolGrade": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "displayName",
+              "ageYears"
+            ]
+          },
+          "sessionMetrics": {
+            "type": "object",
+            "description": "Seção SESSION_METRICS: sessões finalizadas no período.",
+            "properties": {
+              "sessions": {
+                "type": "integer"
+              },
+              "answered": {
+                "type": "integer"
+              },
+              "accuracy": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Fração de 0 a 1."
+              },
+              "byCategory": {
+                "type": "array",
+                "description": "Só as categorias com resposta no período.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "category": {
+                      "type": "string",
+                      "enum": [
+                        "reading",
+                        "writing",
+                        "vocabulary",
+                        "comprehension"
+                      ]
+                    },
+                    "accuracy": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "category",
+                    "accuracy"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "sessions",
+              "answered",
+              "accuracy",
+              "byCategory"
+            ]
+          },
+          "evolutions": {
+            "type": "array",
+            "description": "Seção EVOLUTIONS: evoluções do período, em ordem cronológica.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "sessionDate": {
+                  "type": "string",
+                  "format": "date",
+                  "example": "2026-11-01"
+                },
+                "planTitle": {
+                  "type": "string"
+                },
+                "achieved": {
+                  "type": "integer"
+                },
+                "total": {
+                  "type": "integer"
+                },
+                "record": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "sessionDate",
+                "achieved",
+                "total",
+                "record"
+              ]
+            }
+          },
+          "planProgress": {
+            "type": "array",
+            "description": "Seção PLAN_PROGRESS: planos ativos ou concluídos com vigência no período (início até o fim do período e fim a partir do início). Cancelados não entram.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "PDI",
+                    "PE"
+                  ]
+                },
+                "percent": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "goals": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "description": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "NOT_STARTED",
+                          "IN_PROGRESS",
+                          "ACHIEVED",
+                          "DISCONTINUED"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "description",
+                      "status"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "title",
+                "type",
+                "percent",
+                "goals"
+              ]
+            }
+          },
+          "assessments": {
+            "type": "array",
+            "description": "Seção ASSESSMENTS: aplicações concluídas no período, com escore e faixa.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "templateName": {
+                  "type": "string"
+                },
+                "completedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "value": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                },
+                "band": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "templateName",
+                "completedAt",
+                "value",
+                "max"
+              ]
+            }
+          },
+          "anamnesisSummary": {
+            "type": "string",
+            "description": "Seção ANAMNESIS_SUMMARY: síntese de anamnese mais recente do aluno."
+          },
+          "synthesis": {
+            "type": "string",
+            "maxLength": 2500,
+            "description": "Seção AI_SYNTHESIS, adequada à audiência. Ausente quando a IA falha (`synthesisFailed: true`)."
+          }
+        },
+        "required": [
+          "title",
+          "generatedAt",
+          "professional"
+        ]
+      },
+      "ReportShare": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "enum": [
+              "SHARE",
+              "PRINT"
+            ]
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "channel",
+          "at"
+        ]
+      },
+      "Report": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "studentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "studentName": {
+            "type": "string",
+            "description": "Nome do aluno na geração."
+          },
+          "educatorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PROGRESS",
+              "ASSESSMENT",
+              "PDI_PROGRESS"
+            ]
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "FAMILY",
+              "SCHOOL",
+              "PROFESSIONAL"
+            ]
+          },
+          "period": {
+            "type": "object",
+            "description": "Datas AAAA-MM-DD, inclusivas.",
+            "properties": {
+              "from": {
+                "type": "string",
+                "format": "date",
+                "example": "2026-11-01"
+              },
+              "to": {
+                "type": "string",
+                "format": "date",
+                "example": "2026-11-01"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ]
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "PATIENT_DATA",
+                "SESSION_METRICS",
+                "EVOLUTIONS",
+                "PLAN_PROGRESS",
+                "ASSESSMENTS",
+                "ANAMNESIS_SUMMARY",
+                "AI_SYNTHESIS"
+              ]
+            },
+            "description": "Sem repetição, na ordem de `allowedSections` do tipo."
+          },
+          "content": {
+            "$ref": "#/components/schemas/ReportContent"
+          },
+          "synthesisFailed": {
+            "type": "boolean",
+            "description": "AI_SYNTHESIS pedida, mas a IA falhou: relatório criado sem síntese (RP-06)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "shares": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportShare"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "studentId",
+          "studentName",
+          "educatorId",
+          "type",
+          "audience",
+          "period",
+          "sections",
+          "content",
+          "synthesisFailed",
+          "createdAt",
+          "shares"
+        ]
+      },
+      "ReportSummary": {
+        "type": "object",
+        "description": "Item do histórico, sem `content`.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "studentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "studentName": {
+            "type": "string"
+          },
+          "educatorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PROGRESS",
+              "ASSESSMENT",
+              "PDI_PROGRESS"
+            ]
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "FAMILY",
+              "SCHOOL",
+              "PROFESSIONAL"
+            ]
+          },
+          "period": {
+            "type": "object",
+            "description": "Datas AAAA-MM-DD, inclusivas.",
+            "properties": {
+              "from": {
+                "type": "string",
+                "format": "date",
+                "example": "2026-11-01"
+              },
+              "to": {
+                "type": "string",
+                "format": "date",
+                "example": "2026-11-01"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ]
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "PATIENT_DATA",
+                "SESSION_METRICS",
+                "EVOLUTIONS",
+                "PLAN_PROGRESS",
+                "ASSESSMENTS",
+                "ANAMNESIS_SUMMARY",
+                "AI_SYNTHESIS"
+              ]
+            }
+          },
+          "synthesisFailed": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastShare": {
+            "$ref": "#/components/schemas/ReportShare"
+          }
+        },
+        "required": [
+          "id",
+          "studentId",
+          "studentName",
+          "educatorId",
+          "type",
+          "audience",
+          "period",
+          "sections",
+          "synthesisFailed",
+          "createdAt"
+        ]
+      },
+      "ReportCreateBody": {
+        "type": "object",
+        "properties": {
+          "studentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PROGRESS",
+              "ASSESSMENT",
+              "PDI_PROGRESS"
+            ]
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "FAMILY",
+              "SCHOOL",
+              "PROFESSIONAL"
+            ]
+          },
+          "period": {
+            "type": "object",
+            "description": "Datas AAAA-MM-DD, inclusivas.",
+            "properties": {
+              "from": {
+                "type": "string",
+                "format": "date",
+                "example": "2026-11-01"
+              },
+              "to": {
+                "type": "string",
+                "format": "date",
+                "example": "2026-11-01"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ]
+          },
+          "sections": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "enum": [
+                "PATIENT_DATA",
+                "SESSION_METRICS",
+                "EVOLUTIONS",
+                "PLAN_PROGRESS",
+                "ASSESSMENTS",
+                "ANAMNESIS_SUMMARY",
+                "AI_SYNTHESIS"
+              ]
+            }
+          }
+        },
+        "required": [
+          "studentId",
+          "type",
+          "audience",
+          "period",
+          "sections"
+        ]
+      },
+      "ReportShareBody": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "enum": [
+              "SHARE",
+              "PRINT"
+            ]
+          }
+        },
+        "required": [
+          "channel"
         ]
       }
     }

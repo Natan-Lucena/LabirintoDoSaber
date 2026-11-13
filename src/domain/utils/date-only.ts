@@ -35,3 +35,13 @@ export function addMonths(dateOnly: string, months: number): string {
   );
   return date.toISOString().slice(0, 10);
 }
+
+// Início e fim do dia em America/Sao_Paulo, como instante UTC. O Brasil não
+// tem horário de verão desde 2019, então o fuso é fixo em -03:00.
+export function startOfDayInSaoPaulo(dateOnly: string): Date {
+  return new Date(`${dateOnly}T00:00:00.000-03:00`);
+}
+
+export function endOfDayInSaoPaulo(dateOnly: string): Date {
+  return new Date(`${dateOnly}T23:59:59.999-03:00`);
+}
