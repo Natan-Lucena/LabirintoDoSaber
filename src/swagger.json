@@ -60,6 +60,12 @@
     },
     {
       "name": "Session Evolution"
+    },
+    {
+      "name": "Scale Template"
+    },
+    {
+      "name": "Scale Application"
     }
   ],
   "paths": {
@@ -10298,6 +10304,1125 @@
           }
         ]
       }
+    },
+    "/scale-template": {
+      "get": {
+        "tags": [
+          "Scale Template"
+        ],
+        "summary": "Lista o catálogo de escalas.",
+        "description": "Catálogo mantido por seed, somente leitura e visível a todos os educadores. Para cada escala, só a maior versão, e só se estiver ativa.",
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScaleTemplateSummary"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/scale-template/{id}": {
+      "get": {
+        "tags": [
+          "Scale Template"
+        ],
+        "summary": "Detalha uma escala (itens, opções, faixas, aviso e referência).",
+        "description": "Também devolve versões antigas ou inativas, usadas por aplicações gravadas.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Id da escala. Id que não é UUID responde 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScaleTemplate"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`SCALE_NOT_FOUND`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "SCALE_NOT_FOUND": {
+                    "value": {
+                      "message": "SCALE_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/scale-application": {
+      "post": {
+        "tags": [
+          "Scale Application"
+        ],
+        "summary": "Inicia uma aplicação de escala (rascunho).",
+        "description": "Grava a versão da escala; a aplicação é sempre lida e pontuada com ela. Há um rascunho por aluno e escala.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScaleApplicationStartBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Criada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScaleApplication"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`) ou `INVALID_APPOINTMENT` (atendimento inexistente, de outro educador ou de outro aluno).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "templateId"
+                        }
+                      ]
+                    }
+                  },
+                  "INVALID_APPOINTMENT": {
+                    "value": {
+                      "message": "INVALID_APPOINTMENT"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: aluno de outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`STUDENT_NOT_FOUND`, `SCALE_NOT_FOUND`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  },
+                  "SCALE_NOT_FOUND": {
+                    "value": {
+                      "message": "SCALE_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`DRAFT_ALREADY_EXISTS` (com o `applicationId` do rascunho aberto) ou `SCALE_INACTIVE`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/DraftAlreadyExistsConflict"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "DRAFT_ALREADY_EXISTS": {
+                    "value": {
+                      "message": "DRAFT_ALREADY_EXISTS",
+                      "applicationId": "6f1c2b3a-1d2e-4f5a-9b8c-7d6e5f4a3b2c"
+                    }
+                  },
+                  "SCALE_INACTIVE": {
+                    "value": {
+                      "message": "SCALE_INACTIVE"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Scale Application"
+        ],
+        "summary": "Lista as aplicações dos alunos do educador, mais recentes primeiro (`updatedAt`).",
+        "parameters": [
+          {
+            "name": "studentId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "DRAFT",
+                "COMPLETED"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScaleApplicationSummary"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod da query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "limit"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: aluno de outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`STUDENT_NOT_FOUND`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/scale-application/{id}": {
+      "get": {
+        "tags": [
+          "Scale Application"
+        ],
+        "summary": "Detalha uma aplicação, com respostas e escore.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Id da aplicação. Id que não é UUID responde 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScaleApplication"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: aluno de outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`APPLICATION_NOT_FOUND`, `STUDENT_NOT_FOUND`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "APPLICATION_NOT_FOUND": {
+                    "value": {
+                      "message": "APPLICATION_NOT_FOUND"
+                    }
+                  },
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Scale Application"
+        ],
+        "summary": "Exclui um rascunho. Aplicação concluída não pode ser excluída.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Id da aplicação. Id que não é UUID responde 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Excluída."
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: aluno de outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`APPLICATION_NOT_FOUND`, `STUDENT_NOT_FOUND`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "APPLICATION_NOT_FOUND": {
+                    "value": {
+                      "message": "APPLICATION_NOT_FOUND"
+                    }
+                  },
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`APPLICATION_NOT_EDITABLE`: aplicação concluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "APPLICATION_NOT_EDITABLE": {
+                    "value": {
+                      "message": "APPLICATION_NOT_EDITABLE"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/scale-application/{id}/answers": {
+      "put": {
+        "tags": [
+          "Scale Application"
+        ],
+        "summary": "Grava respostas (parcial e idempotente, upsert por `itemId`).",
+        "description": "O escore da resposta é recalculado com todas as respostas gravadas.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Id da aplicação. Id que não é UUID responde 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScaleAnswersBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScaleApplication"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod ou regra: `ITEM_NOT_IN_SCALE`, `INVALID_ANSWER_VALUE` (valor fora das opções). Nada é gravado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "answers"
+                        }
+                      ]
+                    }
+                  },
+                  "ITEM_NOT_IN_SCALE": {
+                    "value": {
+                      "message": "ITEM_NOT_IN_SCALE"
+                    }
+                  },
+                  "INVALID_ANSWER_VALUE": {
+                    "value": {
+                      "message": "INVALID_ANSWER_VALUE"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: aluno de outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`APPLICATION_NOT_FOUND`, `STUDENT_NOT_FOUND`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "APPLICATION_NOT_FOUND": {
+                    "value": {
+                      "message": "APPLICATION_NOT_FOUND"
+                    }
+                  },
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`APPLICATION_NOT_EDITABLE`: aplicação concluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "APPLICATION_NOT_EDITABLE": {
+                    "value": {
+                      "message": "APPLICATION_NOT_EDITABLE"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/scale-application/{id}/complete": {
+      "post": {
+        "tags": [
+          "Scale Application"
+        ],
+        "summary": "Conclui a aplicação. Exige todos os itens; depois fica somente leitura.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Id da aplicação. Id que não é UUID responde 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScaleApplication"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`SCALE_INCOMPLETE` com os ids dos itens sem resposta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScaleIncompleteError"
+                },
+                "examples": {
+                  "SCALE_INCOMPLETE": {
+                    "value": {
+                      "message": "SCALE_INCOMPLETE",
+                      "missingItemIds": [
+                        "demo-7",
+                        "demo-8"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: aluno de outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`APPLICATION_NOT_FOUND`, `STUDENT_NOT_FOUND`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "APPLICATION_NOT_FOUND": {
+                    "value": {
+                      "message": "APPLICATION_NOT_FOUND"
+                    }
+                  },
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`APPLICATION_NOT_EDITABLE`: aplicação já concluída.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "APPLICATION_NOT_EDITABLE": {
+                    "value": {
+                      "message": "APPLICATION_NOT_EDITABLE"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -13575,6 +14700,584 @@
               }
             }
           }
+        ]
+      },
+      "ScaleOption": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "number"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ]
+      },
+      "ScaleItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Id do item dentro da escala (não é UUID)."
+          },
+          "order": {
+            "type": "integer"
+          },
+          "text": {
+            "type": "string"
+          },
+          "subscaleCode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order",
+          "text"
+        ]
+      },
+      "ScaleSubscale": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ]
+      },
+      "ScaleBand": {
+        "type": "object",
+        "description": "Faixa fechada [min, max]. Sem `subscaleCode`, vale para o escore total. As faixas de cada alvo cobrem todo o intervalo possível, sem buraco nem sobreposição.",
+        "properties": {
+          "subscaleCode": {
+            "type": "string"
+          },
+          "min": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          },
+          "label": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MODERATE",
+              "HIGH"
+            ]
+          }
+        },
+        "required": [
+          "min",
+          "max",
+          "label",
+          "severity"
+        ]
+      },
+      "ScaleTemplate": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "respondent": {
+            "type": "string",
+            "enum": [
+              "PROFESSIONAL",
+              "GUARDIAN",
+              "TEACHER"
+            ]
+          },
+          "ageRange": {
+            "type": "object",
+            "properties": {
+              "min": {
+                "type": "integer"
+              },
+              "max": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "min",
+              "max"
+            ]
+          },
+          "estimatedMinutes": {
+            "type": "integer"
+          },
+          "options": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 7,
+            "items": {
+              "$ref": "#/components/schemas/ScaleOption"
+            }
+          },
+          "items": {
+            "type": "array",
+            "description": "Na ordem de aplicação.",
+            "items": {
+              "$ref": "#/components/schemas/ScaleItem"
+            }
+          },
+          "subscales": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScaleSubscale"
+            }
+          },
+          "scoring": {
+            "type": "object",
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "SUM",
+                  "MEAN"
+                ],
+                "description": "SUM: soma dos itens. MEAN: média dos respondidos, com duas casas."
+              },
+              "bands": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ScaleBand"
+                }
+              }
+            },
+            "required": [
+              "method",
+              "bands"
+            ]
+          },
+          "disclaimer": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string",
+            "description": "Fonte publicada da escala."
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "version",
+          "name",
+          "description",
+          "instructions",
+          "respondent",
+          "estimatedMinutes",
+          "options",
+          "items",
+          "subscales",
+          "scoring",
+          "disclaimer",
+          "reference",
+          "active"
+        ]
+      },
+      "ScaleTemplateSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "respondent": {
+            "type": "string",
+            "enum": [
+              "PROFESSIONAL",
+              "GUARDIAN",
+              "TEACHER"
+            ]
+          },
+          "ageRange": {
+            "type": "object",
+            "properties": {
+              "min": {
+                "type": "integer"
+              },
+              "max": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "min",
+              "max"
+            ]
+          },
+          "estimatedMinutes": {
+            "type": "integer"
+          },
+          "itemCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "version",
+          "name",
+          "description",
+          "respondent",
+          "estimatedMinutes",
+          "itemCount"
+        ]
+      },
+      "ScoreBand": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MODERATE",
+              "HIGH"
+            ]
+          }
+        },
+        "required": [
+          "label",
+          "severity"
+        ]
+      },
+      "ScaleSubscaleScore": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "answered": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "value": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          },
+          "band": {
+            "$ref": "#/components/schemas/ScoreBand"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "answered",
+          "total",
+          "value",
+          "max"
+        ]
+      },
+      "ScaleScore": {
+        "type": "object",
+        "description": "Calculado no servidor a cada leitura, com a versão da escala gravada na aplicação. Com `partial: true`, a faixa sai do valor parcial; sem nenhuma resposta, não há faixa.",
+        "properties": {
+          "partial": {
+            "type": "boolean",
+            "description": "`answered < total`."
+          },
+          "answered": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "value": {
+            "type": "number",
+            "description": "Soma (SUM) ou média dos respondidos com duas casas (MEAN)."
+          },
+          "max": {
+            "type": "number"
+          },
+          "band": {
+            "$ref": "#/components/schemas/ScoreBand"
+          },
+          "subscales": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScaleSubscaleScore"
+            }
+          }
+        },
+        "required": [
+          "partial",
+          "answered",
+          "total",
+          "value",
+          "max",
+          "subscales"
+        ]
+      },
+      "ScaleAnswer": {
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "value": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "itemId",
+          "value"
+        ]
+      },
+      "ScaleInsight": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "preliminary": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "text",
+          "generatedAt",
+          "preliminary"
+        ]
+      },
+      "ScaleApplicationSummary": {
+        "type": "object",
+        "description": "Aplicação sem `answers`.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "templateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "templateCode": {
+            "type": "string"
+          },
+          "templateVersion": {
+            "type": "integer"
+          },
+          "templateName": {
+            "type": "string"
+          },
+          "studentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "studentName": {
+            "type": "string"
+          },
+          "educatorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "appointmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "COMPLETED"
+            ]
+          },
+          "score": {
+            "$ref": "#/components/schemas/ScaleScore"
+          },
+          "insight": {
+            "$ref": "#/components/schemas/ScaleInsight"
+          },
+          "disclaimer": {
+            "type": "string",
+            "description": "Aviso da escala (AV-09), presente em toda resposta de aplicação. Ex.: \"O resultado não substitui avaliação clínica completa.\""
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "templateId",
+          "templateCode",
+          "templateVersion",
+          "templateName",
+          "studentId",
+          "studentName",
+          "educatorId",
+          "status",
+          "score",
+          "disclaimer",
+          "startedAt",
+          "updatedAt"
+        ]
+      },
+      "ScaleApplication": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ScaleApplicationSummary"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "answers": {
+                "type": "array",
+                "description": "Na ordem dos itens da escala.",
+                "items": {
+                  "$ref": "#/components/schemas/ScaleAnswer"
+                }
+              }
+            },
+            "required": [
+              "answers"
+            ]
+          }
+        ]
+      },
+      "ScaleApplicationStartBody": {
+        "type": "object",
+        "properties": {
+          "studentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "templateId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "appointmentId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Atendimento do mesmo educador e aluno."
+          }
+        },
+        "required": [
+          "studentId",
+          "templateId"
+        ]
+      },
+      "ScaleAnswersBody": {
+        "type": "object",
+        "properties": {
+          "answers": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/ScaleAnswer"
+            }
+          }
+        },
+        "required": [
+          "answers"
+        ]
+      },
+      "DraftAlreadyExistsConflict": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "enum": [
+              "DRAFT_ALREADY_EXISTS"
+            ]
+          },
+          "applicationId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "message",
+          "applicationId"
+        ]
+      },
+      "ScaleIncompleteError": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "enum": [
+              "SCALE_INCOMPLETE"
+            ]
+          },
+          "missingItemIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "message",
+          "missingItemIds"
         ]
       }
     }

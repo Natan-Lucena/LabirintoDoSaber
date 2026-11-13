@@ -1,0 +1,47 @@
+{
+  "code": "DEMO-RASTREIO",
+  "version": 1,
+  "name": "Demonstração — Escala de rastreio",
+  "description": "Escala fictícia para testes de integração. Não tem validade clínica. Serve só para exercitar o fluxo de aplicação, pontuação e faixas no app.",
+  "instructions": "Demonstração: marque com que frequência a criança apresentou cada situação fictícia nas últimas semanas.",
+  "respondent": "TEACHER",
+  "ageRange": { "min": 6, "max": 12 },
+  "estimatedMinutes": 5,
+  "options": [
+    { "value": 0, "label": "Nunca" },
+    { "value": 1, "label": "Às vezes" },
+    { "value": 2, "label": "Frequentemente" },
+    { "value": 3, "label": "Muito" }
+  ],
+  "items": [
+    { "id": "demo-1", "order": 1, "text": "Item fictício: vira-se para a porta quando alguém passa no corredor.", "subscaleCode": "ATENCAO" },
+    { "id": "demo-2", "order": 2, "text": "Item fictício: pede para repetir a instrução de uma tarefa curta.", "subscaleCode": "ATENCAO" },
+    { "id": "demo-3", "order": 3, "text": "Item fictício: entrega a folha de atividade pela metade ao fim do tempo.", "subscaleCode": "ATENCAO" },
+    { "id": "demo-4", "order": 4, "text": "Item fictício: começa a desenhar no caderno no meio do exercício de cópia.", "subscaleCode": "ATENCAO" },
+    { "id": "demo-5", "order": 5, "text": "Item fictício: pede para beber água várias vezes na mesma aula.", "subscaleCode": "INQUIETACAO" },
+    { "id": "demo-6", "order": 6, "text": "Item fictício: mexe no estojo do colega durante a atividade.", "subscaleCode": "INQUIETACAO" },
+    { "id": "demo-7", "order": 7, "text": "Item fictício: conversa com o colega durante o ditado.", "subscaleCode": "INQUIETACAO" },
+    { "id": "demo-8", "order": 8, "text": "Item fictício: troca de lugar no tapete durante a roda de leitura.", "subscaleCode": "INQUIETACAO" }
+  ],
+  "subscales": [
+    { "code": "ATENCAO", "name": "Demonstração — Atenção" },
+    { "code": "INQUIETACAO", "name": "Demonstração — Inquietação" }
+  ],
+  "scoring": {
+    "method": "SUM",
+    "bands": [
+      { "min": 0, "max": 8, "label": "Demonstração — faixa baixa", "severity": "LOW" },
+      { "min": 9, "max": 16, "label": "Demonstração — faixa moderada", "severity": "MODERATE" },
+      { "min": 17, "max": 24, "label": "Demonstração — faixa alta", "severity": "HIGH" },
+      { "subscaleCode": "ATENCAO", "min": 0, "max": 4, "label": "Demonstração — faixa baixa", "severity": "LOW" },
+      { "subscaleCode": "ATENCAO", "min": 5, "max": 8, "label": "Demonstração — faixa moderada", "severity": "MODERATE" },
+      { "subscaleCode": "ATENCAO", "min": 9, "max": 12, "label": "Demonstração — faixa alta", "severity": "HIGH" },
+      { "subscaleCode": "INQUIETACAO", "min": 0, "max": 4, "label": "Demonstração — faixa baixa", "severity": "LOW" },
+      { "subscaleCode": "INQUIETACAO", "min": 5, "max": 8, "label": "Demonstração — faixa moderada", "severity": "MODERATE" },
+      { "subscaleCode": "INQUIETACAO", "min": 9, "max": 12, "label": "Demonstração — faixa alta", "severity": "HIGH" }
+    ]
+  },
+  "disclaimer": "O resultado não substitui avaliação clínica completa.",
+  "reference": "Escala fictícia para testes de integração. Não tem validade clínica. Conteúdo criado pela equipe do Labirinto do Saber, sem fonte publicada.",
+  "active": true
+}

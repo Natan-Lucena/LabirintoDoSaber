@@ -9,7 +9,8 @@
     "prepare": "husky install",
     "build": "tsc",
     "postinstall": "prisma generate",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "seed:scales": "ts-node --transpile-only scripts/seed-scales.ts"
   },
   "keywords": [],
   "author": "",

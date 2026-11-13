@@ -11,6 +11,8 @@ import { appointmentRouter } from "../modules/appointment/routes";
 import { aiTaskRouter } from "../modules/ai-task/routes";
 import { planRouter } from "../modules/plan/routes";
 import { sessionEvolutionRouter } from "../modules/session-evolution/routes";
+import { scaleTemplateRouter } from "../modules/scale-template/routes";
+import { scaleApplicationRouter } from "../modules/scale-application/routes";
 
 const router = Router();
 
@@ -26,5 +28,7 @@ router.use("/appointment", appointmentRouter);
 router.use("/ai-task", aiTaskRouter);
 router.use("/plan", planRouter);
 router.use("/session-evolution", sessionEvolutionRouter);
+router.use("/scale-template", scaleTemplateRouter);
+router.use("/scale-application", scaleApplicationRouter);
 
 export { router };

@@ -34,6 +34,10 @@ import { PlanSuggestionRepository } from "../../domain/repositories/plan-suggest
 import { PlanSuggestionRepositoryImpl } from "../repositories/prisma/plan-suggestion-repository-impl";
 import { SessionEvolutionRepository } from "../../domain/repositories/session-evolution-repository";
 import { SessionEvolutionRepositoryImpl } from "../repositories/prisma/session-evolution-repository-impl";
+import { ScaleTemplateRepository } from "../../domain/repositories/scale-template-repository";
+import { ScaleTemplateRepositoryImpl } from "../repositories/prisma/scale-template-repository-impl";
+import { ScaleApplicationRepository } from "../../domain/repositories/scale-application-repository";
+import { ScaleApplicationRepositoryImpl } from "../repositories/prisma/scale-application-repository-impl";
 
 const prismaClient = new PrismaClient();
 
@@ -135,4 +139,12 @@ export const makePlanSuggestionRepository = (): PlanSuggestionRepository => {
 
 export const makeSessionEvolutionRepository = (): SessionEvolutionRepository => {
   return new SessionEvolutionRepositoryImpl(prismaClient);
+};
+
+export const makeScaleTemplateRepository = (): ScaleTemplateRepository => {
+  return new ScaleTemplateRepositoryImpl(prismaClient);
+};
+
+export const makeScaleApplicationRepository = (): ScaleApplicationRepository => {
+  return new ScaleApplicationRepositoryImpl(prismaClient);
 };
