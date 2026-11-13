@@ -2,6 +2,7 @@ import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
 import { Task } from "../../../../../domain/entities/task";
+import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
 
 export interface GeneratorReportTaskNotebookSessionUseCaseRequest {
   sessionId: string;
@@ -10,7 +11,8 @@ export interface GeneratorReportTaskNotebookSessionUseCaseRequest {
 export class GeneratorReportTaskNotebookSessionUseCase {
   constructor(
     private sessionRepository: TaskNotebookSessionRepository,
-    private taskRepository: TaskRepository
+    private taskRepository: TaskRepository,
+    private evolutionRepository: SessionEvolutionRepository
   ) {}
 
   async execute(request: GeneratorReportTaskNotebookSessionUseCaseRequest) {
@@ -21,6 +23,8 @@ export class GeneratorReportTaskNotebookSessionUseCase {
     if (!session) {
       return failure("SESSION_NOT_FOUND");
     }
+
+    const evolution = await this.evolutionRepository.findBySessionId(session.id);
 
     const uniqueTaskIds = new Map<string, Uuid>();
     for (const answer of session.answers) {
@@ -121,6 +125,7 @@ export class GeneratorReportTaskNotebookSessionUseCase {
       percentageByCategory,
       percentageByType,
       observation: session.observation ?? null,
+      evolutionId: evolution?.id.value,
     });
   }
 }

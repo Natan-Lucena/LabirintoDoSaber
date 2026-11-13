@@ -101,4 +101,21 @@ export class TaskNotebookSession {
       )
     );
   }
+
+  // Usado pela evolução (EV-08) para copiar o registro descritivo. Ao
+  // contrário de addObservation, não confere se a sessão foi finalizada.
+  public withObservation(observation: string) {
+    return new TaskNotebookSession(
+      this.id,
+      this.studentId,
+      this.educatorId,
+      this.name,
+      this.startedAt,
+      this.finishedAt,
+      this.answers,
+      observation,
+      this.taskNotebookId,
+      this.appointmentId
+    );
+  }
 }

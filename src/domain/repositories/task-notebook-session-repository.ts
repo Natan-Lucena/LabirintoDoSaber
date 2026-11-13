@@ -6,11 +6,20 @@ export interface ListByEducatorIdParams {
   limit: number;
 }
 
+export interface ListFinishedByEducatorSinceParams {
+  educatorId: Uuid;
+  since: Date;
+}
+
 export interface TaskNotebookSessionRepository {
   save(session: TaskNotebookSession): Promise<void>;
   getById(id: Uuid): Promise<TaskNotebookSession | null>;
   listByStudentId(studentId: Uuid): Promise<TaskNotebookSession[]>;
   listByEducatorId(
     params: ListByEducatorIdParams
+  ): Promise<TaskNotebookSession[]>;
+  // Sessões do educador finalizadas a partir de `since`, mais recentes primeiro.
+  listFinishedByEducatorSince(
+    params: ListFinishedByEducatorSinceParams
   ): Promise<TaskNotebookSession[]>;
 }

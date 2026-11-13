@@ -32,6 +32,8 @@ import { PlanReviewRepository } from "../../domain/repositories/plan-review-repo
 import { PlanReviewRepositoryImpl } from "../repositories/prisma/plan-review-repository-impl";
 import { PlanSuggestionRepository } from "../../domain/repositories/plan-suggestion-repository";
 import { PlanSuggestionRepositoryImpl } from "../repositories/prisma/plan-suggestion-repository-impl";
+import { SessionEvolutionRepository } from "../../domain/repositories/session-evolution-repository";
+import { SessionEvolutionRepositoryImpl } from "../repositories/prisma/session-evolution-repository-impl";
 
 const prismaClient = new PrismaClient();
 
@@ -129,4 +131,8 @@ export const makePlanReviewRepository = (): PlanReviewRepository => {
 
 export const makePlanSuggestionRepository = (): PlanSuggestionRepository => {
   return new PlanSuggestionRepositoryImpl(prismaClient);
+};
+
+export const makeSessionEvolutionRepository = (): SessionEvolutionRepository => {
+  return new SessionEvolutionRepositoryImpl(prismaClient);
 };

@@ -204,4 +204,27 @@ describe("TaskNotebookSession Entity", () => {
       expect(second).toEqual(failure("TASK_ALREADY_ANSWERED"));
     });
   });
+  describe("withObservation", () => {
+    it("should set the observation and keep every other field", () => {
+      const appointmentId = Uuid.random();
+      const started = TaskNotebookSession.start(
+        Uuid.random(),
+        "name",
+        Uuid.random(),
+        undefined,
+        appointmentId
+      );
+      if (!started.ok) throw new Error("start failed");
+      const finished = started.value.finish();
+      if (!finished.ok) throw new Error("finish failed");
+
+      const observed = finished.value.withObservation("registro");
+
+      expect(observed.observation).toBe("registro");
+      expect(observed.id).toBe(finished.value.id);
+      expect(observed.finishedAt).toBe(finished.value.finishedAt);
+      expect(observed.appointmentId).toBe(appointmentId);
+      expect(finished.value.observation).toBeUndefined();
+    });
+  });
 });

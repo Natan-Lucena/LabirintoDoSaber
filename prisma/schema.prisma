@@ -399,3 +399,49 @@ enum SuggestionStatus {
   ACCEPTED
   DISMISSED
 }
+
+model SessionEvolution {
+  id                    String                @id @map("_id")
+  sessionId             String                @unique
+  studentId             String
+  educatorId            String
+  appointmentId         String?
+  planId                String?
+  planType              String?
+  planTitle             String?
+  // AAAA-MM-DD: data do início da sessão em America/Sao_Paulo.
+  sessionDate           String
+  durationMinutes       Int?
+  criteria              EvolutionCriterion[]
+  descriptiveRecord     String
+  nextSessionSuggestion String?
+  goalUpdates           EvolutionGoalUpdate[]
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  @@index([educatorId, studentId])
+  @@index([studentId, sessionDate])
+}
+
+type EvolutionCriterion {
+  id               String
+  goalId           String?
+  description      String
+  successCriterion String?
+  attempts         Int?
+  successes        Int?
+  result           CriterionResult
+  note             String?
+}
+
+type EvolutionGoalUpdate {
+  goalId String
+  status GoalStatus
+}
+
+enum CriterionResult {
+  ACHIEVED
+  PARTIAL
+  NOT_ACHIEVED
+  NOT_OBSERVED
+}

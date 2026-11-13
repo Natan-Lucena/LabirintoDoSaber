@@ -4,6 +4,7 @@ import { TaskNotebookSessionRepository } from "../../../../../domain/repositorie
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
 import { success, failure, Uuid } from "@wave-telecom/framework/core";
 import { Task } from "../../../../../domain/entities/task";
+import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
 
 // --- Factories e Mocks ---
 
@@ -83,15 +84,42 @@ const stubTaskCatalog = (
 describe("GeneratorReportTaskNotebookSessionUseCase", () => {
   let sessionRepository: TaskNotebookSessionRepository;
   let taskRepository: TaskRepository;
+  let evolutionRepository: SessionEvolutionRepository;
   let useCase: GeneratorReportTaskNotebookSessionUseCase;
 
   beforeEach(() => {
     sessionRepository = mockSessionRepository();
     taskRepository = mockTaskRepository();
+    evolutionRepository = {
+      findBySessionId: vi.fn().mockResolvedValue(null),
+    } as unknown as SessionEvolutionRepository;
     useCase = new GeneratorReportTaskNotebookSessionUseCase(
       sessionRepository,
       taskRepository,
+      evolutionRepository,
     );
+  });
+
+  it("should return the evolutionId of the session when there is one (EV-11)", async () => {
+    const session = makeSession({ answers: [] });
+    (sessionRepository.getById as any).mockResolvedValue(session);
+    const evolutionId = Uuid.random();
+    (evolutionRepository.findBySessionId as any).mockResolvedValue({ id: evolutionId });
+
+    const result = await useCase.execute({ sessionId: session.id.value });
+
+    expect(result.ok).toBe(true);
+    expect((result as any).value.evolutionId).toBe(evolutionId.value);
+    expect(evolutionRepository.findBySessionId).toHaveBeenCalledWith(session.id);
+  });
+
+  it("should leave evolutionId absent when the session has no evolution", async () => {
+    (sessionRepository.getById as any).mockResolvedValue(makeSession({ answers: [] }));
+
+    const result = await useCase.execute({ sessionId: Uuid.random().value });
+
+    expect(result.ok).toBe(true);
+    expect((result as any).value.evolutionId).toBeUndefined();
   });
 
   it("should fail if session does not exist", async () => {
