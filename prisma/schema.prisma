@@ -564,3 +564,47 @@ enum ApplicationStatus {
   DRAFT
   COMPLETED
 }
+
+model Report {
+  id              String         @id @map("_id")
+  studentId       String
+  // Nome do aluno na geração, para o histórico.
+  studentName     String
+  educatorId      String
+  type            ReportType
+  audience        ReportAudience
+  // AAAA-MM-DD, inclusivos.
+  periodFrom      String
+  periodTo        String
+  sections        String[]
+  // Retrato congelado na geração (RP-03); não muda depois.
+  content         Json
+  synthesisFailed Boolean        @default(false)
+  shares          ReportShare[]
+  createdAt       DateTime
+
+  // A listagem filtra pelos alunos do dono atual, mais recentes primeiro.
+  @@index([studentId, createdAt])
+}
+
+type ReportShare {
+  channel ReportShareChannel
+  at      DateTime
+}
+
+enum ReportType {
+  PROGRESS
+  ASSESSMENT
+  PDI_PROGRESS
+}
+
+enum ReportAudience {
+  FAMILY
+  SCHOOL
+  PROFESSIONAL
+}
+
+enum ReportShareChannel {
+  SHARE
+  PRINT
+}

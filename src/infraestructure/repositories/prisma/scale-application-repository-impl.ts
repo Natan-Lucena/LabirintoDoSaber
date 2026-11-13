@@ -102,6 +102,12 @@ export class ScaleApplicationRepositoryImpl implements ScaleApplicationRepositor
       studentId: { in: params.studentIds.map((id) => id.value) },
     };
     if (params.status) where.status = params.status;
+    if (params.completedFrom || params.completedTo) {
+      where.completedAt = {
+        ...(params.completedFrom ? { gte: params.completedFrom } : {}),
+        ...(params.completedTo ? { lte: params.completedTo } : {}),
+      };
+    }
 
     const records = await this.prismaService.scaleApplication.findMany({
       where,

@@ -6,11 +6,13 @@ import {
   ClinicalTextOutput,
   NextSessionSuggestionOutput,
   NextSessionSuggestionParams,
+  ReportSynthesisParams,
   ScaleInsightParams,
 } from "../../domain/services/ai-clinical-service";
 import { buildAnamneseSummaryPrompt } from "./prompts/anamnese-summary-prompt";
 import { buildNextSessionSuggestionPrompt } from "./prompts/next-session-suggestion-prompt";
 import { buildScaleInsightPrompt } from "./prompts/scale-insight-prompt";
+import { buildReportSynthesisPrompt } from "./prompts/report-synthesis-prompt";
 import { withGeminiRetry } from "./gemini-retry";
 
 const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
@@ -66,6 +68,10 @@ export class GeminiClinicalImpl implements AiClinicalService {
 
   async anamneseSummary(params: AnamneseSummaryParams): Promise<ClinicalTextOutput> {
     return this.generateText("anamnese-summary", buildAnamneseSummaryPrompt(params));
+  }
+
+  async reportSynthesis(params: ReportSynthesisParams): Promise<ClinicalTextOutput> {
+    return this.generateText("report-synthesis", buildReportSynthesisPrompt(params));
   }
 
   private async generateText(kind: string, prompt: string): Promise<ClinicalTextOutput> {

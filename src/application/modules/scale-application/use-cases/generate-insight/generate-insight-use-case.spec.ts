@@ -55,6 +55,7 @@ describe("GenerateInsightUseCase", () => {
         .fn()
         .mockResolvedValue({ text: "Vale observar a atenção em atividades longas." }),
       anamneseSummary: vi.fn(),
+      reportSynthesis: vi.fn(),
     };
     useCase = new GenerateInsightUseCase(
       applicationRepository,

@@ -80,6 +80,7 @@ describe("NextSessionSuggestionUseCase", () => {
       }),
       scaleInsight: vi.fn(),
       anamneseSummary: vi.fn(),
+      reportSynthesis: vi.fn(),
     };
 
     useCase = new NextSessionSuggestionUseCase(
