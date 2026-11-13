@@ -100,6 +100,15 @@ export class PlanRepositoryImpl implements PlanRepository {
     return this.mapToEntity(record);
   }
 
+  async listActiveWithReviewDueBy(date: string): Promise<Plan[]> {
+    const records = await this.prismaService.plan.findMany({
+      where: { status: PlanStatus.ACTIVE, nextReviewDate: { lte: date } },
+      orderBy: [{ nextReviewDate: "asc" }, { id: "asc" }],
+    });
+
+    return records.map((record) => this.mapToEntity(record));
+  }
+
   private mapToEntity(record: PrismaPlan): Plan {
     return Plan.fromPersistence({
       id: new Uuid(record.id),

@@ -12,7 +12,7 @@ import { SessionEvolutionRepository } from "../../../../../domain/repositories/s
 const makeAnswer = ({
   taskId = Uuid.random(),
   isCorrect = true,
-  timeToAnswer = 10, // segundos
+  timeToAnswer = 10, // milissegundos
 } = {}) => ({
   taskId,
   isCorrect,

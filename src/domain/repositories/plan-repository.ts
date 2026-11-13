@@ -13,4 +13,8 @@ export interface PlanRepository {
   findById(id: Uuid): Promise<Plan | null>;
   search(params: SearchPlanParams): Promise<Plan[]>;
   findActivePdi(studentId: Uuid): Promise<Plan | null>;
+  // Planos ACTIVE de todos os educadores com nextReviewDate ≤ `date`
+  // (AAAA-MM-DD), inclusive as vencidas (cron de notificações), ordenados por
+  // nextReviewDate e depois id.
+  listActiveWithReviewDueBy(date: string): Promise<Plan[]>;
 }

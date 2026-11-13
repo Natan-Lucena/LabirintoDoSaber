@@ -3,7 +3,9 @@ import {
   TaskNotebookSession as prismaTaskNotebookSession,
 } from "@prisma/client";
 import {
+  FinishedSessionRef,
   ListByEducatorIdParams,
+  ListFinishedBetweenParams,
   ListFinishedByEducatorSinceParams,
   TaskNotebookSessionRepository,
 } from "../../../domain/repositories/task-notebook-session-repository";
@@ -35,6 +37,23 @@ export class TaskNotebokSessionRepositoryImpl
       orderBy: { finishedAt: "desc" },
     });
     return result.map((data) => this.mapToEntity(data));
+  }
+
+  async listFinishedBetween(
+    params: ListFinishedBetweenParams
+  ): Promise<FinishedSessionRef[]> {
+    const result = await this.prismaService.taskNotebookSession.findMany({
+      where: { finishedAt: { gte: params.from, lte: params.to } },
+      select: { id: true, studentId: true, educatorId: true, finishedAt: true },
+      orderBy: [{ finishedAt: "asc" }, { id: "asc" }],
+    });
+    return result.map((data) => ({
+      id: new Uuid(data.id),
+      studentId: new Uuid(data.studentId),
+      educatorId: new Uuid(data.educatorId),
+      // O filtro garante finishedAt preenchido.
+      finishedAt: data.finishedAt!,
+    }));
   }
 
   async save(session: TaskNotebookSession): Promise<void> {

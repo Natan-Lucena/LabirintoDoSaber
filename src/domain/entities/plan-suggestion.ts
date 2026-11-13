@@ -101,6 +101,13 @@ export class PlanSuggestion {
       case SuggestionKind.ADD_GOAL:
       case SuggestionKind.REWRITE_GOAL:
         if (!description) return invalid;
+        // Sem efeito: reescrever a meta com o mesmo texto.
+        if (
+          input.kind === SuggestionKind.REWRITE_GOAL &&
+          description.toLowerCase() === goal?.description.trim().toLowerCase()
+        ) {
+          return invalid;
+        }
         proposedChange = { description, successCriterion };
         break;
       case SuggestionKind.SCHEDULE_REVIEW: {

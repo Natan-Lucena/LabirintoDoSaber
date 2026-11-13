@@ -227,6 +227,7 @@ export const makeSessionRepository = (sessions: TaskNotebookSession[]) =>
     ),
     listByEducatorId: vi.fn(),
     listFinishedByEducatorSince: vi.fn(),
+    listFinishedBetween: vi.fn(),
   }) satisfies TaskNotebookSessionRepository;
 
 export const makeTaskRepository = (tasks: Task[]) =>
@@ -280,6 +281,7 @@ export const makePlanRepository = (plans: Plan[]) =>
       )
     ),
     findActivePdi: vi.fn(),
+    listActiveWithReviewDueBy: vi.fn(),
   }) satisfies PlanRepository;
 
 export const makeApplicationRepository = (applications: ScaleApplication[]) =>
@@ -311,6 +313,7 @@ export const makeApplicationRepository = (applications: ScaleApplication[]) =>
     ),
     delete: vi.fn(),
     saveInsight: vi.fn(),
+    listDraftsUpdatedBefore: vi.fn(),
   }) satisfies ScaleApplicationRepository;
 
 export const makeAnamneseResponseRepository = (responses: AnamneseResponse[]) =>

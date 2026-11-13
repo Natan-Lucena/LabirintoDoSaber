@@ -36,6 +36,11 @@ export function addMonths(dateOnly: string, months: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+export function addDays(dateOnly: string, days: number): string {
+  const [year, month, day] = dateOnly.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
 // Início e fim do dia em America/Sao_Paulo, como instante UTC. O Brasil não
 // tem horário de verão desde 2019, então o fuso é fixo em -03:00.
 export function startOfDayInSaoPaulo(dateOnly: string): Date {

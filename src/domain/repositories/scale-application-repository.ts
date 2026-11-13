@@ -26,4 +26,7 @@ export interface ScaleApplicationRepository {
   // Ordenado por updatedAt, mais recente primeiro.
   search(params: SearchScaleApplicationParams): Promise<ScaleApplication[]>;
   delete(id: Uuid): Promise<void>;
+  // Rascunhos de todos os educadores com updatedAt ≤ `date` (cron de
+  // notificações), ordenados por updatedAt e depois id.
+  listDraftsUpdatedBefore(date: Date): Promise<ScaleApplication[]>;
 }

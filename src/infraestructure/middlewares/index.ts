@@ -3,6 +3,7 @@ import { Uuid } from "@wave-telecom/framework/core";
 import { EducatorRepository } from "../../domain/repositories/educator-repository";
 import { JwtAuthService } from "../services/auth-service-impl";
 import multer from "multer";
+import { timingSafeEqual } from "crypto";
 
 export function requireJobApiKey(
   req: Request,
@@ -10,6 +11,28 @@ export function requireJobApiKey(
   next: NextFunction
 ): void {
   if (req.headers["x-job-api-key"] !== process.env.INTERNAL_JOB_API_KEY) {
+    res.sendStatus(401);
+    return;
+  }
+  next();
+}
+
+// Cron da Vercel: envia `Authorization: Bearer <CRON_SECRET>`. Sem o segredo
+// configurado, recusa sempre.
+export function requireCronSecret(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  const secret = process.env.CRON_SECRET;
+  const expected = Buffer.from(`Bearer ${secret ?? ""}`);
+  const received = Buffer.from(req.headers.authorization ?? "");
+  // Comparação em tempo constante; timingSafeEqual exige o mesmo tamanho.
+  const valid =
+    !!secret &&
+    received.length === expected.length &&
+    timingSafeEqual(received, expected);
+  if (!valid) {
     res.sendStatus(401);
     return;
   }

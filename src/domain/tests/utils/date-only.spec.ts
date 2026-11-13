@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  addDays,
   addMonths,
   isValidDateOnly,
   todayInSaoPaulo,
@@ -43,6 +44,14 @@ describe("date-only", () => {
     it("should clamp to the last day of the target month", () => {
       expect(addMonths("2026-01-31", 1)).toBe("2026-02-28");
       expect(addMonths("2026-08-31", 6)).toBe("2027-02-28");
+    });
+  });
+
+  describe("addDays", () => {
+    it("should add days crossing month and year", () => {
+      expect(addDays("2026-11-12", 2)).toBe("2026-11-14");
+      expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
+      expect(addDays("2026-03-01", -1)).toBe("2026-02-28");
     });
   });
 });

@@ -158,6 +158,8 @@ model TaskNotebookSession {
 
   @@index([educatorId])
   @@index([studentId])
+  // Cron de notificações: sessões finalizadas numa janela, de todos os educadores.
+  @@index([finishedAt])
 }
 
 model TaskGroup {
@@ -317,6 +319,8 @@ model Plan {
 
   @@index([educatorId, studentId])
   @@index([studentId, type, status])
+  // Cron de notificações: planos ativos com revisão vencendo.
+  @@index([status, nextReviewDate])
 }
 
 type PlanGoal {
@@ -547,6 +551,8 @@ model ScaleApplication {
 
   @@index([studentId, status, updatedAt])
   @@index([studentId, templateCode, status])
+  // Cron de notificações: rascunhos parados de todos os educadores.
+  @@index([status, updatedAt])
 }
 
 type ScaleAnswer {
@@ -607,4 +613,39 @@ enum ReportAudience {
 enum ReportShareChannel {
   SHARE
   PRINT
+}
+
+model Notification {
+  id         String                  @id @map("_id")
+  educatorId String
+  kind       NotificationKind
+  title      String
+  body       String
+  targetType NotificationTargetType?
+  targetId   String?
+  // Aluno da notificação: some da lista se ele deixar de ser do educador.
+  studentId  String?
+  // Uma por kind + alvo + dia; o cron pode rodar de novo sem duplicar.
+  dedupeKey  String                  @unique
+  createdAt  DateTime
+  readAt     DateTime?
+
+  // Lista paginada do educador, mais recentes primeiro (o id desempata o cursor).
+  @@index([educatorId, createdAt, id])
+  // Retenção: o cron apaga as mais antigas que 90 dias.
+  @@index([createdAt])
+}
+
+enum NotificationKind {
+  APPOINTMENTS_TODAY
+  EVOLUTION_PENDING
+  PLAN_REVIEW_DUE
+  SCALE_DRAFT_STALE
+}
+
+enum NotificationTargetType {
+  AGENDA_DAY
+  SESSION
+  PLAN
+  SCALE_APPLICATION
 }
