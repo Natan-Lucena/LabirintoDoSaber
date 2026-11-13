@@ -12,6 +12,7 @@ import {
   makeAppointmentRepository,
   makeAppointmentSchedulerService,
   makeTaskGroupRepository,
+  makeSessionEvolutionRepository,
 } from "../../../../infraestructure/factories";
 import { makeAuthMiddleware } from "../../../../infraestructure/middlewares";
 import { StartTaskNotebookSessionUseCase } from "../use-cases/start-task-notebook-session/start-task-session-use-case";
@@ -49,6 +50,7 @@ const aiStudentAnalysisService = makeAiStudentAnalysisService();
 const appointmentRepository = makeAppointmentRepository();
 const schedulerService = makeAppointmentSchedulerService(appointmentRepository);
 const taskGroupRepository = makeTaskGroupRepository();
+const sessionEvolutionRepository = makeSessionEvolutionRepository();
 const authMiddleware = makeAuthMiddleware(educatorRepository);
 
 const startTaskNotebookSessionUseCase = new StartTaskNotebookSessionUseCase(
@@ -72,12 +74,16 @@ const finishTaskNotebookSessionUseCase = new FinishTaskNotebookSessionUseCase(
 );
 
 const listTaskNotebookSessionByStudentIdUseCase =
-  new ListTaskNotebookSessionByStudentIdUseCase(taskSessionRepository);
+  new ListTaskNotebookSessionByStudentIdUseCase(
+    taskSessionRepository,
+    sessionEvolutionRepository
+  );
 
 const generateReportTaskNotebookSessionUseCase =
   new GeneratorReportTaskNotebookSessionUseCase(
     taskSessionRepository,
-    taskRepository
+    taskRepository,
+    sessionEvolutionRepository
   );
 
 const generateStudentAnalysisUseCase = new GenerateStudentAnalysisUseCase(

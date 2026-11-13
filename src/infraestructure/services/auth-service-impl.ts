@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import {
   AuthService,
   generateTokenResponse,
+  VerifiedToken,
 } from "../../application/services/auth-service";
 import { Educator } from "../../domain/entities/educator";
 
@@ -10,6 +11,7 @@ const JWT_EXPIRES_IN = "7d";
 
 interface JwtPayload {
   id: string;
+  iat?: number;
 }
 
 export class JwtAuthService implements AuthService {
@@ -23,10 +25,11 @@ export class JwtAuthService implements AuthService {
     return { token };
   }
 
-  async verifyToken(token: string): Promise<string | null> {
+  async verifyToken(token: string): Promise<VerifiedToken | null> {
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
-      return decoded.id;
+      if (typeof decoded.iat !== "number") return null;
+      return { id: decoded.id, iat: decoded.iat };
     } catch {
       return null;
     }

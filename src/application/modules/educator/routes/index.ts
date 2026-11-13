@@ -8,12 +8,16 @@ import { UpdatePasswordEducatorController } from "../use-cases/update-password-e
 import { JwtAuthService } from "../../../../infraestructure/services/auth-service-impl";
 import { NodemailerMailService } from "../../../../infraestructure/services/mail-service-impl";
 import { GenerateAuthTokenUseCase } from "../use-cases/generate-auth-token/generate-auth-token-use-case";
-import { MockAuthTokenRepository } from "../../../../infraestructure/repositories/mock/auth-token-repository-impl";
 import { GenerateAuthTokenController } from "../use-cases/generate-auth-token/generate-auth-token-controller";
+import { VerifyTokenUseCase } from "../use-cases/verify-token/verify-token-use-case";
+import { VerifyTokenController } from "../use-cases/verify-token/verify-token-controller";
+import { ChangePasswordUseCase } from "../use-cases/change-password/change-password-use-case";
+import { ChangePasswordController } from "../use-cases/change-password/change-password-controller";
 import { GetEducatorProfileUseCase } from "../use-cases/get-educator-profile/get-educator-profile-use-case";
 import { GetEducatorProfileController } from "../use-cases/get-educator-profile/get-educator-profile-controller";
 import { makeAuthMiddleware } from "../../../../infraestructure/middlewares/index";
 import {
+  makeAuthTokenRepository,
   makeEducatorRepository,
   makeFileStorage,
   makeStudentRepository,
@@ -32,6 +36,7 @@ const educatorRouter = Router();
 const educatorRepository = makeEducatorRepository({ isMock: false });
 const studentRepository = makeStudentRepository({ isMock: false });
 const taskNotebookSessionRepository = makeTaskNotebookSessionRepository();
+const authTokenRepository = makeAuthTokenRepository({ isMock: false });
 
 const authService = new JwtAuthService();
 
@@ -44,14 +49,22 @@ const signInEducatorUseCase = new SignInEducatorUseCase(
 
 const registerEducatorUseCase = new RegisterEducatorUseCase(educatorRepository);
 const updatePasswordEducatorUseCase = new UpdatePasswordEducatorUseCase(
-  educatorRepository
+  educatorRepository,
+  authTokenRepository
+);
+const verifyTokenUseCase = new VerifyTokenUseCase(
+  educatorRepository,
+  authTokenRepository
+);
+const changePasswordUseCase = new ChangePasswordUseCase(
+  educatorRepository,
+  authService
 );
 
 const getEducatorProfileUseCase = new GetEducatorProfileUseCase(
   educatorRepository
 );
 
-const authTokenRepository = new MockAuthTokenRepository();
 const mailer = new NodemailerMailService();
 const generateAuthTokenUseCase = new GenerateAuthTokenUseCase(
   educatorRepository,
@@ -90,6 +103,18 @@ educatorRouter.post("/update-password", async (req: Request, res: Response) => {
 educatorRouter.put("/generate-token", async (req: Request, res: Response) => {
   new GenerateAuthTokenController(generateAuthTokenUseCase).execute(req, res);
 });
+
+educatorRouter.post("/verify-token", (req: Request, res: Response) => {
+  new VerifyTokenController(verifyTokenUseCase).execute(req, res);
+});
+
+educatorRouter.put(
+  "/change-password",
+  authMiddleware,
+  (req: Request, res: Response) => {
+    new ChangePasswordController(changePasswordUseCase).execute(req, res);
+  }
+);
 
 educatorRouter.get("/me", authMiddleware, (req: Request, res: Response) => {
   new GetEducatorProfileController(getEducatorProfileUseCase).execute(req, res);

@@ -57,6 +57,9 @@
     },
     {
       "name": "Plan - Suggestions"
+    },
+    {
+      "name": "Session Evolution"
     }
   ],
   "paths": {
@@ -243,7 +246,8 @@
         "tags": [
           "Educator - Auth"
         ],
-        "summary": "Troca a senha do educador pelo e-mail.",
+        "summary": "Redefine a senha com o código recebido por e-mail.",
+        "description": "Consome o código. Depois da troca, os JWT emitidos antes dela deixam de valer (401).",
         "requestBody": {
           "required": true,
           "content": {
@@ -259,7 +263,7 @@
             "description": "Sucesso, sem corpo JSON (Express responde o texto \"OK\")."
           },
           "400": {
-            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `EDUCATOR_NOT_FOUND`.",
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `INVALID_TOKEN`, `EXPIRED_TOKEN`, `PASSWORD_SAME_AS_OLD`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -279,14 +283,41 @@
                       "errors": [
                         {
                           "message": "Required",
-                          "field": "email"
+                          "field": "token"
                         }
                       ]
                     }
                   },
-                  "EDUCATOR_NOT_FOUND": {
+                  "INVALID_TOKEN": {
                     "value": {
-                      "message": "EDUCATOR_NOT_FOUND"
+                      "message": "INVALID_TOKEN"
+                    }
+                  },
+                  "EXPIRED_TOKEN": {
+                    "value": {
+                      "message": "EXPIRED_TOKEN"
+                    }
+                  },
+                  "PASSWORD_SAME_AS_OLD": {
+                    "value": {
+                      "message": "PASSWORD_SAME_AS_OLD"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`TOO_MANY_ATTEMPTS`: 5 tentativas erradas invalidaram o código. Peça um novo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "TOO_MANY_ATTEMPTS": {
+                    "value": {
+                      "message": "TOO_MANY_ATTEMPTS"
                     }
                   }
                 }
@@ -320,7 +351,8 @@
         "tags": [
           "Educator - Auth"
         ],
-        "summary": "Gera um token de autenticação e envia por e-mail.",
+        "summary": "Envia por e-mail um código de 6 dígitos para redefinir a senha.",
+        "description": "O código vale por 15 minutos, é de uso único e um código novo invalida o anterior. A resposta é a mesma exista ou não uma conta com o e-mail. Limite de 3 envios por e-mail a cada 15 minutos.",
         "requestBody": {
           "required": true,
           "content": {
@@ -333,7 +365,14 @@
         },
         "responses": {
           "200": {
-            "description": "Sucesso, sem corpo JSON (Express responde o texto \"OK\")."
+            "description": "Pedido aceito.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenSentResponse"
+                }
+              }
+            }
           },
           "400": {
             "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`).",
@@ -349,7 +388,7 @@
                       "errors": [
                         {
                           "message": "Required",
-                          "field": "educatorEmail"
+                          "field": "email"
                         }
                       ]
                     }
@@ -358,17 +397,17 @@
               }
             }
           },
-          "404": {
-            "description": "`EDUCATOR_NOT_FOUND`",
+          "429": {
+            "description": "`TOO_MANY_REQUESTS`: limite de envios da janela de 15 minutos atingido.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 },
                 "examples": {
-                  "EDUCATOR_NOT_FOUND": {
+                  "TOO_MANY_REQUESTS": {
                     "value": {
-                      "message": "EDUCATOR_NOT_FOUND"
+                      "message": "TOO_MANY_REQUESTS"
                     }
                   }
                 }
@@ -376,16 +415,16 @@
             }
           },
           "500": {
-            "description": "`INTERNAL_ERROR`. Qualquer exceção não tratada também cai aqui com `An unexpected error occurred`.",
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InternalError"
                 },
                 "examples": {
-                  "INTERNAL_ERROR": {
+                  "An unexpected error occurred": {
                     "value": {
-                      "message": "INTERNAL_ERROR",
+                      "message": "An unexpected error occurred",
                       "error": "Error not specified."
                     }
                   }
@@ -395,6 +434,234 @@
           }
         },
         "security": []
+      }
+    },
+    "/educator/verify-token": {
+      "post": {
+        "tags": [
+          "Educator - Auth"
+        ],
+        "summary": "Confere o código de recuperação sem consumi-lo.",
+        "description": "Cada conferência conta como uma das 5 tentativas do código, inclusive a correta.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyTokenBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Código válido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyTokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `INVALID_TOKEN`, `EXPIRED_TOKEN`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "token"
+                        }
+                      ]
+                    }
+                  },
+                  "INVALID_TOKEN": {
+                    "value": {
+                      "message": "INVALID_TOKEN"
+                    }
+                  },
+                  "EXPIRED_TOKEN": {
+                    "value": {
+                      "message": "EXPIRED_TOKEN"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`TOO_MANY_ATTEMPTS`: 5 tentativas erradas invalidaram o código. Peça um novo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "TOO_MANY_ATTEMPTS": {
+                    "value": {
+                      "message": "TOO_MANY_ATTEMPTS"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/educator/change-password": {
+      "put": {
+        "tags": [
+          "Educator - Auth"
+        ],
+        "summary": "Troca a senha do educador logado.",
+        "description": "Depois da troca, os JWT emitidos antes dela deixam de valer (401). A resposta traz um JWT novo para a sessão atual.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sucesso, com o JWT novo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthToken"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `INVALID_CURRENT_PASSWORD`, `PASSWORD_SAME_AS_OLD`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "newPassword"
+                        }
+                      ]
+                    }
+                  },
+                  "INVALID_CURRENT_PASSWORD": {
+                    "value": {
+                      "message": "INVALID_CURRENT_PASSWORD"
+                    }
+                  },
+                  "PASSWORD_SAME_AS_OLD": {
+                    "value": {
+                      "message": "PASSWORD_SAME_AS_OLD"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido, de educador inexistente ou emitido antes da última troca de senha (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/educator/me": {
@@ -4365,7 +4632,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/TaskNotebookSession"
+                    "$ref": "#/components/schemas/TaskNotebookSessionWithEvolution"
                   }
                 }
               }
@@ -9099,6 +9366,938 @@
           }
         ]
       }
+    },
+    "/session-evolution": {
+      "post": {
+        "tags": [
+          "Session Evolution"
+        ],
+        "summary": "Registra a evolução de uma sessão finalizada.",
+        "description": "Uma evolução por sessão. Os `goalUpdates` mudam o status das metas do plano e o `descriptiveRecord` também vai para a `observation` da sessão. Tudo é validado antes de gravar: se algo falha, nada é gravado.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionEvolutionCreateBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Criada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionEvolution"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`) ou regra: `INVALID_PLAN`, `GOAL_NOT_IN_PLAN`, `INVALID_ATTEMPTS`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "descriptiveRecord"
+                        }
+                      ]
+                    }
+                  },
+                  "INVALID_PLAN": {
+                    "value": {
+                      "message": "INVALID_PLAN"
+                    }
+                  },
+                  "GOAL_NOT_IN_PLAN": {
+                    "value": {
+                      "message": "GOAL_NOT_IN_PLAN"
+                    }
+                  },
+                  "INVALID_ATTEMPTS": {
+                    "value": {
+                      "message": "INVALID_ATTEMPTS"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: aluno de outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`SESSION_NOT_FOUND`, `STUDENT_NOT_FOUND`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "SESSION_NOT_FOUND": {
+                    "value": {
+                      "message": "SESSION_NOT_FOUND"
+                    }
+                  },
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`EVOLUTION_ALREADY_EXISTS` (com `evolutionId`), `SESSION_NOT_FINISHED`, `PLAN_NOT_EDITABLE` (plano encerrado com `goalUpdates`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/EvolutionAlreadyExistsConflict"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "EVOLUTION_ALREADY_EXISTS": {
+                    "value": {
+                      "message": "EVOLUTION_ALREADY_EXISTS",
+                      "evolutionId": "6f1c2b3a-1d2e-4f5a-9b8c-7d6e5f4a3b2c"
+                    }
+                  },
+                  "SESSION_NOT_FINISHED": {
+                    "value": {
+                      "message": "SESSION_NOT_FINISHED"
+                    }
+                  },
+                  "PLAN_NOT_EDITABLE": {
+                    "value": {
+                      "message": "PLAN_NOT_EDITABLE"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Session Evolution"
+        ],
+        "summary": "Lista as evoluções do educador (recente primeiro).",
+        "description": "Ordenadas por `sessionDate` e depois `createdAt`, decrescente. Sem `studentId`, traz as evoluções de todos os alunos do educador.",
+        "parameters": [
+          {
+            "name": "studentId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "AAAA-MM-DD, inclusivo, sobre `sessionDate`.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "AAAA-MM-DD, inclusivo, sobre `sessionDate`.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SessionEvolutionSummary"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "limit"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: aluno de outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`STUDENT_NOT_FOUND`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/session-evolution/context/{sessionId}": {
+      "get": {
+        "tags": [
+          "Session Evolution"
+        ],
+        "summary": "Dados para montar a tela de evolução de uma sessão.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "description": "Id da sessão. Id que não é UUID responde 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvolutionContext"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: aluno de outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`SESSION_NOT_FOUND`, `STUDENT_NOT_FOUND`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "SESSION_NOT_FOUND": {
+                    "value": {
+                      "message": "SESSION_NOT_FOUND"
+                    }
+                  },
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`SESSION_NOT_FINISHED`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "SESSION_NOT_FINISHED": {
+                    "value": {
+                      "message": "SESSION_NOT_FINISHED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/session-evolution/pending": {
+      "get": {
+        "tags": [
+          "Session Evolution"
+        ],
+        "summary": "Sessões finalizadas sem evolução nos últimos `days` dias.",
+        "description": "Ordenadas por `finishedAt`, mais recente primeiro. Sem paginação.",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90,
+              "default": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PendingEvolution"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "days"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/session-evolution/{id}": {
+      "get": {
+        "tags": [
+          "Session Evolution"
+        ],
+        "summary": "Detalha uma evolução.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Id da evolução. Id que não é UUID responde 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionEvolution"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: aluno de outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`EVOLUTION_NOT_FOUND`, `STUDENT_NOT_FOUND`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "EVOLUTION_NOT_FOUND": {
+                    "value": {
+                      "message": "EVOLUTION_NOT_FOUND"
+                    }
+                  },
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Session Evolution"
+        ],
+        "summary": "Edita uma evolução (não há exclusão).",
+        "description": "Usa o plano gravado na evolução. `descriptiveRecord` alterado também atualiza a `observation` da sessão. Tudo é validado antes de gravar.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Id da evolução. Id que não é UUID responde 404.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionEvolutionUpdateBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionEvolution"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`) ou regra: `INVALID_PLAN`, `GOAL_NOT_IN_PLAN`, `INVALID_ATTEMPTS`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "descriptiveRecord"
+                        }
+                      ]
+                    }
+                  },
+                  "INVALID_PLAN": {
+                    "value": {
+                      "message": "INVALID_PLAN"
+                    }
+                  },
+                  "GOAL_NOT_IN_PLAN": {
+                    "value": {
+                      "message": "GOAL_NOT_IN_PLAN"
+                    }
+                  },
+                  "INVALID_ATTEMPTS": {
+                    "value": {
+                      "message": "INVALID_ATTEMPTS"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: aluno de outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`EVOLUTION_NOT_FOUND`, `STUDENT_NOT_FOUND`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "EVOLUTION_NOT_FOUND": {
+                    "value": {
+                      "message": "EVOLUTION_NOT_FOUND"
+                    }
+                  },
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`PLAN_NOT_EDITABLE`: plano encerrado e `goalUpdates` mudaria alguma meta.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "PLAN_NOT_EDITABLE": {
+                    "value": {
+                      "message": "PLAN_NOT_EDITABLE"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -9328,6 +10527,12 @@
             "type": "string",
             "format": "email"
           },
+          "token": {
+            "type": "string",
+            "pattern": "^\\d{6}$",
+            "example": "042917",
+            "description": "Código de 6 dígitos recebido por e-mail."
+          },
           "newPassword": {
             "type": "string",
             "minLength": 6,
@@ -9336,19 +10541,20 @@
         },
         "required": [
           "email",
+          "token",
           "newPassword"
         ]
       },
       "GenerateAuthTokenBody": {
         "type": "object",
         "properties": {
-          "educatorEmail": {
+          "email": {
             "type": "string",
             "format": "email"
           }
         },
         "required": [
-          "educatorEmail"
+          "email"
         ]
       },
       "EducatorUpdateBody": {
@@ -10297,6 +11503,11 @@
           "observation": {
             "type": "string",
             "nullable": true
+          },
+          "evolutionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Evolução da sessão. Ausente quando a sessão não tem evolução."
           }
         }
       },
@@ -11772,6 +12983,599 @@
           "documents"
         ],
         "description": "Aluno com os educadores vinculados (`educators[]` no formato StudentEducator)."
+      },
+      "TokenSentResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "enum": [
+              "TOKEN_SENT"
+            ]
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "VerifyTokenBody": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "token": {
+            "type": "string",
+            "pattern": "^\\d{6}$",
+            "example": "042917",
+            "description": "Código de 6 dígitos recebido por e-mail."
+          }
+        },
+        "required": [
+          "email",
+          "token"
+        ]
+      },
+      "VerifyTokenResponse": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "valid"
+        ]
+      },
+      "ChangePasswordBody": {
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "minLength": 1
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 6,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ]
+      },
+      "EvolutionCriterionInput": {
+        "type": "object",
+        "properties": {
+          "goalId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Meta do plano. Ausente = critério livre. Exige `planId`."
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "successCriterion": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "attempts": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "successes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Exige `attempts` e não passa dele (`INVALID_ATTEMPTS`)."
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "ACHIEVED",
+              "PARTIAL",
+              "NOT_ACHIEVED",
+              "NOT_OBSERVED"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "description",
+          "result"
+        ]
+      },
+      "EvolutionCriterion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "goalId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Meta do plano. Ausente = critério livre. Exige `planId`."
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "successCriterion": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "attempts": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "successes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Exige `attempts` e não passa dele (`INVALID_ATTEMPTS`)."
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "ACHIEVED",
+              "PARTIAL",
+              "NOT_ACHIEVED",
+              "NOT_OBSERVED"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "id",
+          "description",
+          "result"
+        ]
+      },
+      "EvolutionGoalUpdate": {
+        "type": "object",
+        "properties": {
+          "goalId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "NOT_STARTED",
+              "IN_PROGRESS",
+              "ACHIEVED",
+              "DISCONTINUED"
+            ]
+          }
+        },
+        "required": [
+          "goalId",
+          "status"
+        ]
+      },
+      "SessionEvolution": {
+        "type": "object",
+        "description": "Opcionais ausentes do JSON quando não definidos.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "studentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "educatorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "appointmentId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Herdado da sessão."
+          },
+          "planId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "planType": {
+            "type": "string",
+            "enum": [
+              "PDI",
+              "PE"
+            ]
+          },
+          "planTitle": {
+            "type": "string"
+          },
+          "sessionDate": {
+            "type": "string",
+            "format": "date",
+            "description": "AAAA-MM-DD do início da sessão em America/Sao_Paulo."
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "description": "finishedAt − startedAt, arredondado."
+          },
+          "criteria": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/EvolutionCriterion"
+            }
+          },
+          "descriptiveRecord": {
+            "type": "string"
+          },
+          "nextSessionSuggestion": {
+            "type": "string"
+          },
+          "goalUpdates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvolutionGoalUpdate"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "sessionId",
+          "studentId",
+          "educatorId",
+          "sessionDate",
+          "criteria",
+          "descriptiveRecord",
+          "goalUpdates",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "SessionEvolutionSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "studentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "studentName": {
+            "type": "string"
+          },
+          "sessionDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "planTitle": {
+            "type": "string"
+          },
+          "criteriaCount": {
+            "type": "integer"
+          },
+          "achievedCount": {
+            "type": "integer",
+            "description": "Critérios com `result = ACHIEVED`."
+          },
+          "excerpt": {
+            "type": "string",
+            "description": "200 primeiros caracteres do registro descritivo."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "sessionId",
+          "studentId",
+          "studentName",
+          "sessionDate",
+          "criteriaCount",
+          "achievedCount",
+          "excerpt",
+          "createdAt"
+        ]
+      },
+      "SessionEvolutionCreateBody": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "planId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Plano ACTIVE do mesmo aluno (`INVALID_PLAN`)."
+          },
+          "criteria": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/EvolutionCriterionInput"
+            }
+          },
+          "descriptiveRecord": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000,
+            "description": "Também gravado em `observation` da sessão."
+          },
+          "nextSessionSuggestion": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "goalUpdates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvolutionGoalUpdate"
+            },
+            "description": "Muda o status das metas do plano junto com a evolução. Exige `planId`; uma meta por item, sem repetir."
+          }
+        },
+        "required": [
+          "sessionId",
+          "criteria",
+          "descriptiveRecord"
+        ]
+      },
+      "SessionEvolutionUpdateBody": {
+        "type": "object",
+        "description": "Todos opcionais. `criteria` é a lista completa e substitui a anterior. `goalUpdates` aplica ao plano só as metas cujo status muda.",
+        "properties": {
+          "criteria": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/EvolutionCriterionInput"
+            }
+          },
+          "descriptiveRecord": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000,
+            "description": "Também gravado em `observation` da sessão."
+          },
+          "nextSessionSuggestion": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "goalUpdates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvolutionGoalUpdate"
+            }
+          }
+        }
+      },
+      "EvolutionAlreadyExistsConflict": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "enum": [
+              "EVOLUTION_ALREADY_EXISTS"
+            ]
+          },
+          "evolutionId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "message",
+          "evolutionId"
+        ]
+      },
+      "EvolutionContext": {
+        "type": "object",
+        "properties": {
+          "session": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "studentId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "studentName": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "startedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "finishedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "durationMinutes": {
+                "type": "integer"
+              },
+              "appointmentId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "answeredCount": {
+                "type": "integer"
+              },
+              "correctCount": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "studentId",
+              "studentName",
+              "name",
+              "startedAt",
+              "finishedAt",
+              "durationMinutes",
+              "answeredCount",
+              "correctCount"
+            ]
+          },
+          "plan": {
+            "type": "object",
+            "description": "Plano escolhido: 1) PE ACTIVE do atendimento da sessão; 2) PE ACTIVE da data da sessão; 3) PDI ACTIVE. Ausente quando nenhum casa.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "PDI",
+                  "PE"
+                ]
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "title"
+            ]
+          },
+          "suggestedCriteria": {
+            "type": "array",
+            "description": "Metas do plano escolhido, na ordem, sem as ACHIEVED e DISCONTINUED.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "goalId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "successCriterion": {
+                  "type": "string"
+                },
+                "goalStatus": {
+                  "type": "string",
+                  "enum": [
+                    "NOT_STARTED",
+                    "IN_PROGRESS",
+                    "ACHIEVED",
+                    "DISCONTINUED"
+                  ]
+                }
+              },
+              "required": [
+                "goalId",
+                "description",
+                "goalStatus"
+              ]
+            }
+          },
+          "existingEvolutionId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Presente quando a sessão já tem evolução."
+          }
+        },
+        "required": [
+          "session",
+          "suggestedCriteria"
+        ]
+      },
+      "PendingEvolution": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "studentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "studentName": {
+            "type": "string"
+          },
+          "sessionName": {
+            "type": "string"
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "appointmentId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "sessionId",
+          "studentId",
+          "studentName",
+          "sessionName",
+          "finishedAt"
+        ]
+      },
+      "TaskNotebookSessionWithEvolution": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TaskNotebookSession"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "evolutionId": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Evolução da sessão. Ausente quando a sessão não tem evolução."
+              }
+            }
+          }
+        ]
       }
     }
   }

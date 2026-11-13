@@ -9,6 +9,7 @@ interface CreateEducatorProps {
   photoUrl?: string;
   contact?: string;
   profession?: string;
+  passwordChangedAt?: Date;
 }
 
 interface UpdateEducatorProps {
@@ -26,7 +27,8 @@ export class Educator {
     public readonly createdAt: Date,
     private _photoUrl?: string,
     private _contact?: string,
-    private _profession?: string
+    private _profession?: string,
+    private _passwordChangedAt?: Date
   ) {}
 
   static create(props: CreateEducatorProps) {
@@ -38,7 +40,8 @@ export class Educator {
       props.createdAt || new Date(),
       props.photoUrl,
       props.contact,
-      props.profession
+      props.profession,
+      props.passwordChangedAt
     );
   }
 
@@ -66,6 +69,10 @@ export class Educator {
     return this._profession;
   }
 
+  get passwordChangedAt(): Date | undefined {
+    return this._passwordChangedAt;
+  }
+
   update(props: UpdateEducatorProps) {
     this._name = props.name ?? this._name;
     this._contact = props.contact ?? this._contact;
@@ -76,11 +83,13 @@ export class Educator {
     this._photoUrl = photoUrl;
   }
 
-  updatePassword(newPassword: string) {
+  // Recebe o hash novo. A data da troca invalida os JWT emitidos antes dela.
+  updatePassword(newPassword: string, changedAt: Date = new Date()) {
     if (this._password == newPassword) {
       return failure("PASSWORD_SAME_AS_OLD");
     }
     this._password = newPassword;
+    this._passwordChangedAt = changedAt;
     return success(void 0);
   }
 }

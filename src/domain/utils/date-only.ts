@@ -16,10 +16,14 @@ export function isValidDateOnly(value: string): boolean {
   );
 }
 
-export function todayInSaoPaulo(now: Date = new Date()): string {
+export function dateInSaoPaulo(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Sao_Paulo",
-  }).format(now);
+  }).format(date);
+}
+
+export function todayInSaoPaulo(now: Date = new Date()): string {
+  return dateInSaoPaulo(now);
 }
 
 export function addMonths(dateOnly: string, months: number): string {

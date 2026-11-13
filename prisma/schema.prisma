@@ -14,6 +14,8 @@ model Educator {
   password  String
   createdAt DateTime @default(now())
 
+  passwordChangedAt DateTime?
+
   contact    String?
   photoUrl   String?
   profession String?
@@ -104,10 +106,16 @@ model TaskNotebook {
 }
 
 model AuthToken {
-  id       String   @id @map("_id")
-  token    String
-  userId   String
-  educator Educator @relation(fields: [userId], references: [id])
+  id              String    @id @map("_id")
+  token           String?
+  tokenHash       String?
+  expiresAt       DateTime?
+  attempts        Int       @default(0)
+  consumedAt      DateTime?
+  sendCount       Int       @default(0)
+  sendWindowStart DateTime?
+  userId          String
+  educator        Educator  @relation(fields: [userId], references: [id])
 
   @@index([userId])
 }
@@ -390,4 +398,50 @@ enum SuggestionStatus {
   PENDING
   ACCEPTED
   DISMISSED
+}
+
+model SessionEvolution {
+  id                    String                @id @map("_id")
+  sessionId             String                @unique
+  studentId             String
+  educatorId            String
+  appointmentId         String?
+  planId                String?
+  planType              String?
+  planTitle             String?
+  // AAAA-MM-DD: data do início da sessão em America/Sao_Paulo.
+  sessionDate           String
+  durationMinutes       Int?
+  criteria              EvolutionCriterion[]
+  descriptiveRecord     String
+  nextSessionSuggestion String?
+  goalUpdates           EvolutionGoalUpdate[]
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  @@index([educatorId, studentId])
+  @@index([studentId, sessionDate])
+}
+
+type EvolutionCriterion {
+  id               String
+  goalId           String?
+  description      String
+  successCriterion String?
+  attempts         Int?
+  successes        Int?
+  result           CriterionResult
+  note             String?
+}
+
+type EvolutionGoalUpdate {
+  goalId String
+  status GoalStatus
+}
+
+enum CriterionResult {
+  ACHIEVED
+  PARTIAL
+  NOT_ACHIEVED
+  NOT_OBSERVED
 }

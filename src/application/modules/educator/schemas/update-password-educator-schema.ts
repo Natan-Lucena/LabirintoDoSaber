@@ -1,6 +1,8 @@
 import z from "zod";
+import { newPasswordSchema, recoveryCodeSchema } from "./password-fields-schema";
 
 export const updatePasswordEducatorSchema = z.object({
   email: z.string().email(),
-  newPassword: z.string().min(6).max(100),
+  token: recoveryCodeSchema,
+  newPassword: newPasswordSchema,
 });

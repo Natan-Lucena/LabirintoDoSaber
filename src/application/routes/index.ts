@@ -10,6 +10,7 @@ import { anamneseResponseRouter } from "../modules/anamnese-response/routes";
 import { appointmentRouter } from "../modules/appointment/routes";
 import { aiTaskRouter } from "../modules/ai-task/routes";
 import { planRouter } from "../modules/plan/routes";
+import { sessionEvolutionRouter } from "../modules/session-evolution/routes";
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use("/anamnese", anamneseResponseRouter);
 router.use("/appointment", appointmentRouter);
 router.use("/ai-task", aiTaskRouter);
 router.use("/plan", planRouter);
+router.use("/session-evolution", sessionEvolutionRouter);
 
 export { router };

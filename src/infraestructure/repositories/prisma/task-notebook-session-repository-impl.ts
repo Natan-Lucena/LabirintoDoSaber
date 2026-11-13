@@ -4,6 +4,7 @@ import {
 } from "@prisma/client";
 import {
   ListByEducatorIdParams,
+  ListFinishedByEducatorSinceParams,
   TaskNotebookSessionRepository,
 } from "../../../domain/repositories/task-notebook-session-repository";
 import { Uuid } from "@wave-telecom/framework/core";
@@ -23,6 +24,19 @@ export class TaskNotebokSessionRepositoryImpl
     });
     return result.map((data) => this.mapToEntity(data));
   }
+  async listFinishedByEducatorSince(
+    params: ListFinishedByEducatorSinceParams
+  ): Promise<TaskNotebookSession[]> {
+    const result = await this.prismaService.taskNotebookSession.findMany({
+      where: {
+        educatorId: params.educatorId.value,
+        finishedAt: { gte: params.since },
+      },
+      orderBy: { finishedAt: "desc" },
+    });
+    return result.map((data) => this.mapToEntity(data));
+  }
+
   async save(session: TaskNotebookSession): Promise<void> {
     await this.prismaService.taskNotebookSession.upsert({
       where: { id: session.id.value },
