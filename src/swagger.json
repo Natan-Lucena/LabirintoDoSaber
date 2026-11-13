@@ -12715,7 +12715,7 @@
           "Notification"
         ],
         "summary": "Lista as notificações do educador, mais recentes primeiro.",
-        "description": "Paginada por cursor (`createdAt` + `id`). Geradas uma vez por dia pelo cron (06:00 de São Paulo) e apagadas após 90 dias. Notificações de pacientes que não são mais do educador não aparecem.",
+        "description": "Paginada por cursor (`createdAt` + `id`). Geradas uma vez por dia pelo cron (06:00 de São Paulo) e apagadas após 90 dias. Notificações de pacientes que não são mais do educador não aparecem. Uma página pode vir vazia com `nextCursor`; continue paginando enquanto ele vier.",
         "parameters": [
           {
             "name": "unreadOnly",
@@ -12984,7 +12984,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "`updated` conta também as notificações escondidas da lista por troca de dono do paciente (NT-03), então pode ser maior que o contador de não lidas."
       }
     },
     "/notification/{id}/read": {
@@ -14112,9 +14113,9 @@
             "type": "boolean"
           },
           "timeToAnswer": {
-            "type": "integer",
+            "type": "number",
             "minimum": 0,
-            "description": "Tempo de resposta em milissegundos (inteiro). Registros antigos, de antes de 2026-10-09, podem estar em segundos."
+            "description": "Tempo de resposta em milissegundos. Respostas anteriores a 2026-10-09 foram gravadas em segundos e não foram migradas; a análise com IA omite o tempo delas."
           },
           "answeredAt": {
             "type": "string",
@@ -14229,9 +14230,9 @@
             "format": "uuid"
           },
           "timeToAnswer": {
-            "type": "integer",
+            "type": "number",
             "minimum": 0,
-            "description": "Tempo de resposta em milissegundos (inteiro)."
+            "description": "Tempo de resposta em milissegundos."
           }
         },
         "required": [
@@ -17807,7 +17808,7 @@
           },
           "nextCursor": {
             "type": "string",
-            "description": "Cursor da próxima página; ausente na última. A página pode vir com menos itens que `limit` quando há notificações de pacientes que não são mais do educador (NT-03)."
+            "description": "Cursor da próxima página; ausente na última. Uma página pode vir com menos itens que `limit`, ou até vazia, e ainda trazer `nextCursor`: são notificações de pacientes que não são mais do educador, escondidas depois da busca (NT-03). Continue paginando enquanto houver `nextCursor`."
           }
         },
         "required": [

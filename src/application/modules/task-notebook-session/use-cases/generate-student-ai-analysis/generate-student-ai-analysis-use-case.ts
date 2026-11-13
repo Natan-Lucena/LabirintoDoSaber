@@ -5,6 +5,7 @@ import {
   AiStudentAnalysisService,
   StudentAnalysisAiInput,
 } from "../../../../../domain/services/ai-student-analysis-service";
+import { timeToAnswerInMs } from "../../../../../domain/entities/task-notebook-session";
 import { AnamneseContextBuilder } from "../../../../services/anamnese-context-builder";
 import { GenerateStudentAnalysisUseCase } from "../generate-student-analisys/generate-student-analisys-use-case";
 
@@ -57,17 +58,23 @@ export class GenerateStudentAiAnalysisUseCase {
       (session) => {
         let correctAnswers = 0;
         let totalTime = 0;
+        let timedAnswers = 0;
 
         const answers = session.answers.map((answer) => {
           const task = taskById.get(answer.taskId.value);
           if (answer.isCorrect) correctAnswers++;
-          totalTime += answer.timeToAnswer;
+          // Respostas antigas (em segundos) ficam sem tempo e fora da média.
+          const timeToAnswer = timeToAnswerInMs(answer);
+          if (timeToAnswer !== undefined) {
+            totalTime += timeToAnswer;
+            timedAnswers++;
+          }
 
           return {
             taskPrompt: task?.prompt,
             category: task?.category,
             isCorrect: answer.isCorrect,
-            timeToAnswer: answer.timeToAnswer,
+            timeToAnswer,
           };
         });
 
@@ -79,9 +86,7 @@ export class GenerateStudentAiAnalysisUseCase {
           totalAnswers: session.answers.length,
           correctAnswers,
           // Em milissegundos; o prompt converte para segundos.
-          averageTimeToAnswer: session.answers.length
-            ? totalTime / session.answers.length
-            : undefined,
+          averageTimeToAnswer: timedAnswers ? totalTime / timedAnswers : undefined,
           answers,
         };
       },

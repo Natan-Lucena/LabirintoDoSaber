@@ -630,8 +630,8 @@ model Notification {
   createdAt  DateTime
   readAt     DateTime?
 
-  // Lista paginada do educador, mais recentes primeiro.
-  @@index([educatorId, createdAt])
+  // Lista paginada do educador, mais recentes primeiro (o id desempata o cursor).
+  @@index([educatorId, createdAt, id])
   // Retenção: o cron apaga as mais antigas que 90 dias.
   @@index([createdAt])
 }

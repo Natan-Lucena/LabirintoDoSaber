@@ -3,6 +3,7 @@ import { Uuid } from "@wave-telecom/framework/core";
 import { EducatorRepository } from "../../domain/repositories/educator-repository";
 import { JwtAuthService } from "../services/auth-service-impl";
 import multer from "multer";
+import { timingSafeEqual } from "crypto";
 
 export function requireJobApiKey(
   req: Request,
@@ -24,7 +25,14 @@ export function requireCronSecret(
   next: NextFunction
 ): void {
   const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.authorization !== `Bearer ${secret}`) {
+  const expected = Buffer.from(`Bearer ${secret ?? ""}`);
+  const received = Buffer.from(req.headers.authorization ?? "");
+  // Comparação em tempo constante; timingSafeEqual exige o mesmo tamanho.
+  const valid =
+    !!secret &&
+    received.length === expected.length &&
+    timingSafeEqual(received, expected);
+  if (!valid) {
     res.sendStatus(401);
     return;
   }

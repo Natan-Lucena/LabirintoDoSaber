@@ -125,6 +125,7 @@ export class ScaleApplicationRepositoryImpl implements ScaleApplicationRepositor
   async listDraftsUpdatedBefore(date: Date): Promise<ScaleApplication[]> {
     const records = await this.prismaService.scaleApplication.findMany({
       where: { status: ApplicationStatus.DRAFT, updatedAt: { lte: date } },
+      orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
     });
     return records.map((record) => this.mapToEntity(record));
   }

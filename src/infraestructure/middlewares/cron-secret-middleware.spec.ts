@@ -40,6 +40,13 @@ describe("requireCronSecret", () => {
     expect(res.sendStatus).toHaveBeenCalledWith(401);
   });
 
+  it("should answer 401 with a wrong secret of the same length", () => {
+    const { res, next } = run("Bearer segredo-do-crox");
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.sendStatus).toHaveBeenCalledWith(401);
+  });
+
   it("should answer 401 when CRON_SECRET is not configured", () => {
     vi.stubEnv("CRON_SECRET", "");
 

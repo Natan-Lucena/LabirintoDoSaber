@@ -90,7 +90,8 @@ export class AppointmentRepositoryImpl implements AppointmentRepository {
     const records = await this.prismaService.appointment.findMany({
       where,
       take: params.hasScheduledJob !== undefined ? undefined : params.limit,
-      orderBy: { scheduledAt: "asc" },
+      // O id desempata para a ordem ser determinística.
+      orderBy: [{ scheduledAt: "asc" }, { id: "asc" }],
     });
 
     let entities = records.map((r) => this.mapToEntity(r));

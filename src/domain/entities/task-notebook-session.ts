@@ -4,8 +4,17 @@ export interface TaskAnswer {
   taskId: Uuid;
   selectedAlternativeId: Uuid;
   isCorrect: boolean;
-  timeToAnswer: number; // em milissegundos
+  timeToAnswer: number; // em milissegundos (antes de 2026-10-09, em segundos)
   answeredAt: Date;
+}
+
+// O app envia timeToAnswer em milissegundos desde 2026-10-09 (São Paulo).
+// As respostas anteriores estão em segundos e não foram migradas.
+export const TIME_TO_ANSWER_IN_MS_SINCE = new Date("2026-10-09T00:00:00.000-03:00");
+
+// Tempo da resposta em milissegundos, ou undefined para os dados antigos.
+export function timeToAnswerInMs(answer: TaskAnswer): number | undefined {
+  return answer.answeredAt >= TIME_TO_ANSWER_IN_MS_SINCE ? answer.timeToAnswer : undefined;
 }
 
 export class TaskNotebookSession {

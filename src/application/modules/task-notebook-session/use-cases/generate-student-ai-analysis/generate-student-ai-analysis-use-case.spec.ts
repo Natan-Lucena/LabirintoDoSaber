@@ -43,8 +43,8 @@ const rawAnalysisValue = {
       finishedAt: new Date("2026-06-01T10:20:00.000Z"),
       observation: "Atento",
       answers: [
-        { taskId, isCorrect: true, timeToAnswer: 12 },
-        { taskId, isCorrect: false, timeToAnswer: 20 },
+        { taskId, isCorrect: true, timeToAnswer: 12000, answeredAt: new Date("2026-10-20T13:00:00.000Z") },
+        { taskId, isCorrect: false, timeToAnswer: 20000, answeredAt: new Date("2026-10-20T13:01:00.000Z") },
       ],
     },
   ],
@@ -112,9 +112,41 @@ describe("GenerateStudentAiAnalysisUseCase", () => {
     expect(input.metrics.total.total).toBe(2);
     expect(input.sessions).toHaveLength(1);
     expect(input.sessions[0].correctAnswers).toBe(1);
-    expect(input.sessions[0].averageTimeToAnswer).toBe(16);
+    expect(input.sessions[0].averageTimeToAnswer).toBe(16000);
     expect(input.sessions[0].answers[0].taskPrompt).toBe("Qual é a vogal?");
     expect(input.anamnese).toBeUndefined();
+  });
+
+  it("omits the time of answers recorded before 2026-10-09 (legacy seconds)", async () => {
+    const legacy = {
+      ...rawAnalysisValue,
+      sessions: [
+        {
+          ...rawAnalysisValue.sessions[0],
+          answers: [
+            // 08/10 23:59 em São Paulo: ainda em segundos.
+            { taskId, isCorrect: true, timeToAnswer: 12, answeredAt: new Date("2026-10-09T02:59:00.000Z") },
+            // 09/10 00:00 em São Paulo: já em milissegundos.
+            { taskId, isCorrect: false, timeToAnswer: 3000, answeredAt: new Date("2026-10-09T03:00:00.000Z") },
+          ],
+        },
+        {
+          ...rawAnalysisValue.sessions[0],
+          answers: [
+            { taskId, isCorrect: true, timeToAnswer: 8, answeredAt: new Date("2026-09-01T13:00:00.000Z") },
+          ],
+        },
+      ],
+    };
+    (generate.loadAnalysisData as any).mockResolvedValue(success(legacy));
+
+    await useCase.execute({ studentId });
+
+    const input = (aiService.generate as any).mock.calls[0][0];
+    expect(input.sessions[0].answers.map((a: any) => a.timeToAnswer)).toEqual([undefined, 3000]);
+    expect(input.sessions[0].averageTimeToAnswer).toBe(3000);
+    expect(input.sessions[1].answers[0].timeToAnswer).toBeUndefined();
+    expect(input.sessions[1].averageTimeToAnswer).toBeUndefined();
   });
 
   it("does not call loadAnalysisData more than once (no redundant fetch)", async () => {

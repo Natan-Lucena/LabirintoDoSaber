@@ -20,10 +20,26 @@ export class NotificationRepositoryImpl implements NotificationRepository {
 
   // O índice único em dedupeKey garante que não há duplicata. As que já
   // existem são filtradas antes porque o createMany do MongoDB não tem
-  // skipDuplicates.
+  // skipDuplicates. Se outro cron gravou alguma entre a busca e a inserção
+  // (P2002, que interrompe o lote no meio), refaz o ciclo uma vez para gravar
+  // as que faltaram.
   async createMany(notifications: Notification[]): Promise<number> {
     if (notifications.length === 0) return 0;
 
+    try {
+      return await this.createMissing(notifications);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        return this.createMissing(notifications);
+      }
+      throw error;
+    }
+  }
+
+  private async createMissing(notifications: Notification[]): Promise<number> {
     const existing = await this.prismaService.notification.findMany({
       where: { dedupeKey: { in: notifications.map((n) => n.dedupeKey) } },
       select: { dedupeKey: true },

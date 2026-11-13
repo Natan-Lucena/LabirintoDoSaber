@@ -9,7 +9,8 @@ export interface StudentAnalysisSessionAnswer {
   taskPrompt?: string;
   category?: string;
   isCorrect: boolean;
-  timeToAnswer: number; // em milissegundos
+  // Em milissegundos; ausente nas respostas antigas, gravadas em segundos.
+  timeToAnswer?: number;
 }
 
 export interface StudentAnalysisSessionSummary {
@@ -19,7 +20,8 @@ export interface StudentAnalysisSessionSummary {
   observation?: string;
   totalAnswers: number;
   correctAnswers: number;
-  averageTimeToAnswer?: number; // em milissegundos
+  // Em milissegundos, só das respostas com tempo em milissegundos.
+  averageTimeToAnswer?: number;
   answers: StudentAnalysisSessionAnswer[];
 }
 

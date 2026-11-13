@@ -3,6 +3,7 @@ import {
   TaskNotebookSession as prismaTaskNotebookSession,
 } from "@prisma/client";
 import {
+  FinishedSessionRef,
   ListByEducatorIdParams,
   ListFinishedBetweenParams,
   ListFinishedByEducatorSinceParams,
@@ -40,11 +41,19 @@ export class TaskNotebokSessionRepositoryImpl
 
   async listFinishedBetween(
     params: ListFinishedBetweenParams
-  ): Promise<TaskNotebookSession[]> {
+  ): Promise<FinishedSessionRef[]> {
     const result = await this.prismaService.taskNotebookSession.findMany({
       where: { finishedAt: { gte: params.from, lte: params.to } },
+      select: { id: true, studentId: true, educatorId: true, finishedAt: true },
+      orderBy: [{ finishedAt: "asc" }, { id: "asc" }],
     });
-    return result.map((data) => this.mapToEntity(data));
+    return result.map((data) => ({
+      id: new Uuid(data.id),
+      studentId: new Uuid(data.studentId),
+      educatorId: new Uuid(data.educatorId),
+      // O filtro garante finishedAt preenchido.
+      finishedAt: data.finishedAt!,
+    }));
   }
 
   async save(session: TaskNotebookSession): Promise<void> {
