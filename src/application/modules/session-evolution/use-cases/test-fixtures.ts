@@ -1,4 +1,5 @@
 // Fábricas de entidades reais para os specs do módulo de evolução.
+import { expect } from "vitest";
 import { Uuid } from "@wave-telecom/framework/core";
 import { Gender, Student } from "../../../../domain/entities/student";
 import { Plan, PlanSource, PlanStatus, PlanType } from "../../../../domain/entities/plan";
@@ -106,4 +107,62 @@ export const closePlan = (plan: Plan) => {
   const closed = plan.close(PlanStatus.COMPLETED);
   if (!closed.ok) throw new Error(closed.error);
   return closed.value;
+};
+
+// Aluno com todos os dados identificáveis preenchidos, para os specs de IA
+// provarem que nada disso chega ao provedor (IA-05).
+export const IDENTIFIABLE = {
+  name: "Joaozinho Fixture Pereira",
+  phone: "11987654321",
+  zipcode: "01310100",
+  road: "Avenida Paulista Fixture",
+  photoUrl: "https://bucket/foto-fixture.png",
+  documentUrl: "https://bucket/laudo-fixture.pdf",
+};
+
+export const makeIdentifiableStudent = (educatorId: Uuid) =>
+  Student.create({
+    name: IDENTIFIABLE.name,
+    age: 7,
+    gender: Gender.Male,
+    zipcode: IDENTIFIABLE.zipcode,
+    road: IDENTIFIABLE.road,
+    housenumber: "1578",
+    phonenumber: IDENTIFIABLE.phone,
+    learningTopics: ["leitura"],
+    educators: [],
+    educatorId,
+    photoUrl: IDENTIFIABLE.photoUrl,
+    documents: [
+      {
+        id: "doc-1",
+        name: "laudo-fixture.pdf",
+        url: IDENTIFIABLE.documentUrl,
+        uploadedAt: new Date(),
+      },
+    ],
+  });
+
+// Confere que o argumento enviado à IA não carrega dados identificáveis.
+export const expectNoIdentifiableData = (aiArgument: unknown) => {
+  const serialized = JSON.stringify(aiArgument);
+  // A chave "name" não entra aqui: o nome da escala vai à IA (IN-03). O valor
+  // do nome do aluno é conferido logo abaixo.
+  for (const key of [
+    "studentName",
+    "phonenumber",
+    "road",
+    "zipcode",
+    "housenumber",
+    "documents",
+    "photoUrl",
+    "educatorId",
+  ]) {
+    expect(serialized).not.toContain(`"${key}"`);
+  }
+  for (const value of Object.values(IDENTIFIABLE)) {
+    expect(serialized).not.toContain(value);
+  }
+  expect(serialized).not.toContain("laudo-fixture");
+  expect(serialized).not.toContain("foto-fixture");
 };

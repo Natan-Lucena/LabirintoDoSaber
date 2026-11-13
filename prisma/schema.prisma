@@ -197,9 +197,16 @@ model AnamneseResponse {
   answeredAt DateTime         @default(now())
   updatedAt  DateTime?
   answers    AnamneseAnswer[]
+  summary    AnamneseSummary?
 
   @@index([templateId])
   @@index([studentId])
+}
+
+// Síntese da anamnese gerada por IA (AS-01).
+type AnamneseSummary {
+  text        String
+  generatedAt DateTime
 }
 
 type AnamneseQuestionOption {

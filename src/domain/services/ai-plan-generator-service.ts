@@ -52,14 +52,8 @@ export interface PlanDraftOutput {
   rationale?: string;
 }
 
-// Lançado quando o modelo devolve algo que não dá para interpretar (JSON
-// quebrado ou fora do formato). O use case traduz para AI_INVALID_OUTPUT.
-export class AiInvalidOutputError extends Error {
-  constructor() {
-    super("AI_INVALID_OUTPUT");
-    this.name = "AiInvalidOutputError";
-  }
-}
+// Mantido aqui para os imports antigos; a definição está em ai-errors.
+export { AiInvalidOutputError } from "./ai-errors";
 
 // Plano atual enviado à IA para sugerir ajustes. Os ids das metas são os
 // reais, para o modelo apontar a meta certa.

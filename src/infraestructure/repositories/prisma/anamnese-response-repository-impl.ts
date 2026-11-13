@@ -1,11 +1,16 @@
 import {
+  Prisma,
   PrismaClient,
   AnamneseResponse as PrismaAnamneseResponse,
   $Enums as PrismaEnums,
 } from "@prisma/client";
 import { Uuid } from "@wave-telecom/framework/core";
 import { AnamneseResponseRepository } from "../../../domain/repositories/anamnese-response-repository";
-import { AnamneseResponse, AnamneseAnswer } from "../../../domain/entities/anamnese-response";
+import {
+  AnamneseAnswer,
+  AnamneseResponse,
+  AnamneseSummary,
+} from "../../../domain/entities/anamnese-response";
 import { AnamneseQuestionType } from "../../../domain/entities/anamnese-template";
 
 export class AnamneseResponseRepositoryImpl implements AnamneseResponseRepository {
@@ -20,6 +25,9 @@ export class AnamneseResponseRepositoryImpl implements AnamneseResponseRepositor
       selectedOptionIds: a.selectedOptionIds ?? [],
       fileUrl: a.fileUrl ?? null,
     }));
+    const summary = response.summary
+      ? { text: response.summary.text, generatedAt: response.summary.generatedAt }
+      : null;
 
     await this.prismaService.anamneseResponse.upsert({
       where: { id: response.id.value },
@@ -31,12 +39,33 @@ export class AnamneseResponseRepositoryImpl implements AnamneseResponseRepositor
         answeredAt: response.answeredAt,
         updatedAt: response.updatedAt ?? null,
         answers,
+        summary,
       },
       update: {
         answers: { set: answers },
         updatedAt: response.updatedAt ?? null,
+        summary,
       },
     });
+  }
+
+  async saveSummary(id: Uuid, summary: AnamneseSummary): Promise<boolean> {
+    try {
+      await this.prismaService.anamneseResponse.update({
+        where: { id: id.value },
+        data: { summary: { text: summary.text, generatedAt: summary.generatedAt } },
+      });
+      return true;
+    } catch (error) {
+      // P2025: o registro foi excluído enquanto a IA respondia.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2025"
+      ) {
+        return false;
+      }
+      throw error;
+    }
   }
 
   async findById(id: Uuid): Promise<AnamneseResponse | null> {
@@ -79,6 +108,9 @@ export class AnamneseResponseRepositoryImpl implements AnamneseResponseRepositor
       answers,
       answeredAt: data.answeredAt,
       updatedAt: data.updatedAt ?? undefined,
+      summary: data.summary
+        ? { text: data.summary.text, generatedAt: data.summary.generatedAt }
+        : undefined,
     });
   }
 

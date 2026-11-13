@@ -1,7 +1,10 @@
 // Repositórios simulados e entidades reais para os specs de aplicação de escala.
 import { vi } from "vitest";
 import { Uuid } from "@wave-telecom/framework/core";
-import { ScaleApplication } from "../../../../domain/entities/scale-application";
+import {
+  ScaleApplication,
+  ScaleInsight,
+} from "../../../../domain/entities/scale-application";
 import { ScaleTemplate } from "../../../../domain/entities/scale-template";
 import { ScaleApplicationRepository } from "../../../../domain/repositories/scale-application-repository";
 import { ScaleTemplateRepository } from "../../../../domain/repositories/scale-template-repository";
@@ -35,6 +38,12 @@ export const makeApplicationRepository = (initial: ScaleApplication[] = []) => {
     store,
     save: vi.fn(async (application: ScaleApplication) => {
       store.set(application.id.value, application);
+    }),
+    saveInsight: vi.fn(async (id: Uuid, insight: ScaleInsight) => {
+      const current = store.get(id.value);
+      if (!current) return false;
+      store.set(id.value, current.withInsight(insight));
+      return true;
     }),
     findById: vi.fn(async (id: Uuid) => store.get(id.value) ?? null),
     findDraft: vi.fn().mockResolvedValue(null),

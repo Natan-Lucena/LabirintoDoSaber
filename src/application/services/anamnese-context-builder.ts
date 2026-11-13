@@ -1,6 +1,12 @@
 import { Uuid } from "@wave-telecom/framework/core";
-import { AnamneseAnswer } from "../../domain/entities/anamnese-response";
-import { AnamneseTemplate } from "../../domain/entities/anamnese-template";
+import {
+  AnamneseAnswer,
+  AnamneseResponse,
+} from "../../domain/entities/anamnese-response";
+import {
+  AnamneseQuestionType,
+  AnamneseTemplate,
+} from "../../domain/entities/anamnese-template";
 import { AnamneseResponseRepository } from "../../domain/repositories/anamnese-response-repository";
 import { AnamneseTemplateRepository } from "../../domain/repositories/anamnese-template-repository";
 
@@ -18,6 +24,9 @@ export interface BuildAnamneseOptions {
   // Troca a URL de arquivos enviados por um marcador. Usado quando o contexto
   // vai para a IA e não pode carregar documentos do paciente.
   omitFileUrls?: boolean;
+  // Tira as respostas do tipo arquivo (nem o marcador vai). Usado na síntese
+  // da anamnese (AS-03).
+  skipFileAnswers?: boolean;
 }
 
 // Converte as respostas de anamnese de um aluno, num template, em pares
@@ -51,6 +60,18 @@ export class AnamneseContextBuilder {
     return this.buildAnswers(template, template.id.value, studentId, options);
   }
 
+  // Uma única resposta, já carregada e com o dono conferido.
+  buildFromResponse(
+    template: AnamneseTemplate,
+    response: AnamneseResponse,
+    options: BuildAnamneseOptions = {}
+  ): AnamneseContext {
+    return {
+      templateTitle: template.title,
+      answers: toContextAnswers(template, response.answers, options),
+    };
+  }
+
   private async buildAnswers(
     template: AnamneseTemplate,
     templateId: string,
@@ -67,18 +88,29 @@ export class AnamneseContextBuilder {
 
     if (!templateResponses.length) return null;
 
-    const answers: AnamneseContextAnswer[] = [];
-    for (const response of templateResponses) {
-      for (const answer of response.answers) {
-        answers.push({
-          question: resolveQuestionText(template, answer.questionId),
-          answer: resolveAnswerText(template, answer, options),
-        });
-      }
-    }
+    const answers = templateResponses.flatMap((response) =>
+      toContextAnswers(template, response.answers, options)
+    );
 
     return { templateTitle: template.title, answers };
   }
+}
+
+function toContextAnswers(
+  template: AnamneseTemplate,
+  answers: AnamneseAnswer[],
+  options: BuildAnamneseOptions
+): AnamneseContextAnswer[] {
+  return answers
+    .filter(
+      (answer) =>
+        !options.skipFileAnswers ||
+        (answer.questionType !== AnamneseQuestionType.FileUpload && !answer.fileUrl)
+    )
+    .map((answer) => ({
+      question: resolveQuestionText(template, answer.questionId),
+      answer: resolveAnswerText(template, answer, options),
+    }));
 }
 
 export function resolveQuestionText(
