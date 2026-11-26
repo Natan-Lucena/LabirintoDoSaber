@@ -33,11 +33,6 @@ export class ClinicInviteRepositoryImpl implements ClinicInviteRepository {
     }
   }
 
-  async save(invite: ClinicInvite): Promise<void> {
-    const { id, ...data } = this.toData(invite);
-    await this.prismaService.clinicInvite.update({ where: { id }, data });
-  }
-
   async findById(id: Uuid): Promise<ClinicInvite | null> {
     const record = await this.prismaService.clinicInvite.findUnique({ where: { id: id.value } });
     return record ? this.mapToEntity(record) : null;
@@ -72,6 +67,23 @@ export class ClinicInviteRepositoryImpl implements ClinicInviteRepository {
     await this.prismaService.clinicInvite.updateMany({
       where: { id: inviteId.value, usedBy: usedBy.value },
       data: { usedAt: null, usedBy: null },
+    });
+  }
+
+  async revoke(inviteId: Uuid, revokedAt: Date): Promise<void> {
+    await this.prismaService.clinicInvite.updateMany({
+      where: { id: inviteId.value, revokedAt: null },
+      data: { revokedAt },
+    });
+  }
+
+  async revokeActive(filter: { clinicId: Uuid; createdBy?: Uuid }, now: Date): Promise<void> {
+    await this.prismaService.clinicInvite.updateMany({
+      where: {
+        ...activeWhere(filter.clinicId, now),
+        ...(filter.createdBy ? { createdBy: filter.createdBy.value } : {}),
+      },
+      data: { revokedAt: now },
     });
   }
 

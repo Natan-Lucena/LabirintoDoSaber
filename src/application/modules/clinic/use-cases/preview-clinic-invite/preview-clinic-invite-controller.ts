@@ -1,14 +1,7 @@
 import { BaseController } from "@wave-telecom/framework/controllers";
 import { Request, Response } from "express";
+import { clientIp } from "../../../../../infraestructure/http/client-ip";
 import { PreviewClinicInviteUseCase } from "./preview-clinic-invite-use-case";
-
-// IP do cliente. Na Vercel, x-forwarded-for é preenchido pela plataforma (o
-// primeiro valor é o cliente); localmente, cai no socket.
-function clientIp(req: Request): string {
-  const forwarded = req.headers["x-forwarded-for"];
-  const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(",")[0]?.trim();
-  return first || req.socket.remoteAddress || "unknown";
-}
 
 // Rota pública: sem authMiddleware.
 export class PreviewClinicInviteController extends BaseController {

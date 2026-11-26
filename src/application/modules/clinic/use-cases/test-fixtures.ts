@@ -105,9 +105,6 @@ export const makeClinicInviteRepository = (initial: ClinicInvite[] = []) => {
       }
       store.set(invite.id.value, invite);
     }),
-    save: vi.fn(async (invite: ClinicInvite) => {
-      store.set(invite.id.value, invite);
-    }),
     findById: vi.fn(async (id: Uuid) => store.get(id.value) ?? null),
     findByCode: vi.fn(
       async (code: string) => [...store.values()].find((invite) => invite.code === code) ?? null
@@ -135,6 +132,16 @@ export const makeClinicInviteRepository = (initial: ClinicInvite[] = []) => {
           expiresAt: invite.expiresAt,
         })
       );
+    }),
+    revoke: vi.fn(async (inviteId: Uuid, revokedAt: Date) => {
+      const invite = store.get(inviteId.value);
+      if (invite) store.set(inviteId.value, invite.revoke(revokedAt));
+    }),
+    revokeActive: vi.fn(async (filter: { clinicId: Uuid; createdBy?: Uuid }, now: Date) => {
+      for (const invite of active(filter.clinicId, now)) {
+        if (filter.createdBy && invite.createdBy.value !== filter.createdBy.value) continue;
+        store.set(invite.id.value, invite.revoke(now));
+      }
     }),
   } satisfies ClinicInviteRepository & { store: Map<string, ClinicInvite> };
 };

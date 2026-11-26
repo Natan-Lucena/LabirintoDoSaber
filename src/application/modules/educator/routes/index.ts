@@ -21,6 +21,7 @@ import {
   makeClinicInviteRepository,
   makeClinicMemberRepository,
   makeClinicRepository,
+  makeRateLimitRepository,
   makeEducatorRepository,
   makeFileStorage,
   makeStudentRepository,
@@ -54,7 +55,8 @@ const signInEducatorUseCase = new SignInEducatorUseCase(
 const registerEducatorUseCase = new RegisterEducatorUseCase(
   educatorRepository,
   makeClinicInviteRepository(),
-  clinicMemberRepository
+  clinicMemberRepository,
+  makeRateLimitRepository()
 );
 const updatePasswordEducatorUseCase = new UpdatePasswordEducatorUseCase(
   educatorRepository,

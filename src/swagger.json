@@ -163,6 +163,23 @@
               }
             }
           },
+          "429": {
+            "description": "Só com `inviteCode`: limite de 10 tentativas por janela de 15 minutos atingido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "TOO_MANY_REQUESTS": {
+                    "value": {
+                      "message": "TOO_MANY_REQUESTS"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "500": {
             "description": "Exceção não tratada (`An unexpected error occurred`).",
             "content": {
@@ -182,7 +199,8 @@
             }
           }
         },
-        "security": []
+        "security": [],
+        "description": "Com `inviteCode`, a conta é criada já como membro da clínica. Limite de 10 por IP (IPv6 pelo prefixo /64) por janela de 15 minutos para cadastros com `inviteCode`, dividido com `POST /clinic/invites/accept`; sem `inviteCode` não há limite."
       }
     },
     "/educator/sign-in": {
@@ -14823,7 +14841,7 @@
           "Clinic"
         ],
         "summary": "Prévia pública do convite (tela de cadastro com código).",
-        "description": "Rota pública. Limite de 10 consultas por IP a cada 15 minutos, contando também as de códigos inválidos.",
+        "description": "Rota pública. Limite de 10 por IP (IPv6 pelo prefixo /64) por janela de 15 minutos, contando também as consultas de códigos inválidos.",
         "parameters": [
           {
             "name": "code",
@@ -14863,7 +14881,7 @@
             }
           },
           "429": {
-            "description": "Mais de 10 consultas deste IP nos últimos 15 minutos.",
+            "description": "Limite de 10 consultas por janela de 15 minutos atingido.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15019,6 +15037,23 @@
               }
             }
           },
+          "429": {
+            "description": "Limite de 10 tentativas por janela de 15 minutos atingido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "TOO_MANY_REQUESTS": {
+                    "value": {
+                      "message": "TOO_MANY_REQUESTS"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "500": {
             "description": "Exceção não tratada (`An unexpected error occurred`).",
             "content": {
@@ -15042,7 +15077,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Limite de 10 por IP (IPv6 pelo prefixo /64) por janela de 15 minutos, dividido com o cadastro com `inviteCode`."
       }
     },
     "/clinic/members/{educatorId}": {
@@ -15219,14 +15255,15 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Rebaixar um ADMIN revoga os convites ativos criados por ele."
       },
       "delete": {
         "tags": [
           "Clinic"
         ],
         "summary": "Remove um membro (só ADMIN) ou sai da clínica (o próprio id, qualquer papel).",
-        "description": "Quem sai ou é removido leva os pacientes dos quais é dono. O último ADMIN não sai nem é removido.",
+        "description": "Quem sai ou é removido leva os pacientes dos quais é dono. Um ADMIN que sai ou é removido tem os convites ativos criados por ele revogados. O último ADMIN não sai nem é removido enquanto houver outros membros. Se quem sai é o único membro, a saída é permitida: os convites ativos são revogados e a clínica é apagada.",
         "parameters": [
           {
             "name": "educatorId",
@@ -15240,7 +15277,7 @@
         ],
         "responses": {
           "204": {
-            "description": "Removido."
+            "description": "Removido. Se era o único membro, a clínica também foi apagada."
           },
           "401": {
             "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
@@ -15309,7 +15346,7 @@
             }
           },
           "409": {
-            "description": "O último ADMIN não sai nem é removido.",
+            "description": "O último ADMIN não sai nem é removido enquanto houver outros membros.",
             "content": {
               "application/json": {
                 "schema": {

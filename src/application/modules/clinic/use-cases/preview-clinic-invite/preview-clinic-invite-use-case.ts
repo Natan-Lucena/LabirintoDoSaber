@@ -1,24 +1,17 @@
-import crypto from "crypto";
 import { failure, success } from "@wave-telecom/framework/core";
 import { normalizeInviteCode } from "../../../../../domain/entities/clinic-invite";
 import { ClinicRepository } from "../../../../../domain/repositories/clinic-repository";
 import { ClinicInviteRepository } from "../../../../../domain/repositories/clinic-invite-repository";
 import { RateLimitRepository } from "../../../../../domain/repositories/rate-limit-repository";
+import { consumeIpQuota, IP_RATE_LIMIT } from "../ip-rate-limit";
 
 // EQ-07: 10 consultas por IP a cada 15 minutos.
-export const INVITE_PREVIEW_LIMIT = 10;
-export const INVITE_PREVIEW_WINDOW_MS = 15 * 60 * 1000;
+export const INVITE_PREVIEW_LIMIT = IP_RATE_LIMIT;
 
 export interface PreviewClinicInviteUseCaseRequest {
   code: string;
   ip: string;
   now?: Date;
-}
-
-// Janela fixa por IP. O IP vai para a chave só como hash.
-function rateLimitKey(ip: string, windowIndex: number): string {
-  const ipHash = crypto.createHash("sha256").update(ip).digest("hex");
-  return `invite-preview:${ipHash}:${windowIndex}`;
 }
 
 // Prévia pública do convite, para a tela de cadastro com código.
@@ -32,12 +25,7 @@ export class PreviewClinicInviteUseCase {
   async execute(request: PreviewClinicInviteUseCaseRequest) {
     const now = request.now ?? new Date();
 
-    const windowIndex = Math.floor(now.getTime() / INVITE_PREVIEW_WINDOW_MS);
-    const allowed = await this.rateLimitRepository.tryConsume(
-      rateLimitKey(request.ip, windowIndex),
-      INVITE_PREVIEW_LIMIT,
-      new Date((windowIndex + 1) * INVITE_PREVIEW_WINDOW_MS)
-    );
+    const allowed = await consumeIpQuota(this.rateLimitRepository, "invite-preview", request.ip, now);
     if (!allowed) return failure("TOO_MANY_REQUESTS" as const);
 
     // EQ-06: vencido, usado, revogado ou inexistente são o mesmo erro.

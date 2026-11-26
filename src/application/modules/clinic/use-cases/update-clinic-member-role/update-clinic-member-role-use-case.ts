@@ -3,6 +3,7 @@ import { TeamRole } from "../../../../../domain/entities/clinic";
 import { isLastAdmin } from "../../../../../domain/entities/clinic-member";
 import { ClinicRepository } from "../../../../../domain/repositories/clinic-repository";
 import { ClinicMemberRepository } from "../../../../../domain/repositories/clinic-member-repository";
+import { ClinicInviteRepository } from "../../../../../domain/repositories/clinic-invite-repository";
 import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
 import { findMembership, loadClinicView } from "../clinic-view";
 
@@ -16,6 +17,7 @@ export class UpdateClinicMemberRoleUseCase {
   constructor(
     private clinicRepository: ClinicRepository,
     private memberRepository: ClinicMemberRepository,
+    private inviteRepository: ClinicInviteRepository,
     private educatorRepository: EducatorRepository
   ) {}
 
@@ -41,6 +43,13 @@ export class UpdateClinicMemberRoleUseCase {
 
     if (target.role !== request.role) {
       await this.memberRepository.save(target.changeRole(request.role));
+      // Os convites ativos que um ADMIN criou deixam de valer quando ele é rebaixado.
+      if (target.isAdmin) {
+        await this.inviteRepository.revokeActive(
+          { clinicId: clinic.id, createdBy: target.educatorId },
+          new Date()
+        );
+      }
     }
 
     const myRole =

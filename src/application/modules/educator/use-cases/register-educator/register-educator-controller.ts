@@ -5,6 +5,7 @@ import {
 import { Request, Response } from "express";
 import { registerEducatorSchema } from "../../schemas/register-educator-schema";
 import { RegisterEducatorUseCase } from "./register-educator-use-case";
+import { clientIp } from "../../../../../infraestructure/http/client-ip";
 
 export class RegisterEducatorController extends BaseController {
   constructor(private useCase: RegisterEducatorUseCase) {
@@ -21,7 +22,7 @@ export class RegisterEducatorController extends BaseController {
 
     const payload = validation.data;
 
-    const result = await this.useCase.execute(payload);
+    const result = await this.useCase.execute({ ...payload, ip: clientIp(req) });
 
     if (!result.ok) {
       if (result.error == "EDUCATOR_ALREADY_EXISTS") {
@@ -29,6 +30,9 @@ export class RegisterEducatorController extends BaseController {
       }
       if (result.error == "INVITE_INVALID") {
         return this.notFound(res, "INVITE_INVALID");
+      }
+      if (result.error == "TOO_MANY_REQUESTS") {
+        return this.tooMany(res, "TOO_MANY_REQUESTS");
       }
       return this.clientError(res, "FAIL");
     }

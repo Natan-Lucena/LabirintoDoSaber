@@ -22,6 +22,21 @@ describe("RevokeClinicInviteUseCase", () => {
     const stored = inviteRepository.store.get(invite.id.value)!;
     expect(stored.revokedAt).toBeInstanceOf(Date);
     expect(stored.isActive(new Date())).toBe(false);
+    // Só o revokedAt muda, pelo método atômico do repositório.
+    expect(inviteRepository.revoke).toHaveBeenCalledWith(invite.id, expect.any(Date));
+  });
+
+  it("revogar de novo devolve sucesso e mantém a primeira data", async () => {
+    const { admin, clinic, memberRepository } = setupClinic();
+    const firstRevocation = new Date("2026-11-20T10:00:00Z");
+    const invite = makeInvite(clinic, admin.id).revoke(firstRevocation);
+    const inviteRepository = makeClinicInviteRepository([invite]);
+    const useCase = new RevokeClinicInviteUseCase(memberRepository, inviteRepository);
+
+    const result = await useCase.execute({ educatorId: admin.id, inviteId: invite.id.value });
+
+    expect(result).toEqual({ ok: true, value: undefined });
+    expect(inviteRepository.store.get(invite.id.value)!.revokedAt).toEqual(firstRevocation);
   });
 
   it("PROFESSIONAL recebe FORBIDDEN_ROLE (EQ-03)", async () => {
@@ -36,7 +51,7 @@ describe("RevokeClinicInviteUseCase", () => {
     const result = await useCase.execute({ educatorId: pro.id, inviteId: invite.id.value });
 
     expect(result).toEqual({ ok: false, error: "FORBIDDEN_ROLE" });
-    expect(inviteRepository.save).not.toHaveBeenCalled();
+    expect(inviteRepository.revoke).not.toHaveBeenCalled();
   });
 
   it("NOT_IN_CLINIC para quem não tem clínica", async () => {
@@ -65,6 +80,6 @@ describe("RevokeClinicInviteUseCase", () => {
       const result = await useCase.execute({ educatorId: admin.id, inviteId });
       expect(result).toEqual({ ok: false, error: "INVITE_NOT_FOUND" });
     }
-    expect(inviteRepository.save).not.toHaveBeenCalled();
+    expect(inviteRepository.revoke).not.toHaveBeenCalled();
   });
 });

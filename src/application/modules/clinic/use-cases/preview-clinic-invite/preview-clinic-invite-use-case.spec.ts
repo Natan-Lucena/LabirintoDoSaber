@@ -83,6 +83,22 @@ describe("PreviewClinicInviteUseCase", () => {
     expect((await useCase.execute({ code: invite.code, ip: "200.1.2.3", now: later })).ok).toBe(true);
   });
 
+  it("IPv6 do mesmo /64 divide a cota; escopo próprio, separado do resgate", async () => {
+    const { invite, rateLimitRepository, useCase } = setup();
+    const now = new Date("2026-11-26T12:00:00Z");
+
+    for (let i = 1; i <= 10; i++) {
+      await useCase.execute({ code: invite.code, ip: `2001:db8:1:2::${i}`, now });
+    }
+
+    expect(await useCase.execute({ code: invite.code, ip: "2001:db8:1:2:abcd::9", now })).toEqual({
+      ok: false,
+      error: "TOO_MANY_REQUESTS",
+    });
+    expect((await useCase.execute({ code: invite.code, ip: "2001:db8:1:3::1", now })).ok).toBe(true);
+    expect(rateLimitRepository.tryConsume.mock.calls[0][0]).toMatch(/^invite-preview:/);
+  });
+
   it("não procura o convite quando o limite foi atingido", async () => {
     const { invite, inviteRepository, rateLimitRepository, useCase } = setup();
     rateLimitRepository.tryConsume.mockResolvedValueOnce(false);

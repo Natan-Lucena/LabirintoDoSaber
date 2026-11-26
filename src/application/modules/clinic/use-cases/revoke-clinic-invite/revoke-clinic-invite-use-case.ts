@@ -24,10 +24,8 @@ export class RevokeClinicInviteUseCase {
       return failure("INVITE_NOT_FOUND" as const);
     }
 
-    // Revogar de novo não muda nada.
-    if (!invite.revokedAt) {
-      await this.inviteRepository.save(invite.revoke(new Date()));
-    }
+    // Atômico e condicional: revogar de novo não muda a data da revogação.
+    await this.inviteRepository.revoke(invite.id, new Date());
 
     return success(undefined);
   }

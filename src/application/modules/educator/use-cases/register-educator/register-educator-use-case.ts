@@ -6,6 +6,8 @@ import { normalizeInviteCode } from "../../../../../domain/entities/clinic-invit
 import { ClinicMember } from "../../../../../domain/entities/clinic-member";
 import { ClinicInviteRepository } from "../../../../../domain/repositories/clinic-invite-repository";
 import { ClinicMemberRepository } from "../../../../../domain/repositories/clinic-member-repository";
+import { RateLimitRepository } from "../../../../../domain/repositories/rate-limit-repository";
+import { consumeIpQuota } from "../../../clinic/use-cases/ip-rate-limit";
 
 const SALT_ROUNDS = 10;
 
@@ -14,16 +16,29 @@ interface RegisterEducatorUseCaseRequest {
   email: string;
   password: string;
   inviteCode?: string;
+  // IP do cliente: conta na cota de resgate de convites quando vem inviteCode.
+  ip: string;
 }
 
 export class RegisterEducatorUseCase {
   constructor(
     private educatorRepository: EducatorRepository,
     private inviteRepository: ClinicInviteRepository,
-    private memberRepository: ClinicMemberRepository
+    private memberRepository: ClinicMemberRepository,
+    private rateLimitRepository: RateLimitRepository
   ) {}
 
   async execute(props: RegisterEducatorUseCaseRequest) {
+    const now = new Date();
+
+    // Contra tentativa e erro de códigos: cota por IP, dividida com o aceite.
+    if (
+      props.inviteCode !== undefined &&
+      !(await consumeIpQuota(this.rateLimitRepository, "invite-redeem", props.ip, now))
+    ) {
+      return failure("TOO_MANY_REQUESTS");
+    }
+
     const userAlreadyExists = await this.educatorRepository.getByEmail(
       props.email
     );
@@ -33,7 +48,6 @@ export class RegisterEducatorUseCase {
     }
 
     // EQ-06: o convite é validado antes de criar a conta; inválido não cria nada.
-    const now = new Date();
     let invite = null;
     if (props.inviteCode !== undefined) {
       const code = normalizeInviteCode(props.inviteCode);
@@ -61,14 +75,22 @@ export class RegisterEducatorUseCase {
         return failure("INVITE_INVALID");
       }
 
-      await this.memberRepository.create(
-        ClinicMember.create({
-          clinicId: invite.clinicId,
-          educatorId: educator.id,
-          role: invite.role,
-          now,
-        })
-      );
+      try {
+        await this.memberRepository.create(
+          ClinicMember.create({
+            clinicId: invite.clinicId,
+            educatorId: educator.id,
+            role: invite.role,
+            now,
+          })
+        );
+      } catch (error) {
+        // Falha do banco depois do consumo: o convite volta a valer e a conta
+        // é desfeita, para o cadastro poder ser repetido.
+        await this.inviteRepository.release(invite.id, educator.id);
+        await this.educatorRepository.delete(educator.id);
+        throw error;
+      }
     }
 
     const res = ({

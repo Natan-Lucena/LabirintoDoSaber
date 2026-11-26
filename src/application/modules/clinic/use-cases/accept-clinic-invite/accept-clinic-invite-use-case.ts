@@ -8,11 +8,14 @@ import {
 } from "../../../../../domain/repositories/clinic-member-repository";
 import { ClinicInviteRepository } from "../../../../../domain/repositories/clinic-invite-repository";
 import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
+import { RateLimitRepository } from "../../../../../domain/repositories/rate-limit-repository";
 import { loadClinicView } from "../clinic-view";
+import { consumeIpQuota } from "../ip-rate-limit";
 
 export interface AcceptClinicInviteUseCaseRequest {
   educatorId: Uuid;
   code: string;
+  ip: string;
 }
 
 export class AcceptClinicInviteUseCase {
@@ -20,17 +23,25 @@ export class AcceptClinicInviteUseCase {
     private clinicRepository: ClinicRepository,
     private memberRepository: ClinicMemberRepository,
     private inviteRepository: ClinicInviteRepository,
-    private educatorRepository: EducatorRepository
+    private educatorRepository: EducatorRepository,
+    private rateLimitRepository: RateLimitRepository
   ) {}
 
   async execute(request: AcceptClinicInviteUseCaseRequest) {
+    const now = new Date();
+
+    // Contra tentativa e erro de códigos: cota por IP, dividida com o cadastro
+    // com convite.
+    if (!(await consumeIpQuota(this.rateLimitRepository, "invite-redeem", request.ip, now))) {
+      return failure("TOO_MANY_REQUESTS" as const);
+    }
+
     // EQ-01: quem já está numa clínica não aceita outra.
     if (await this.memberRepository.findByEducatorId(request.educatorId)) {
       return failure("ALREADY_IN_CLINIC" as const);
     }
 
     // EQ-06: vencido, usado, revogado ou inexistente são o mesmo erro.
-    const now = new Date();
     const code = normalizeInviteCode(request.code);
     const invite = code ? await this.inviteRepository.findByCode(code) : null;
     if (!invite || !invite.isActive(now)) return failure("INVITE_INVALID" as const);

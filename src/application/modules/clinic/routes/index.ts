@@ -35,6 +35,7 @@ const educatorRepository = makeEducatorRepository({ isMock: false });
 const clinicRepository = makeClinicRepository();
 const memberRepository = makeClinicMemberRepository();
 const inviteRepository = makeClinicInviteRepository();
+const rateLimitRepository = makeRateLimitRepository();
 
 const createClinicUseCase = new CreateClinicUseCase(
   clinicRepository,
@@ -61,21 +62,25 @@ const revokeClinicInviteUseCase = new RevokeClinicInviteUseCase(memberRepository
 const previewClinicInviteUseCase = new PreviewClinicInviteUseCase(
   inviteRepository,
   clinicRepository,
-  makeRateLimitRepository()
+  rateLimitRepository
 );
 const acceptClinicInviteUseCase = new AcceptClinicInviteUseCase(
   clinicRepository,
   memberRepository,
   inviteRepository,
-  educatorRepository
+  educatorRepository,
+  rateLimitRepository
 );
 const updateClinicMemberRoleUseCase = new UpdateClinicMemberRoleUseCase(
   clinicRepository,
   memberRepository,
+  inviteRepository,
   educatorRepository
 );
 const removeClinicMemberUseCase = new RemoveClinicMemberUseCase(
+  clinicRepository,
   memberRepository,
+  inviteRepository,
   makeClinicDepartureService()
 );
 
