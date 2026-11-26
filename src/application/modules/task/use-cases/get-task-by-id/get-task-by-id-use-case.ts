@@ -1,32 +1,16 @@
-import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
+import { loadTask } from "../task-rules";
 
 interface GetTaskByIdUseCaseRequest {
-    taskId: Uuid;
+  taskId: string;
 }
 
+// Leitura aberta a todo educador: a biblioteca é de todos, e cadernos e sessões
+// leem as tarefas que usam.
 export class GetTaskByIdUseCase {
-    constructor(private taskRepository: TaskRepository) {}
+  constructor(private taskRepository: TaskRepository) {}
 
-    async execute(params: GetTaskByIdUseCaseRequest) {
-        try {
-            if (!params.taskId) {
-                return failure("TASK_ID_REQUIRED");
-            }
-
-            const idAsString = String(params.taskId);
-            if (!Uuid.isValid(idAsString)) {
-                return failure("INVALID_TASK_ID");
-            }
-
-            const task = await this.taskRepository.getById(params.taskId);
-            if (!task) {
-                return failure("TASK_NOT_FOUND");
-            }
-
-            return success(task);
-        } catch {
-            return failure("GET_TASK_FAILED");
-        }
-    }
+  async execute(params: GetTaskByIdUseCaseRequest) {
+    return loadTask(this.taskRepository, params.taskId);
+  }
 }

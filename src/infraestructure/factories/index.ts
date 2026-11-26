@@ -44,6 +44,8 @@ import { ReportRepository } from "../../domain/repositories/report-repository";
 import { ReportRepositoryImpl } from "../repositories/prisma/report-repository-impl";
 import { NotificationRepository } from "../../domain/repositories/notification-repository";
 import { NotificationRepositoryImpl } from "../repositories/prisma/notification-repository-impl";
+import { TaskSkillRepository } from "../../domain/repositories/task-skill-repository";
+import { TaskSkillRepositoryImpl } from "../repositories/prisma/task-skill-repository-impl";
 
 const prismaClient = new PrismaClient();
 
@@ -165,4 +167,8 @@ export const makeReportRepository = (): ReportRepository => {
 
 export const makeNotificationRepository = (): NotificationRepository => {
   return new NotificationRepositoryImpl(prismaClient);
+};
+
+export const makeTaskSkillRepository = (): TaskSkillRepository => {
+  return new TaskSkillRepositoryImpl(prismaClient);
 };

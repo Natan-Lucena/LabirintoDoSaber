@@ -1,15 +1,12 @@
 import { Uuid } from "@wave-telecom/framework/core";
-import { Task } from "../../../domain/entities/task";
-import {
-  SearchTaskProps,
-  TaskRepository,
-} from "../../../domain/repositories/task-repository";
+import { Task, TaskSource } from "../../../domain/entities/task";
+import { TaskRepository } from "../../../domain/repositories/task-repository";
 
 export class MockTaskRepository implements TaskRepository {
   private data: Task[] = [];
 
   async save(task: Task): Promise<void> {
-    const index = this.data.findIndex((t) => t.id === task.id);
+    const index = this.data.findIndex((t) => t.id.value === task.id.value);
     if (index >= 0) {
       this.data[index] = task;
     } else {
@@ -24,10 +21,7 @@ export class MockTaskRepository implements TaskRepository {
   }
 
   async getById(id: Uuid): Promise<Task | null> {
-    const task = this.data.find((t) => t.id === id);
-    if (!task) return null;
-
-    return task;
+    return this.data.find((t) => t.id.value === id.value) ?? null;
   }
 
   async getByIds(ids: Uuid[]): Promise<Task[]> {
@@ -35,27 +29,15 @@ export class MockTaskRepository implements TaskRepository {
     return this.data.filter((t) => idSet.has(t.id.value));
   }
 
-  async search(params: SearchTaskProps): Promise<Task[]> {
-    const { id, category, type, promptContains } = params;
+  async listByEducator(educatorId: Uuid): Promise<Task[]> {
+    return this.data.filter((t) => t.educatorId?.value === educatorId.value);
+  }
 
-    return this.data.filter((task) => {
-      if (id && task.id !== id) return false;
-
-      if (category && task.category !== category) return false;
-
-      if (type && task.type !== type) return false;
-
-      if (promptContains) {
-        const normalizedPrompt = task.prompt.toLowerCase();
-        const normalizedSearch = promptContains.toLowerCase();
-        if (!normalizedPrompt.includes(normalizedSearch)) return false;
-      }
-
-      return true;
-    });
+  async listLibrary(): Promise<Task[]> {
+    return this.data.filter((t) => t.source === TaskSource.Library);
   }
 
   async delete(id: Uuid): Promise<void> {
-    this.data = this.data.filter((t) => t.id !== id);
+    this.data = this.data.filter((t) => t.id.value !== id.value);
   }
 }

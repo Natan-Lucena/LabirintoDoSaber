@@ -4,6 +4,7 @@ import {
   makeEducatorRepository,
   makeTaskGroupRepository,
   makeTaskNotebookRepository,
+  makeTaskRepository,
 } from "../../../../infraestructure/factories";
 import { CreateTaskGroupUseCase } from "../use-cases/create-task-group/create-task-group-use-case";
 import { CreateTaskGroupController } from "../use-cases/create-task-group/create-task-group-controller";
@@ -21,15 +22,20 @@ const taskGroupRouter = Router();
 const educatorRepository = makeEducatorRepository({ isMock: false });
 const taskGroupRepository = makeTaskGroupRepository();
 const taskNotebookRepository = makeTaskNotebookRepository({ isMock: false });
+const taskRepository = makeTaskRepository({ isMock: false });
 
 const createTaskGroupUseCase = new CreateTaskGroupUseCase(
   taskGroupRepository,
-  educatorRepository
+  educatorRepository,
+  taskRepository
 );
 
 const listByEducatorUseCase = new ListByEducatorUseCase(taskGroupRepository);
 
-const updateTaskGroupUseCase = new UpdateTaskGroupUseCase(taskGroupRepository);
+const updateTaskGroupUseCase = new UpdateTaskGroupUseCase(
+  taskGroupRepository,
+  taskRepository
+);
 
 const deleteTaskGroupUseCase = new DeleteTaskGroupUseCase(taskGroupRepository);
 

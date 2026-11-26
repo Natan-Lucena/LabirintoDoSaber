@@ -43,6 +43,11 @@ export class AnswerTaskNotebookSessionUseCase {
       return failure("TASK_NOT_FOUND");
     }
 
+    // AT-10: imprimível não é jogado na sessão.
+    if (task.isPrintable) {
+      return failure("PRINTABLE_NOT_PLAYABLE");
+    }
+
     if (session.taskNotebookId) {
       const notebook = await this.notebookRepository.getById(
         session.taskNotebookId

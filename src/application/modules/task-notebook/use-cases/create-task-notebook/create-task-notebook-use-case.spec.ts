@@ -6,7 +6,12 @@ import {
   TaskCategory,
   TaskType,
 } from "../../../../../domain/entities/task";
+import { Educator } from "../../../../../domain/entities/educator";
 import { CreateTaskNotebookUseCase } from "./create-task-notebook-use-case";
+import {
+  makeLibraryTask,
+  makePrintableTask,
+} from "../../../task/use-cases/test-fixtures";
 
 const mockEducatorRepository = { getByEmail: vi.fn() };
 // getById fica disponível (contrato legado), mas o use case sob teste deve
@@ -105,6 +110,42 @@ describe("CreateTaskNotebookUseCase", () => {
 
     expect(result).toEqual(failure("TASK_NOTEBOOK_CREATION_FAILED"));
     spy.mockRestore();
+  });
+
+  it("BE-AT-05: imprimível no caderno → PRINTABLE_NOT_PLAYABLE sem salvar", async () => {
+    const printable = makePrintableTask();
+    mockEducatorRepository.getByEmail.mockResolvedValue(mockEducator);
+    stubTaskCatalog({ [mockTask.id.value]: mockTask, [printable.id.value]: printable });
+
+    const result = await useCase.execute({
+      educatorEmail: "maria@example.com",
+      tasks: [mockTask.id.value, printable.id.value],
+      category: TaskNotebookCategory.Reading,
+      description: "Caderno com imprimível",
+    });
+
+    expect(result).toEqual(failure("PRINTABLE_NOT_PLAYABLE"));
+    expect(mockTaskNotebookRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("AT-10: aceita tarefa da biblioteca e de tipo novo", async () => {
+    const library = makeLibraryTask();
+    mockEducatorRepository.getByEmail.mockResolvedValue(
+      Educator.create({ name: "Maria", email: "maria@example.com", password: "hash" })
+    );
+    stubTaskCatalog({ [library.id.value]: library });
+    mockTaskNotebookRepository.save.mockImplementation(async (nb) => nb);
+
+    const result = await useCase.execute({
+      educatorEmail: "maria@example.com",
+      tasks: [library.id.value],
+      category: TaskNotebookCategory.Writing,
+      description: "Caderno com jogo da biblioteca",
+    });
+
+    expect(result.ok).toBe(true);
+    const saved = mockTaskNotebookRepository.save.mock.calls[0][0];
+    expect(saved.tasks.map((task: Task) => task.id.value)).toEqual([library.id.value]);
   });
 
   it("should create and save a TaskNotebook successfully", async () => {

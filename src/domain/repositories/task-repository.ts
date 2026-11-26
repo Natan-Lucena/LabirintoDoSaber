@@ -1,12 +1,5 @@
 import { Uuid } from "@wave-telecom/framework/core";
-import { Task, TaskCategory, TaskType } from "../entities/task";
-
-export interface SearchTaskProps {
-  id?: Uuid;
-  category?: TaskCategory;
-  type?: TaskType;
-  promptContains?: string;
-}
+import { Task } from "../entities/task";
 
 export interface TaskRepository {
   save(task: Task): Promise<void>;
@@ -15,6 +8,10 @@ export interface TaskRepository {
   saveMany(tasks: Task[]): Promise<void>;
   getById(id: Uuid): Promise<Task | null>;
   getByIds(ids: Uuid[]): Promise<Task[]>;
-  search(params: SearchTaskProps): Promise<Task[]>;
+  // Tarefas EDUCATOR do educador. As antigas, sem dono gravado, contam como
+  // dele quando estão num caderno ou grupo dele.
+  listByEducator(educatorId: Uuid): Promise<Task[]>;
+  // Biblioteca (source LIBRARY), de todos os educadores.
+  listLibrary(): Promise<Task[]>;
   delete(id: Uuid): Promise<void>;
 }

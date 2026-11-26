@@ -1,5 +1,5 @@
-import z from 'zod';
-import { TaskCategory, TaskType } from '../../../../domain/entities/task';
+import z from "zod";
+import { TaskCategory, TaskType } from "../../../../domain/entities/task";
 
 export const listTasksSchema = z.object({
   id: z.string().uuid().optional(),

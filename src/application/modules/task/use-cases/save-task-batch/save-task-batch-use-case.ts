@@ -51,6 +51,7 @@ export class SaveTaskBatchUseCase {
     const tasks: Task[] = [];
     for (const input of request.tasks) {
       const taskResult = Task.create({
+        educatorId: educator.id,
         category: input.category,
         type: input.type,
         prompt: input.prompt,

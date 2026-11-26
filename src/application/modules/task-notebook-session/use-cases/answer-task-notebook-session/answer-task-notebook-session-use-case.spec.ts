@@ -10,6 +10,7 @@ import {
 } from "../../../../../domain/entities/task-notebook-session";
 import { TaskGroupRepository } from "../../../../../domain/repositories/task-group-repository";
 import { AnswerTaskNotebookSessionUseCase } from "./answer-task-notebook-session-use-case";
+import { makePrintableTask } from "../../../task/use-cases/test-fixtures";
 
 const ID = {
   session: Uuid.random().value,
@@ -138,6 +139,24 @@ describe("AnswerTaskNotebookSessionUseCase", () => {
     });
 
     expect(result).toEqual(failure("TASK_NOT_FOUND"));
+  });
+
+  it("AT-10: imprimível não é respondido na sessão → PRINTABLE_NOT_PLAYABLE", async () => {
+    const session = makeSession(ID.session, ID.notebook);
+    const printable = makePrintableTask();
+
+    (sessionRepo.getById as any).mockResolvedValue(session);
+    (taskRepo.getById as any).mockResolvedValue(printable);
+
+    const result = await useCase.execute({
+      sessionId: ID.session,
+      taskId: printable.id.value,
+      selectedAlternativeId: ID.altCorrect,
+      timeToAnswer: 10,
+    });
+
+    expect(result).toEqual(failure("PRINTABLE_NOT_PLAYABLE"));
+    expect(sessionRepo.save).not.toHaveBeenCalled();
   });
 
   it("should fail if task is already answered", async () => {

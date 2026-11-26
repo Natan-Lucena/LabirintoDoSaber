@@ -1,0 +1,305 @@
+[
+  {
+    "key": "word-builder-bola",
+    "category": "writing",
+    "type": "wordBuilder",
+    "prompt": "Monte a palavra BOLA arrastando as letras na ordem certa.",
+    "skills": ["FORMACAO_PALAVRAS", "CONSCIENCIA_FONOLOGICA"],
+    "theme": "Brinquedos",
+    "tone": "mint",
+    "content": { "kind": "wordBuilder", "word": "BOLA", "distractors": ["P", "E"] }
+  },
+  {
+    "key": "word-builder-gato",
+    "category": "writing",
+    "type": "wordBuilder",
+    "prompt": "Forme o nome do animal que faz miau.",
+    "skills": ["FORMACAO_PALAVRAS", "VOCABULARIO"],
+    "theme": "Animais",
+    "tone": "peach",
+    "content": { "kind": "wordBuilder", "word": "GATO", "distractors": ["R", "U", "S"] }
+  },
+  {
+    "key": "word-builder-pao",
+    "category": "writing",
+    "type": "wordBuilder",
+    "prompt": "Forme a palavra que nomeia o alimento do café da manhã. Atenção ao til.",
+    "skills": ["FORMACAO_PALAVRAS", "ESCRITA_ORTOGRAFIA"],
+    "theme": "Alimentos",
+    "tone": "yellow",
+    "content": { "kind": "wordBuilder", "word": "PÃO", "distractors": ["A", "M"] }
+  },
+  {
+    "key": "word-builder-escola",
+    "category": "writing",
+    "type": "wordBuilder",
+    "prompt": "Monte a palavra ESCOLA, sílaba por sílaba: ES-CO-LA.",
+    "skills": ["FORMACAO_PALAVRAS", "DECODIFICACAO"],
+    "theme": "Escola",
+    "tone": "lavender",
+    "content": { "kind": "wordBuilder", "word": "ESCOLA", "distractors": ["I", "U", "T"] }
+  },
+  {
+    "key": "color-match-primarias",
+    "category": "vocabulary",
+    "type": "colorMatch",
+    "prompt": "Ligue cada palavra à sua cor.",
+    "skills": ["CORES_ASSOCIACAO", "DECODIFICACAO"],
+    "theme": "Cores",
+    "tone": "yellow",
+    "content": {
+      "kind": "colorMatch",
+      "pairs": [
+        { "id": "azul", "word": "Azul", "colorHex": "#1E63D6" },
+        { "id": "vermelho", "word": "Vermelho", "colorHex": "#D62828" },
+        { "id": "amarelo", "word": "Amarelo", "colorHex": "#F4C20D" }
+      ]
+    }
+  },
+  {
+    "key": "color-match-frutas",
+    "category": "vocabulary",
+    "type": "colorMatch",
+    "prompt": "Leia o nome da fruta e ligue à cor que ela costuma ter.",
+    "skills": ["CORES_ASSOCIACAO", "VOCABULARIO"],
+    "theme": "Frutas",
+    "tone": "peach",
+    "content": {
+      "kind": "colorMatch",
+      "pairs": [
+        { "id": "banana", "word": "Banana", "colorHex": "#F4D03F" },
+        { "id": "morango", "word": "Morango", "colorHex": "#C0392B" },
+        { "id": "uva", "word": "Uva", "colorHex": "#6C3483" },
+        { "id": "limao", "word": "Limão", "colorHex": "#27AE60" }
+      ]
+    }
+  },
+  {
+    "key": "color-match-natureza",
+    "category": "reading",
+    "type": "colorMatch",
+    "prompt": "Associe cada elemento da natureza à sua cor.",
+    "skills": ["CORES_ASSOCIACAO", "ATENCAO_VISUAL"],
+    "theme": "Natureza",
+    "tone": "mint",
+    "content": {
+      "kind": "colorMatch",
+      "pairs": [
+        { "id": "ceu", "word": "Céu", "colorHex": "#5DADE2" },
+        { "id": "folha", "word": "Folha", "colorHex": "#229954" },
+        { "id": "sol", "word": "Sol", "colorHex": "#F5B041" },
+        { "id": "terra", "word": "Terra", "colorHex": "#8B5A2B" },
+        { "id": "nuvem", "word": "Nuvem", "colorHex": "#F2F3F4" }
+      ]
+    }
+  },
+  {
+    "key": "memory-game-vogais",
+    "category": "reading",
+    "type": "memoryGame",
+    "prompt": "Encontre os pares das vogais.",
+    "skills": ["MEMORIA_TRABALHO", "RECONHECIMENTO_LETRAS"],
+    "theme": "Vogais",
+    "tone": "lavender",
+    "content": {
+      "kind": "memoryGame",
+      "cards": [
+        { "id": "a", "label": "A" },
+        { "id": "e", "label": "E" },
+        { "id": "i", "label": "I" },
+        { "id": "o", "label": "O" },
+        { "id": "u", "label": "U" }
+      ]
+    }
+  },
+  {
+    "key": "memory-game-animais",
+    "category": "vocabulary",
+    "type": "memoryGame",
+    "prompt": "Vire as cartas e encontre os nomes de animais iguais.",
+    "skills": ["MEMORIA_TRABALHO", "VOCABULARIO"],
+    "theme": "Animais",
+    "tone": "mint",
+    "content": {
+      "kind": "memoryGame",
+      "cards": [
+        { "id": "pato", "label": "PATO" },
+        { "id": "sapo", "label": "SAPO" },
+        { "id": "vaca", "label": "VACA" },
+        { "id": "leao", "label": "LEÃO" },
+        { "id": "peixe", "label": "PEIXE" },
+        { "id": "coelho", "label": "COELHO" }
+      ]
+    }
+  },
+  {
+    "key": "memory-game-silabas",
+    "category": "reading",
+    "type": "memoryGame",
+    "prompt": "Encontre os pares de sílabas iguais e leia cada uma em voz alta.",
+    "skills": ["MEMORIA_TRABALHO", "CONSCIENCIA_FONOLOGICA"],
+    "theme": "Sílabas",
+    "tone": "yellow",
+    "content": {
+      "kind": "memoryGame",
+      "cards": [
+        { "id": "ba", "label": "BA" },
+        { "id": "ca", "label": "CA" },
+        { "id": "ma", "label": "MA" },
+        { "id": "pa", "label": "PA" }
+      ]
+    }
+  },
+  {
+    "key": "multiple-choice-rima",
+    "category": "reading",
+    "type": "multipleChoice",
+    "prompt": "Qual palavra rima com JANELA?",
+    "skills": ["CONSCIENCIA_FONOLOGICA"],
+    "theme": "Rimas",
+    "tone": "peach",
+    "alternatives": [
+      { "text": "PANELA", "isCorrect": true },
+      { "text": "JARDIM", "isCorrect": false },
+      { "text": "JANTAR", "isCorrect": false }
+    ]
+  },
+  {
+    "key": "multiple-choice-texto-passeio",
+    "category": "comprehension",
+    "type": "multipleChoice",
+    "prompt": "Leia: \"Lia levou o guarda-chuva porque o céu estava cinza.\" Por que Lia levou o guarda-chuva?",
+    "skills": ["COMPREENSAO_LEITORA"],
+    "theme": "Clima",
+    "tone": "lavender",
+    "alternatives": [
+      { "text": "Porque parecia que ia chover", "isCorrect": true },
+      { "text": "Porque estava muito sol", "isCorrect": false },
+      { "text": "Porque ia à praia", "isCorrect": false }
+    ]
+  },
+  {
+    "key": "multiple-choice-silabas",
+    "category": "reading",
+    "type": "multipleChoice",
+    "prompt": "Quantas sílabas tem a palavra BORBOLETA?",
+    "skills": ["CONSCIENCIA_FONOLOGICA", "DECODIFICACAO"],
+    "theme": "Sílabas",
+    "tone": "mint",
+    "alternatives": [
+      { "text": "Quatro", "isCorrect": true },
+      { "text": "Três", "isCorrect": false },
+      { "text": "Cinco", "isCorrect": false }
+    ]
+  },
+  {
+    "key": "printable-sequencia-numeros",
+    "category": "comprehension",
+    "type": "printable",
+    "prompt": "Complete a sequência no papel.",
+    "skills": ["SEQUENCIA_LOGICA", "NOCAO_NUMERICA"],
+    "theme": "Números",
+    "tone": "yellow",
+    "content": {
+      "kind": "printable",
+      "title": "Complete a sequência",
+      "instructions": "Observe cada sequência e escreva o número que falta no espaço.",
+      "layout": "SEQUENCE",
+      "items": [
+        { "id": "1", "text": "1, 2, 3, __, 5", "answerLines": 1 },
+        { "id": "2", "text": "2, 4, 6, __, 10", "answerLines": 1 },
+        { "id": "3", "text": "10, 9, 8, __, 6", "answerLines": 1 },
+        { "id": "4", "text": "5, 10, __, 20", "answerLines": 1 }
+      ]
+    }
+  },
+  {
+    "key": "printable-tracado-vogais",
+    "category": "writing",
+    "type": "printable",
+    "prompt": "Cubra as vogais pontilhadas e depois escreva sozinho.",
+    "skills": ["COORDENACAO_GRAFOMOTORA", "RECONHECIMENTO_LETRAS"],
+    "theme": "Vogais",
+    "tone": "mint",
+    "content": {
+      "kind": "printable",
+      "title": "Traçado das vogais",
+      "instructions": "Passe o lápis por cima de cada vogal e repita a letra nas linhas abaixo.",
+      "layout": "GRID",
+      "items": [
+        { "id": "a", "text": "A a", "answerLines": 2 },
+        { "id": "e", "text": "E e", "answerLines": 2 },
+        { "id": "i", "text": "I i", "answerLines": 2 },
+        { "id": "o", "text": "O o", "answerLines": 2 },
+        { "id": "u", "text": "U u", "answerLines": 2 }
+      ]
+    }
+  },
+  {
+    "key": "printable-complete-palavras",
+    "category": "writing",
+    "type": "printable",
+    "prompt": "Complete as palavras com a letra que falta.",
+    "skills": ["ESCRITA_ORTOGRAFIA", "FORMACAO_PALAVRAS"],
+    "theme": "Casa",
+    "tone": "peach",
+    "content": {
+      "kind": "printable",
+      "title": "Que letra falta?",
+      "instructions": "Leia cada palavra e escreva a letra que falta no espaço.",
+      "layout": "LIST",
+      "items": [
+        { "id": "1", "text": "CA__A (lugar onde moramos)", "answerLines": 1 },
+        { "id": "2", "text": "ME__A (móvel da cozinha)", "answerLines": 1 },
+        { "id": "3", "text": "CA__A (onde dormimos)", "answerLines": 1 },
+        { "id": "4", "text": "JA__ELA (abrimos para ventilar)", "answerLines": 1 }
+      ]
+    }
+  },
+  {
+    "key": "printable-leitura-bilhete",
+    "category": "comprehension",
+    "type": "printable",
+    "prompt": "Leia o bilhete e responda às perguntas.",
+    "skills": ["COMPREENSAO_LEITORA"],
+    "theme": "Bilhete",
+    "tone": "lavender",
+    "content": {
+      "kind": "printable",
+      "title": "O bilhete da vovó",
+      "instructions": "Leia o texto com calma e responda às perguntas nas linhas.",
+      "layout": "LIST",
+      "items": [
+        {
+          "id": "texto",
+          "text": "Querida neta, amanhã vou fazer bolo de cenoura. Venha depois da escola e traga seu caderno de desenhos. Beijos, vovó.",
+          "answerLines": 0
+        },
+        { "id": "p1", "text": "Que bolo a vovó vai fazer?", "answerLines": 2 },
+        { "id": "p2", "text": "Quando a neta deve ir?", "answerLines": 2 },
+        { "id": "p3", "text": "O que a neta deve levar?", "answerLines": 2 }
+      ]
+    }
+  },
+  {
+    "key": "printable-caca-diferencas",
+    "category": "reading",
+    "type": "printable",
+    "prompt": "Encontre a palavra diferente em cada linha.",
+    "skills": ["ATENCAO_VISUAL", "DECODIFICACAO"],
+    "theme": "Atenção",
+    "tone": "yellow",
+    "content": {
+      "kind": "printable",
+      "title": "Qual é a diferente?",
+      "instructions": "Em cada linha, circule a palavra que não é igual às outras.",
+      "layout": "GRID",
+      "items": [
+        { "id": "1", "text": "SOL  SOL  SAL  SOL" },
+        { "id": "2", "text": "MALA  MALA  MALA  MOLA" },
+        { "id": "3", "text": "PATO  PATA  PATO  PATO" },
+        { "id": "4", "text": "LUA  LUA  LUA  RUA" }
+      ]
+    }
+  }
+]

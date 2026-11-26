@@ -46,7 +46,7 @@ describe("Task Entity", () => {
       alternatives: [{ text: "Somente uma", isCorrect: true }],
     });
 
-    expect(result).toEqual(failure(undefined));
+    expect(result).toEqual(failure("INVALID_TASK_DATA"));
   });
 
   it("should fail if no correct alternative", () => {
@@ -60,7 +60,7 @@ describe("Task Entity", () => {
       ],
     });
 
-    expect(result).toEqual(failure(undefined));
+    expect(result).toEqual(failure("INVALID_TASK_DATA"));
   });
 
   it("should fail if more than one correct alternative", () => {
@@ -74,7 +74,7 @@ describe("Task Entity", () => {
       ],
     });
 
-    expect(result).toEqual(failure(undefined));
+    expect(result).toEqual(failure("INVALID_TASK_DATA"));
   });
 
   it("should fail if MultipleChoiceWithMedia has no media", () => {
@@ -88,7 +88,7 @@ describe("Task Entity", () => {
       ],
     });
 
-    expect(result).toEqual(failure(undefined));
+    expect(result).toEqual(failure("INVALID_TASK_DATA"));
   });
 
   it("should fail if MultipleChoice has media", () => {
@@ -103,6 +103,6 @@ describe("Task Entity", () => {
       imageFile: "image.png",
     });
 
-    expect(result).toEqual(failure(undefined));
+    expect(result).toEqual(failure("INVALID_TASK_DATA"));
   });
 });

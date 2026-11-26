@@ -35,6 +35,8 @@ export class AnswerTaskNotebookSessionController extends BaseController {
           return this.notFound(res, "NOTEBOOK_NOT_FOUND");
         case "TASK_NOT_IN_NOTEBOOK":
           return this.clientError(res, "TASK_NOT_IN_NOTEBOOK");
+        case "PRINTABLE_NOT_PLAYABLE":
+          return this.clientError(res, "PRINTABLE_NOT_PLAYABLE");
         case "TASK_ALREADY_ANSWERED":
           return this.clientError(res, "TASK_ALREADY_ANSWERED");
         default:

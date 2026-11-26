@@ -45,6 +45,11 @@ export class CreateTaskNotebookUseCase {
     if (!tasks[0]) {
       return failure("TASKS_DOES_NOT_EXISTS");
     }
+
+    // AT-10: imprimível não entra em caderno.
+    if (existingTasks.some((task) => task.isPrintable)) {
+      return failure("PRINTABLE_NOT_PLAYABLE");
+    }
     const taskNotebookResult = TaskNotebook.create({
       educator: educatorExists,
       description: props.description,

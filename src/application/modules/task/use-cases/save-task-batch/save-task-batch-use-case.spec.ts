@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Uuid } from "@wave-telecom/framework/core";
 import { SaveTaskBatchUseCase } from "./save-task-batch-use-case";
+import { saveTaskBatchSchema } from "../../schemas/save-task-batch-schema";
 import { TaskCategory, TaskType } from "../../../../../domain/entities/task";
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
 import { TaskGroupRepository } from "../../../../../domain/repositories/task-group-repository";
@@ -131,11 +132,29 @@ describe("SaveTaskBatchUseCase", () => {
     expect(taskRepository.saveMany).toHaveBeenCalledTimes(1);
     const savedTasks = (taskRepository.saveMany as any).mock.calls[0][0];
     expect(savedTasks).toHaveLength(2);
+    for (const task of savedTasks) {
+      expect(task.educatorId.value).toBe(educator.id.value);
+    }
 
     expect(taskGroupRepository.save).toHaveBeenCalledTimes(1);
     const savedGroup = (taskGroupRepository.save as any).mock.calls[0][0];
     expect(savedGroup.tasksIds).toHaveLength(2);
     expect(savedGroup.tasksIds).toEqual(result.value.taskIds);
     expect(result.value.taskGroup.name).toBe(baseRequest.name);
+  });
+});
+
+describe("saveTaskBatchSchema", () => {
+  it("aceita só múltipla escolha (o lote vira grupo, e imprimível não entra em grupo)", () => {
+    const parse = (type: string) =>
+      saveTaskBatchSchema.safeParse({
+        name: "Grupo",
+        category: TaskCategory.Reading,
+        tasks: [{ ...textTask, type }],
+      }).success;
+
+    expect(parse(TaskType.MultipleChoice)).toBe(true);
+    expect(parse(TaskType.Printable)).toBe(false);
+    expect(parse(TaskType.WordBuilder)).toBe(false);
   });
 });

@@ -5,6 +5,18 @@ import {
 import { Request, Response } from "express";
 import { createTaskSchema } from "../../schemas/create-task-schemas";
 import { CreateTaskUseCase } from "./create-task-use-case";
+import { sendTaskError } from "../task-rules";
+
+// No multipart, alternatives, content e skills chegam como string JSON.
+const parseJsonField = (body: Record<string, unknown>, field: string) => {
+  if (typeof body[field] !== "string") return true;
+  try {
+    body[field] = JSON.parse(body[field] as string);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 export class CreateTaskController extends BaseController {
   constructor(private useCase: CreateTaskUseCase) {
@@ -12,15 +24,27 @@ export class CreateTaskController extends BaseController {
   }
 
   async executeImpl(req: Request, res: Response): Promise<Response> {
-    if (typeof req.body.alternatives === "string") {
-      try {
-        req.body.alternatives = JSON.parse(req.body.alternatives);
-      } catch {
-        return this.clientError(res, "INVALID_ALTERNATIVES_FORMAT");
-      }
+    const user = req.user;
+    if (!user) return this.unauthorized(res);
+
+    const body = { ...(req.body ?? {}) };
+
+    if (!parseJsonField(body, "alternatives")) {
+      return this.clientError(res, "INVALID_ALTERNATIVES_FORMAT");
+    }
+    if (!parseJsonField(body, "content")) {
+      return res.status(400).json({
+        message: "INVALID_CONTENT",
+        errors: [{ field: "content", message: "JSON inválido" }],
+      });
+    }
+    if (!parseJsonField(body, "skills")) {
+      return this.clientError(res, undefined, [
+        { field: "skills", message: "Deve ser um array JSON de códigos" },
+      ]);
     }
 
-    const validation = await createTaskSchema.safeParseAsync(req.body);
+    const validation = await createTaskSchema.safeParseAsync(body);
 
     if (!validation.success) {
       const errors = formatValidationErrors(validation.error);
@@ -30,21 +54,15 @@ export class CreateTaskController extends BaseController {
     const imageFile = req.files && (req.files as any).imageFile?.[0];
     const audioFile = req.files && (req.files as any).audioFile?.[0];
 
-    const payload = validation.data;
-
     const result = await this.useCase.execute({
-      ...payload,
+      ...validation.data,
+      educatorId: user.id,
       imageFile,
       audioFile,
     });
 
-    if (!result.ok) {
-      if (result.error == "INVALID_TASK_DATA") {
-        return this.clientError(res, "INVALID_TASK_DATA");
-      }
-      return this.fail(res, result.error);
-    }
+    if (!result.ok) return sendTaskError(res, result.error);
 
-    return this.created(res);
+    return this.created(res, result.value);
   }
 }

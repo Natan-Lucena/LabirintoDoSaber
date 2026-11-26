@@ -1,6 +1,8 @@
 import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { TaskGroupRepository } from "../../../../../domain/repositories/task-group-repository";
 import { TaskCategory } from "../../../../../domain/entities/task";
+import { TaskRepository } from "../../../../../domain/repositories/task-repository";
+import { hasPrintableTask } from "../task-group-rules";
 
 interface UpdateTaskGroupUseCaseRequest {
   id: string;
@@ -11,7 +13,10 @@ interface UpdateTaskGroupUseCaseRequest {
 }
 
 export class UpdateTaskGroupUseCase {
-  constructor(private taskGroupRepository: TaskGroupRepository) {}
+  constructor(
+    private taskGroupRepository: TaskGroupRepository,
+    private taskRepository: TaskRepository
+  ) {}
 
   async execute(props: UpdateTaskGroupUseCaseRequest) {
     try {
@@ -29,6 +34,10 @@ export class UpdateTaskGroupUseCase {
 
       if (existingTaskGroup.educatorId.value !== props.educatorId.value) {
         return failure("NOT_GROUP_OWNER");
+      }
+
+      if (await hasPrintableTask(this.taskRepository, props.tasksIds)) {
+        return failure("PRINTABLE_NOT_PLAYABLE");
       }
 
       const updatedTaskGroupResult = existingTaskGroup.updateTaskGroup({

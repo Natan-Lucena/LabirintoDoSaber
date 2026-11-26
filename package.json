@@ -10,7 +10,8 @@
     "build": "tsc",
     "postinstall": "prisma generate",
     "start": "node dist/index.js",
-    "seed:scales": "ts-node --transpile-only scripts/seed-scales.ts"
+    "seed:scales": "ts-node --transpile-only scripts/seed-scales.ts",
+    "seed:task-library": "ts-node --transpile-only scripts/seed-task-library.ts"
   },
   "keywords": [],
   "author": "",
