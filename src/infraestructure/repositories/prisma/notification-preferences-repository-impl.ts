@@ -32,9 +32,11 @@ export class NotificationPreferencesRepositoryImpl implements NotificationPrefer
       disabledKinds: preferences.disabledKinds,
       updatedAt: preferences.updatedAt,
     };
+    // Pelo educador (índice único): dois PUTs em paralelo não esbarram no P2002.
+    const { educatorId, ...changes } = data;
     await this.prismaService.notificationPreferences.upsert({
-      where: { id: preferences.id.value },
-      update: { ...data, disabledKinds: { set: data.disabledKinds } },
+      where: { educatorId },
+      update: { ...changes, disabledKinds: { set: changes.disabledKinds } },
       create: { id: preferences.id.value, ...data },
     });
   }

@@ -287,67 +287,88 @@ describe("SendDailyPushUseCase (PU-02 a PU-06)", () => {
     ]);
   });
 
-  it("should delete the tokens with DeviceNotRegistered in the next day's receipts (BE-PU-04)", async () => {
+  it("should not check receipts: that is the watchdog's job, inside the 24 h Expo window", async () => {
+    receipts.store.push({ receiptId: "pending", token: "ExponentPushToken[a-phone]", createdAt: ago(HOUR) });
     notifications.store.push(appointments(educatorA, 1));
-    await useCase.execute(NOW);
-    expect(receipts.store).toHaveLength(2);
-
-    const tomorrow = new Date(NOW.getTime() + DAY);
-    sender.getReceipts.mockImplementation(async (ids: string[]) => {
-      expect(ids.sort()).toEqual([
-        "receipt:ExponentPushToken[a-phone]",
-        "receipt:ExponentPushToken[a-tablet]",
-      ]);
-      return [
-        { receiptId: "receipt:ExponentPushToken[a-phone]", status: "ok", deviceNotRegistered: false },
-        { receiptId: "receipt:ExponentPushToken[a-tablet]", status: "error", deviceNotRegistered: true },
-      ];
-    });
-
-    const result = await useCase.execute(tomorrow);
-
-    expect(sender.getReceipts).toHaveBeenCalledTimes(1);
-    expect(tokens.store.map((t) => t.token).sort()).toEqual([
-      "ExponentPushToken[a-phone]",
-      "ExponentPushToken[b-phone]",
-    ]);
-    expect(receipts.store).toHaveLength(0);
-    expect(result).toEqual({ ok: true, value: expect.objectContaining({ tokensRemoved: 1 }) });
-  });
-
-  it("should keep receipts that are not ready yet and drop the expired ones", async () => {
-    receipts.store.push(
-      { receiptId: "fresh", token: "ExponentPushToken[a-phone]", createdAt: ago(HOUR) },
-      { receiptId: "expired", token: "ExponentPushToken[a-phone]", createdAt: ago(4 * DAY) }
-    );
 
     await useCase.execute(NOW);
 
-    expect(receipts.store.map((r) => r.receiptId)).toEqual(["fresh"]);
-    expect(tokens.store).toHaveLength(3);
+    expect(sender.getReceipts).not.toHaveBeenCalled();
+    expect(receipts.store.map((r) => r.receiptId)).toContain("pending");
   });
 
-  it("should not break when Expo fails (PU-05)", async () => {
-    receipts.store.push({
-      receiptId: "pending",
-      token: "ExponentPushToken[a-phone]",
-      createdAt: ago(HOUR),
-    });
-    sender.getReceipts.mockRejectedValue(new Error("network"));
+  it("should not break when Expo fails, and free the day for a new attempt (PU-05)", async () => {
     sender.send.mockRejectedValue(new Error("network"));
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     notifications.store.push(appointments(educatorA, 1));
 
     const result = await useCase.execute(NOW);
 
-    expect(result.ok).toBe(true);
+    expect(result).toEqual({ ok: true, value: expect.objectContaining({ educators: 0, released: 1 }) });
     expect(sender.send).toHaveBeenCalledTimes(1);
     expect(tokens.store).toHaveLength(3);
-    expect(receipts.store.map((r) => r.receiptId)).toEqual(["pending"]);
+    expect(receipts.store).toHaveLength(0);
+    expect(dispatches.claimed.size).toBe(0);
     // Loga só o código, sem conteúdo.
     for (const call of log.mock.calls) {
       expect(JSON.stringify(call)).not.toContain("ExponentPushToken");
     }
     log.mockRestore();
+
+    // O cron de novo no mesmo dia tenta outra vez, e só uma vez.
+    sender.send.mockImplementation(async (messages: PushMessage[]) =>
+      messages.map((m): PushTicket => ({ status: "ok", receiptId: `receipt:${m.to}` }))
+    );
+    await useCase.execute(new Date(NOW.getTime() + HOUR));
+    await useCase.execute(new Date(NOW.getTime() + 2 * HOUR));
+
+    expect(sentMessages()).toHaveLength(4);
+  });
+
+  it("should free the day only for the educator whose devices all failed on Expo's side", async () => {
+    // A: um aparelho com erro da Expo e o outro morto (ninguém recebeu); B recebeu.
+    sender.send.mockImplementation(async (messages: PushMessage[]) =>
+      messages.map((m): PushTicket => {
+        if (m.to === "ExponentPushToken[a-phone]") return { status: "error", deviceNotRegistered: false };
+        if (m.to === "ExponentPushToken[a-tablet]") return { status: "error", deviceNotRegistered: true };
+        return { status: "ok", receiptId: `receipt:${m.to}` };
+      })
+    );
+    notifications.store.push(appointments(educatorA, 1), review(educatorB));
+
+    const result = await useCase.execute(NOW);
+
+    expect(result).toEqual({ ok: true, value: expect.objectContaining({ educators: 1, released: 1 }) });
+    expect(dispatches.release).toHaveBeenCalledTimes(1);
+    expect(dispatches.release).toHaveBeenCalledWith(educatorA, TODAY);
+    expect([...dispatches.claimed.keys()]).toEqual([`${educatorB.value}:${TODAY}`]);
+  });
+
+  it("should keep the day claimed when at least one device received the push", async () => {
+    sender.send.mockImplementation(async (messages: PushMessage[]) =>
+      messages.map((m): PushTicket =>
+        m.to === "ExponentPushToken[a-phone]"
+          ? { status: "error", deviceNotRegistered: false }
+          : { status: "ok", receiptId: `receipt:${m.to}` }
+      )
+    );
+    notifications.store.push(appointments(educatorA, 1));
+
+    await useCase.execute(NOW);
+
+    expect(dispatches.release).not.toHaveBeenCalled();
+    expect(dispatches.claimed.has(`${educatorA.value}:${TODAY}`)).toBe(true);
+  });
+
+  it("should keep the day claimed when the only failures are dead devices", async () => {
+    sender.send.mockImplementation(async (messages: PushMessage[]) =>
+      messages.map((): PushTicket => ({ status: "error", deviceNotRegistered: true }))
+    );
+    notifications.store.push(appointments(educatorA, 1));
+
+    await useCase.execute(NOW);
+
+    expect(dispatches.release).not.toHaveBeenCalled();
+    expect(tokens.store.map((t) => t.token)).toEqual(["ExponentPushToken[b-phone]"]);
   });
 });

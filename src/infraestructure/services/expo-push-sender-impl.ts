@@ -10,6 +10,8 @@ const RECEIPTS_URL = "https://exp.host/--/api/v2/push/getReceipts";
 // Limites da API da Expo por requisição.
 const SEND_BATCH = 100;
 const RECEIPTS_BATCH = 1000;
+// Sem resposta em 10 s, o lote conta como falha de rede.
+const TIMEOUT_MS = 10_000;
 
 interface ExpoResult {
   status?: string;
@@ -83,7 +85,12 @@ export class ExpoPushSenderImpl implements PushSender {
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
     try {
-      const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+      const response = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
       if (!response.ok) {
         console.error(code, { status: response.status });
         return null;

@@ -12,7 +12,6 @@ import { PushTokenRepository } from "../../../../../domain/repositories/push-tok
 import { buildDailyPush } from "../../../../../domain/services/daily-push";
 import {
   PushMessage,
-  PushReceiptOutcome,
   PushSender,
   PushTicket,
 } from "../../../../../domain/services/push-sender";
@@ -22,13 +21,12 @@ import {
 } from "../../../../../domain/utils/date-only";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-// A Expo guarda os recibos por um dia; o que passar disso não tem mais resposta.
-const RECEIPT_RETENTION_MS = 2 * DAY_MS;
 const DISPATCH_RETENTION_MS = 7 * DAY_MS;
 
 // Push diário (PU-02 a PU-05), depois de gerar as notificações do dia: no
 // máximo um por educador por dia, só com os kinds ligados e sem nome de
-// paciente. Falha da Expo não interrompe o cron.
+// paciente. Falha da Expo não interrompe o cron. Os recibos são conferidos no
+// cron do watchdog (CheckPushReceiptsUseCase), dentro da janela de 24 h da Expo.
 export class SendDailyPushUseCase {
   constructor(
     private notificationRepository: NotificationRepository,
@@ -42,8 +40,7 @@ export class SendDailyPushUseCase {
   async execute(now: Date = new Date()) {
     const today = todayInSaoPaulo(now);
 
-    // Recibos dos envios anteriores primeiro: o token morto não recebe hoje.
-    let tokensRemoved = await this.checkReceipts(now);
+    let tokensRemoved = 0;
     await this.dispatchRepository.deleteCreatedBefore(
       new Date(now.getTime() - DISPATCH_RETENTION_MS)
     );
@@ -53,7 +50,9 @@ export class SendDailyPushUseCase {
       startOfDayInSaoPaulo(today)
     );
     const byEducator = groupBy(notifications, (n) => n.educatorId.value);
-    if (byEducator.size === 0) return success({ educators: 0, messages: 0, tokensRemoved });
+    if (byEducator.size === 0) {
+      return success({ educators: 0, messages: 0, tokensRemoved, released: 0 });
+    }
 
     const educatorIds = [...byEducator.keys()].map((id) => new Uuid(id));
     const preferences = new Map(
@@ -68,6 +67,8 @@ export class SendDailyPushUseCase {
     );
 
     const messages: PushMessage[] = [];
+    // Educador de cada mensagem, para liberar o dia se o envio falhar.
+    const educatorOf: Uuid[] = [];
     let educators = 0;
     for (const educatorId of educatorIds) {
       const devices = tokens.get(educatorId.value);
@@ -85,53 +86,47 @@ export class SendDailyPushUseCase {
       educators++;
       for (const device of devices) {
         messages.push({ to: device.token, title: push.title, body: push.body, data: { ...push.data } });
+        educatorOf.push(educatorId);
       }
     }
-    if (messages.length === 0) return success({ educators, messages: 0, tokensRemoved });
+    if (messages.length === 0) {
+      return success({ educators, messages: 0, tokensRemoved, released: 0 });
+    }
 
     const tickets = await this.send(messages);
 
     const deadTokens: string[] = [];
     const receipts: PendingPushReceipt[] = [];
-    tickets.forEach((ticket, index) => {
-      const token = messages[index].to;
-      if (ticket.status === "ok") receipts.push({ receiptId: ticket.receiptId, token, createdAt: now });
-      else if (ticket.deviceNotRegistered) deadTokens.push(token);
+    const delivered = new Set<string>();
+    const failed = new Map<string, Uuid>();
+    messages.forEach((message, index) => {
+      // Sem ticket (exceção no envio) conta como falha da Expo.
+      const ticket = tickets[index] ?? { status: "error", deviceNotRegistered: false };
+      const educatorId = educatorOf[index];
+      if (ticket.status === "ok") {
+        delivered.add(educatorId.value);
+        receipts.push({ receiptId: ticket.receiptId, token: message.to, createdAt: now });
+      } else if (ticket.deviceNotRegistered) {
+        deadTokens.push(message.to);
+      } else {
+        failed.set(educatorId.value, educatorId);
+      }
     });
     if (deadTokens.length > 0) {
       tokensRemoved += await this.pushTokenRepository.deleteByTokens(deadTokens);
     }
     if (receipts.length > 0) await this.receiptRepository.saveMany(receipts);
 
-    return success({ educators, messages: messages.length, tokensRemoved });
-  }
-
-  // PU-05: recibos com DeviceNotRegistered apagam o token. Os que a Expo ainda
-  // não tem ficam para a próxima execução, até a retenção.
-  private async checkReceipts(now: Date): Promise<number> {
-    await this.receiptRepository.deleteCreatedBefore(new Date(now.getTime() - RECEIPT_RETENTION_MS));
-    const pending = await this.receiptRepository.listAll();
-    if (pending.length === 0) return 0;
-
-    let outcomes: PushReceiptOutcome[];
-    try {
-      outcomes = await this.pushSender.getReceipts(pending.map((r) => r.receiptId));
-    } catch {
-      console.error("PUSH_RECEIPTS_FAILED");
-      return 0;
+    // Nenhum aparelho recebeu por falha da Expo (rede, 5xx): libera o dia para
+    // que uma nova execução do cron tente de novo.
+    let released = 0;
+    for (const [key, educatorId] of failed) {
+      if (delivered.has(key)) continue;
+      await this.dispatchRepository.release(educatorId, today);
+      released++;
     }
 
-    const tokenByReceipt = new Map(pending.map((r) => [r.receiptId, r.token]));
-    const deadTokens = outcomes
-      .filter((outcome) => outcome.deviceNotRegistered)
-      .flatMap((outcome) => tokenByReceipt.get(outcome.receiptId) ?? []);
-
-    const removed = deadTokens.length
-      ? await this.pushTokenRepository.deleteByTokens([...new Set(deadTokens)])
-      : 0;
-    const checked = outcomes.map((outcome) => outcome.receiptId);
-    if (checked.length > 0) await this.receiptRepository.deleteByIds(checked);
-    return removed;
+    return success({ educators: educators - released, messages: messages.length, tokensRemoved, released });
   }
 
   private async send(messages: PushMessage[]): Promise<PushTicket[]> {

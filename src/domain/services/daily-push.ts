@@ -21,13 +21,25 @@ export interface DailyPush {
 const plural = (count: number, one: string, many: string) =>
   `${count} ${count === 1 ? one : many}`;
 
-// Ordem fixa das partes do texto.
-const PHRASES: [NotificationKind, (count: number) => string][] = [
-  [NotificationKind.APPOINTMENTS_TODAY, (c) => `${plural(c, "atendimento", "atendimentos")} hoje`],
-  [NotificationKind.EVOLUTION_PENDING, (c) => plural(c, "evolução pendente", "evoluções pendentes")],
-  [NotificationKind.PLAN_REVIEW_DUE, (c) => plural(c, "revisão de plano", "revisões de plano")],
-  [NotificationKind.SCALE_DRAFT_STALE, (c) => plural(c, "escala em rascunho", "escalas em rascunho")],
+// Record: o compilador exige uma frase para cada kind.
+const PHRASES: Record<NotificationKind, (count: number) => string> = {
+  [NotificationKind.APPOINTMENTS_TODAY]: (c) => `${plural(c, "atendimento", "atendimentos")} hoje`,
+  [NotificationKind.EVOLUTION_PENDING]: (c) => plural(c, "evolução pendente", "evoluções pendentes"),
+  [NotificationKind.PLAN_REVIEW_DUE]: (c) => plural(c, "revisão de plano", "revisões de plano"),
+  [NotificationKind.SCALE_DRAFT_STALE]: (c) => plural(c, "escala em rascunho", "escalas em rascunho"),
+};
+
+// Ordem fixa das partes do texto; kind fora da lista vai para o fim.
+const ORDER: NotificationKind[] = [
+  NotificationKind.APPOINTMENTS_TODAY,
+  NotificationKind.EVOLUTION_PENDING,
+  NotificationKind.PLAN_REVIEW_DUE,
+  NotificationKind.SCALE_DRAFT_STALE,
 ];
+const rank = (kind: NotificationKind) => {
+  const index = ORDER.indexOf(kind);
+  return index === -1 ? ORDER.length : index;
+};
 
 // Push diário do educador (PU-03, PU-04): só contagens por tipo, nada do texto
 // das notificações (que pode ter o nome do paciente).
@@ -40,9 +52,9 @@ export function buildDailyPush(notifications: Notification[]): DailyPush {
     counts.set(notification.kind, (counts.get(notification.kind) ?? 0) + amount);
   }
 
-  const parts = PHRASES.filter(([kind]) => counts.has(kind)).map(([kind, phrase]) =>
-    phrase(counts.get(kind)!)
-  );
+  const parts = [...counts.keys()]
+    .sort((a, b) => rank(a) - rank(b))
+    .map((kind) => PHRASES[kind](counts.get(kind)!));
 
   const data: DailyPushData = { notificationIds: notifications.map((n) => n.id.value) };
   const target = notifications.length === 1 ? notifications[0].target : undefined;

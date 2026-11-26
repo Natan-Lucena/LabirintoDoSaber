@@ -107,6 +107,32 @@ describe("ExpoPushSenderImpl", () => {
     }
   });
 
+  it("should give up after 10 s and treat the timeout as a network failure", async () => {
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    fetchMock.mockImplementation(
+      (_url: string, init: any) =>
+        new Promise((_, reject) => {
+          // Como o fetch: rejeita com o motivo do sinal quando ele aborta.
+          if (init.signal.aborted) return reject(init.signal.reason);
+          init.signal.addEventListener("abort", () => reject(init.signal.reason));
+        })
+    );
+    // Sinal já abortado no lugar do de 10 s, para não esperar no teste.
+    timeout.mockImplementation(() => AbortSignal.abort(new DOMException("timeout", "TimeoutError")));
+
+    const sender = new ExpoPushSenderImpl();
+    const tickets = await sender.send([message(1)]);
+    const receipts = await sender.getReceipts(["a"]);
+
+    expect(timeout).toHaveBeenCalledWith(10_000);
+    expect(fetchMock.mock.calls.every(([, init]) => init.signal instanceof AbortSignal)).toBe(true);
+    expect(tickets).toEqual([{ status: "error", deviceNotRegistered: false }]);
+    expect(receipts).toEqual([]);
+    expect(log).toHaveBeenCalledWith("EXPO_PUSH_SEND_FAILED", { status: "NETWORK" });
+    expect(log).toHaveBeenCalledWith("EXPO_PUSH_RECEIPTS_FAILED", { status: "NETWORK" });
+    timeout.mockRestore();
+  });
+
   it("should fetch the receipts and report DeviceNotRegistered", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({

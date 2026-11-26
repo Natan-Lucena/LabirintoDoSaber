@@ -21,6 +21,12 @@ export class PushDispatchRepositoryImpl implements PushDispatchRepository {
     }
   }
 
+  async release(educatorId: Uuid, date: string): Promise<void> {
+    await this.prismaService.pushDispatch.deleteMany({
+      where: { educatorId: educatorId.value, date },
+    });
+  }
+
   async deleteCreatedBefore(date: Date): Promise<number> {
     const result = await this.prismaService.pushDispatch.deleteMany({
       where: { createdAt: { lt: date } },

@@ -79,6 +79,9 @@ export const makeDispatchRepository = () => {
       claimed.set(key, now);
       return true;
     }),
+    release: vi.fn(async (educatorId: Uuid, date: string) => {
+      claimed.delete(`${educatorId.value}:${date}`);
+    }),
     deleteCreatedBefore: vi.fn(async (date: Date) => {
       let deleted = 0;
       for (const [key, createdAt] of claimed) {

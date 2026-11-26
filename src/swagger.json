@@ -7526,45 +7526,6 @@
         ]
       }
     },
-    "/appointment/watchdog": {
-      "post": {
-        "tags": [
-          "Appointment"
-        ],
-        "summary": "Job: watchdog dos atendimentos.",
-        "responses": {
-          "200": {
-            "description": "`{ \"message\": \"Watchdog executed\" }`",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Message"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Exceção não tratada (`An unexpected error occurred`).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InternalError"
-                },
-                "examples": {
-                  "An unexpected error occurred": {
-                    "value": {
-                      "message": "An unexpected error occurred",
-                      "error": "Error not specified."
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": []
-      }
-    },
     "/appointment": {
       "post": {
         "tags": [

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { NotificationKind } from "../../../../domain/entities/notification";
 import { PUSH_TOKEN_MAX } from "../../../../domain/entities/push-token";
 
 const token = z.string().trim().min(1).max(PUSH_TOKEN_MAX);
@@ -11,13 +12,13 @@ export const registerPushTokenSchema = z.object({
 
 export const unregisterPushTokenSchema = z.object({ token });
 
+// Uma chave opcional por NotificationKind; chave desconhecida é 400.
 const kinds = z
-  .object({
-    APPOINTMENTS_TODAY: z.boolean().optional(),
-    EVOLUTION_PENDING: z.boolean().optional(),
-    PLAN_REVIEW_DUE: z.boolean().optional(),
-    SCALE_DRAFT_STALE: z.boolean().optional(),
-  })
+  .object(
+    Object.fromEntries(
+      Object.values(NotificationKind).map((kind) => [kind, z.boolean().optional()])
+    ) as Record<NotificationKind, z.ZodOptional<z.ZodBoolean>>
+  )
   .strict();
 
 // Parcial: só o que veio muda.

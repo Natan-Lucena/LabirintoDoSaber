@@ -19,9 +19,12 @@ export class PushTokenRepositoryImpl implements PushTokenRepository {
       createdAt: pushToken.createdAt,
       lastSeenAt: pushToken.lastSeenAt,
     };
+    // Pelo token (índice único): dois registros em paralelo do mesmo aparelho
+    // não esbarram no P2002. O id fica o do primeiro.
+    const { token, createdAt, ...changes } = data;
     await this.prismaService.pushToken.upsert({
-      where: { id: pushToken.id.value },
-      update: data,
+      where: { token },
+      update: changes,
       create: { id: pushToken.id.value, ...data },
     });
   }
