@@ -72,6 +72,10 @@
     },
     {
       "name": "Notification"
+    },
+    {
+      "name": "Clinic",
+      "description": "Equipe: clínica, papéis (ADMIN e PROFESSIONAL) e convites. Cada educador está em no máximo uma clínica; a clínica não dá acesso automático aos pacientes."
     }
   ],
   "paths": {
@@ -136,6 +140,23 @@
                   "FAIL": {
                     "value": {
                       "message": "FAIL"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`inviteCode` vencido, usado, revogado ou inexistente (um só código). Nenhuma conta é criada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "INVITE_INVALID": {
+                    "value": {
+                      "message": "INVITE_INVALID"
                     }
                   }
                 }
@@ -14060,6 +14081,1275 @@
           }
         ]
       }
+    },
+    "/clinic": {
+      "post": {
+        "tags": [
+          "Clinic"
+        ],
+        "summary": "Cria a clínica; quem cria vira ADMIN.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClinicNameBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Clínica criada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClinicView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "name"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "O educador já está numa clínica.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "ALREADY_IN_CLINIC": {
+                    "value": {
+                      "message": "ALREADY_IN_CLINIC"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Clinic"
+        ],
+        "summary": "Clínica do educador, o papel dele e os membros.",
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClinicView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "O educador não está em nenhuma clínica.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "NOT_IN_CLINIC": {
+                    "value": {
+                      "message": "NOT_IN_CLINIC"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Clinic"
+        ],
+        "summary": "Renomeia a clínica (só ADMIN).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClinicNameBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClinicView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "name"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Só o ADMIN da clínica.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "FORBIDDEN_ROLE": {
+                    "value": {
+                      "message": "FORBIDDEN_ROLE"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "O educador não está em nenhuma clínica.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "NOT_IN_CLINIC": {
+                    "value": {
+                      "message": "NOT_IN_CLINIC"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/clinic/invites": {
+      "post": {
+        "tags": [
+          "Clinic"
+        ],
+        "summary": "Cria um convite (só ADMIN).",
+        "description": "Código de 8 caracteres, uso único, válido por 7 dias, com o papel escolhido. No máximo 20 convites ativos por clínica.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClinicRoleBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Convite criado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClinicInvite"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "role"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Só o ADMIN da clínica.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "FORBIDDEN_ROLE": {
+                    "value": {
+                      "message": "FORBIDDEN_ROLE"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "O educador não está em nenhuma clínica.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "NOT_IN_CLINIC": {
+                    "value": {
+                      "message": "NOT_IN_CLINIC"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A clínica já tem 20 convites ativos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "TOO_MANY_INVITES": {
+                    "value": {
+                      "message": "TOO_MANY_INVITES"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Clinic"
+        ],
+        "summary": "Convites ativos da clínica (só ADMIN), mais recentes primeiro.",
+        "description": "Ativos: não usados, não revogados e dentro da validade.",
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ClinicInvite"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Só o ADMIN da clínica.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "FORBIDDEN_ROLE": {
+                    "value": {
+                      "message": "FORBIDDEN_ROLE"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "O educador não está em nenhuma clínica.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "NOT_IN_CLINIC": {
+                    "value": {
+                      "message": "NOT_IN_CLINIC"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/clinic/invites/{id}": {
+      "delete": {
+        "tags": [
+          "Clinic"
+        ],
+        "summary": "Revoga um convite (só ADMIN).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revogado (revogar de novo também devolve 204)."
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Só o ADMIN da clínica.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "FORBIDDEN_ROLE": {
+                    "value": {
+                      "message": "FORBIDDEN_ROLE"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Convite inexistente, de outra clínica ou id não-UUID; ou educador sem clínica.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "INVITE_NOT_FOUND": {
+                    "value": {
+                      "message": "INVITE_NOT_FOUND"
+                    }
+                  },
+                  "NOT_IN_CLINIC": {
+                    "value": {
+                      "message": "NOT_IN_CLINIC"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/clinic/invites/preview/{code}": {
+      "get": {
+        "tags": [
+          "Clinic"
+        ],
+        "summary": "Prévia pública do convite (tela de cadastro com código).",
+        "description": "Rota pública. Limite de 10 consultas por IP a cada 15 minutos, contando também as de códigos inválidos.",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitePreview"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Código vencido, usado, revogado ou inexistente (um só código).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "INVITE_INVALID": {
+                    "value": {
+                      "message": "INVITE_INVALID"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Mais de 10 consultas deste IP nos últimos 15 minutos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "TOO_MANY_REQUESTS": {
+                    "value": {
+                      "message": "TOO_MANY_REQUESTS"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/clinic/invites/accept": {
+      "post": {
+        "tags": [
+          "Clinic"
+        ],
+        "summary": "Aceita um convite e entra na clínica com o papel dele.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClinicAcceptInviteBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClinicView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "code"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Código vencido, usado, revogado ou inexistente (um só código).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "INVITE_INVALID": {
+                    "value": {
+                      "message": "INVITE_INVALID"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "O educador já está numa clínica.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "ALREADY_IN_CLINIC": {
+                    "value": {
+                      "message": "ALREADY_IN_CLINIC"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/clinic/members/{educatorId}": {
+      "put": {
+        "tags": [
+          "Clinic"
+        ],
+        "summary": "Muda o papel de um membro (só ADMIN).",
+        "parameters": [
+          {
+            "name": "educatorId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClinicRoleBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClinicView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "role"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Só o ADMIN da clínica.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "FORBIDDEN_ROLE": {
+                    "value": {
+                      "message": "FORBIDDEN_ROLE"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "O educador não é membro desta clínica; ou quem chama não tem clínica.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "MEMBER_NOT_FOUND": {
+                    "value": {
+                      "message": "MEMBER_NOT_FOUND"
+                    }
+                  },
+                  "NOT_IN_CLINIC": {
+                    "value": {
+                      "message": "NOT_IN_CLINIC"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "O último ADMIN não vira PROFESSIONAL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "LAST_ADMIN": {
+                    "value": {
+                      "message": "LAST_ADMIN"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Clinic"
+        ],
+        "summary": "Remove um membro (só ADMIN) ou sai da clínica (o próprio id, qualquer papel).",
+        "description": "Quem sai ou é removido leva os pacientes dos quais é dono. O último ADMIN não sai nem é removido.",
+        "parameters": [
+          {
+            "name": "educatorId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removido."
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Remover outro membro é só do ADMIN.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "FORBIDDEN_ROLE": {
+                    "value": {
+                      "message": "FORBIDDEN_ROLE"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "O educador não é membro desta clínica; ou quem chama não tem clínica.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "MEMBER_NOT_FOUND": {
+                    "value": {
+                      "message": "MEMBER_NOT_FOUND"
+                    }
+                  },
+                  "NOT_IN_CLINIC": {
+                    "value": {
+                      "message": "NOT_IN_CLINIC"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "O último ADMIN não sai nem é removido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "LAST_ADMIN": {
+                    "value": {
+                      "message": "LAST_ADMIN"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -14219,6 +15509,9 @@
           "profession": {
             "type": "string",
             "nullable": true
+          },
+          "clinic": {
+            "$ref": "#/components/schemas/EducatorClinic"
           }
         },
         "required": [
@@ -14226,7 +15519,7 @@
           "name",
           "email"
         ],
-        "description": "Educador (mesmo formato de `GET /educator/me`). Nunca inclui senha."
+        "description": "Educador (mesmo formato de `GET /educator/me`). Nunca inclui senha. `clinic` fica ausente quando o educador não está numa clínica."
       },
       "EducatorLastSession": {
         "type": "object",
@@ -14256,6 +15549,12 @@
             "type": "string",
             "minLength": 6,
             "maxLength": 100
+          },
+          "inviteCode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "description": "Código de convite da clínica (opcional). Válido: a conta é criada já como membro, com o papel do convite. Inválido: 404 `INVITE_INVALID` e nenhuma conta é criada."
           }
         },
         "required": [
@@ -19496,6 +20795,221 @@
         },
         "required": [
           "message"
+        ]
+      },
+      "TeamRole": {
+        "type": "string",
+        "enum": [
+          "ADMIN",
+          "PROFESSIONAL"
+        ]
+      },
+      "Clinic": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 80
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "createdAt"
+        ]
+      },
+      "ClinicMember": {
+        "type": "object",
+        "description": "Membro da clínica. Só campos públicos do educador; nunca inclui senha.",
+        "properties": {
+          "educatorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "photoUrl": {
+            "type": "string",
+            "description": "Ausente quando o educador não tem foto."
+          },
+          "profession": {
+            "type": "string",
+            "description": "Ausente quando não informada."
+          },
+          "role": {
+            "$ref": "#/components/schemas/TeamRole"
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "educatorId",
+          "name",
+          "email",
+          "role",
+          "joinedAt"
+        ]
+      },
+      "ClinicView": {
+        "type": "object",
+        "properties": {
+          "clinic": {
+            "$ref": "#/components/schemas/Clinic"
+          },
+          "myRole": {
+            "$ref": "#/components/schemas/TeamRole"
+          },
+          "members": {
+            "type": "array",
+            "description": "ADMIN primeiro, depois por nome.",
+            "items": {
+              "$ref": "#/components/schemas/ClinicMember"
+            }
+          }
+        },
+        "required": [
+          "clinic",
+          "myRole",
+          "members"
+        ]
+      },
+      "ClinicInvite": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[A-HJ-NP-Z2-9]{8}$",
+            "description": "8 caracteres de A–Z e 2–9, sem 0, O, 1 nem I.",
+            "example": "K7M3QX9P"
+          },
+          "role": {
+            "$ref": "#/components/schemas/TeamRole"
+          },
+          "createdBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "7 dias depois da criação."
+          },
+          "shareMessage": {
+            "type": "string",
+            "description": "Texto para repassar, sem link. A data é o vencimento em São Paulo (dd/mm).",
+            "example": "Use o código K7M3QX9P para entrar na equipe Clínica Aprender no app Labirinto do Saber. Vale até 03/12."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "role",
+          "createdBy",
+          "expiresAt",
+          "shareMessage",
+          "createdAt"
+        ]
+      },
+      "InvitePreview": {
+        "type": "object",
+        "properties": {
+          "clinicName": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/TeamRole"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "clinicName",
+          "role",
+          "expiresAt"
+        ]
+      },
+      "ClinicNameBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "ClinicRoleBody": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/TeamRole"
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "ClinicAcceptInviteBody": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "description": "Aceita minúsculas e espaços nas pontas."
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "EducatorClinic": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/TeamRole"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "role"
         ]
       }
     }

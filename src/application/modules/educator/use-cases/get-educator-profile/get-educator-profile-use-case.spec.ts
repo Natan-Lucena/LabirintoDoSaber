@@ -3,6 +3,12 @@ import { EducatorRepository } from "../../../../../domain/repositories/educator-
 import { Educator } from "../../../../../domain/entities/educator";
 import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { GetEducatorProfileUseCase } from "./get-educator-profile-use-case";
+import { ClinicMember } from "../../../../../domain/entities/clinic-member";
+import {
+  makeClinic,
+  makeClinicMemberRepository,
+  makeClinicRepository,
+} from "../../../clinic/use-cases/test-fixtures";
 
 
 const mockEducatorRepository = (): EducatorRepository => {
@@ -20,7 +26,11 @@ describe("GetEducatorProfileUseCase", () => {
 
   beforeEach(() => {
     educatorRepository = mockEducatorRepository();
-    useCase = new GetEducatorProfileUseCase(educatorRepository);
+    useCase = new GetEducatorProfileUseCase(
+      educatorRepository,
+      makeClinicMemberRepository(),
+      makeClinicRepository()
+    );
   });
 
   it("should fail if educator does not exist (empty array)", async () => {
@@ -55,6 +65,36 @@ describe("GetEducatorProfileUseCase", () => {
 
     expect(result).toEqual(success(expectedDetails));
     expect(educatorRepository.search).toHaveBeenCalledWith({ id: educatorId });
+    // Sem clínica, o campo fica ausente.
+    if (result.ok) expect("clinic" in result.value).toBe(false);
+  });
+
+  it("traz clinic { id, name, role } quando o educador é de uma clínica", async () => {
+    const educator = Educator.create({
+      name: "Jane Doe",
+      email: "jane@example.com",
+      password: "hash",
+    });
+    const clinic = makeClinic("Clínica Aprender");
+    useCase = new GetEducatorProfileUseCase(
+      educatorRepository,
+      makeClinicMemberRepository([
+        ClinicMember.create({ clinicId: clinic.id, educatorId: educator.id, role: "PROFESSIONAL" }),
+      ]),
+      makeClinicRepository([clinic])
+    );
+    (educatorRepository.search as any).mockResolvedValue([educator]);
+
+    const result = await useCase.execute({ educatorId: educator.id });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.clinic).toEqual({
+      id: clinic.id.value,
+      name: "Clínica Aprender",
+      role: "PROFESSIONAL",
+    });
+    expect(result.value).not.toHaveProperty("password");
   });
 
   
