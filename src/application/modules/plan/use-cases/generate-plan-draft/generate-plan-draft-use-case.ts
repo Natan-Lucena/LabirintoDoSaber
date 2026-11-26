@@ -63,7 +63,8 @@ export class GeneratePlanDraftUseCase {
   ) {}
 
   async execute(request: GeneratePlanDraftUseCaseRequest) {
-    const access = await this.studentAccess.assertStudentAccess(
+    // Arquivado não recebe plano novo (PA-04): nem rascunho, antes da IA.
+    const access = await this.studentAccess.assertActiveStudentAccess(
       new Uuid(request.studentId),
       request.educatorId
     );

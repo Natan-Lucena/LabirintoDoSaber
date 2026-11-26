@@ -8097,7 +8097,7 @@
             }
           },
           "409": {
-            "description": "`INVALID_STATUS_TRANSITION`, `APPOINTMENT_NOT_EDITABLE`, `STUDENT_ARCHIVED` (reativar, com `status: PENDING`, um atendimento cancelado de paciente arquivado) (`Error`) ou `APPOINTMENT_CONFLICT` (`AppointmentConflict`).",
+            "description": "`INVALID_STATUS_TRANSITION`, `APPOINTMENT_NOT_EDITABLE`, `STUDENT_ARCHIVED` (paciente arquivado: reativar um atendimento cancelado com `status: PENDING` ou remarcar um PENDING, mudando `scheduledAt` ou `durationMinutes`) (`Error`) ou `APPOINTMENT_CONFLICT` (`AppointmentConflict`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10225,6 +10225,23 @@
                   "TEMPLATE_NOT_FOUND": {
                     "value": {
                       "message": "TEMPLATE_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`STUDENT_ARCHIVED`: o paciente está arquivado (verificado antes de chamar a IA).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "STUDENT_ARCHIVED": {
+                    "value": {
+                      "message": "STUDENT_ARCHIVED"
                     }
                   }
                 }

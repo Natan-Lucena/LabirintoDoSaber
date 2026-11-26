@@ -468,6 +468,33 @@ describe("UpdateAppointmentUseCase", () => {
       expect(result.ok).toBe(true);
     });
 
+    it("remarcar um PENDING passado para amanhã: STUDENT_ARCHIVED, sem gravar", async () => {
+      const appt = makeAppointment(educatorId, {
+        studentId: archivedStudentOf(educatorId),
+        scheduledAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      });
+      (appointmentRepository.findById as any).mockResolvedValue(appt);
+
+      const result = await useCase.execute({
+        id: appt.id,
+        educatorId,
+        scheduledAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      });
+
+      expect(result).toEqual({ ok: false, error: "STUDENT_ARCHIVED" });
+      expect(appointmentRepository.save).not.toHaveBeenCalled();
+      expect(appointmentRepository.search).not.toHaveBeenCalled();
+    });
+
+    it("mudar a duração de um PENDING também é remarcar: STUDENT_ARCHIVED", async () => {
+      const appt = makeAppointment(educatorId, { studentId: archivedStudentOf(educatorId) });
+      (appointmentRepository.findById as any).mockResolvedValue(appt);
+
+      const result = await useCase.execute({ id: appt.id, educatorId, durationMinutes: 30 });
+
+      expect(result).toEqual({ ok: false, error: "STUDENT_ARCHIVED" });
+    });
+
     it("status PENDING num atendimento já PENDING não é reativação", async () => {
       const appt = makeAppointment(educatorId, { studentId: archivedStudentOf(educatorId) });
       (appointmentRepository.findById as any).mockResolvedValue(appt);

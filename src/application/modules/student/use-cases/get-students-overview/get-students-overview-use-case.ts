@@ -1,6 +1,4 @@
 import { Uuid } from "@wave-telecom/framework/core";
-import { AppointmentStatus } from "../../../../../domain/entities/appointment";
-import { PlanStatus } from "../../../../../domain/entities/plan";
 import { ApplicationStatus } from "../../../../../domain/entities/scale-application";
 import { AnamneseResponseRepository } from "../../../../../domain/repositories/anamnese-response-repository";
 import { AppointmentRepository } from "../../../../../domain/repositories/appointment-repository";
@@ -12,9 +10,10 @@ import {
   buildPatientOverview,
   EVOLUTION_PENDING_WINDOW_DAYS,
   PatientOverview,
+  PLAN_REVIEW_DAYS_AHEAD,
 } from "../../../../../domain/services/patient-overview";
 import { StudentAccessService } from "../../../../../domain/services/student-access-service";
-import { todayInSaoPaulo } from "../../../../../domain/utils/date-only";
+import { addDays, todayInSaoPaulo } from "../../../../../domain/utils/date-only";
 import { matchesStatus, StudentStatusFilter } from "../student-list-item";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -49,14 +48,12 @@ export class GetStudentsOverviewUseCase {
 
     const studentIds = students.map((student) => student.id);
     const now = new Date();
+    const today = todayInSaoPaulo(now);
 
+    // Planos e atendimentos já recortados no banco: só o que o overview usa.
     const [plans, appointments, sessions, drafts, withAnamnesis] = await Promise.all([
-      this.planRepository.search({ studentIds, status: PlanStatus.ACTIVE }),
-      this.appointmentRepository.search({
-        studentIds,
-        status: AppointmentStatus.PENDING,
-        scheduledAfter: now,
-      }),
+      this.planRepository.listForOverview(studentIds, addDays(today, PLAN_REVIEW_DAYS_AHEAD)),
+      this.appointmentRepository.findNextPendingByStudentIds(studentIds, now),
       this.sessionRepository.listFinishedBetween({
         from: new Date(now.getTime() - EVOLUTION_PENDING_WINDOW_DAYS * DAY_MS),
         to: now,
@@ -75,7 +72,6 @@ export class GetStudentsOverviewUseCase {
       : new Map<string, string>();
     const pendingSessions = sessions.filter((session) => !evolutionIds.has(session.id.value));
 
-    const today = todayInSaoPaulo(now);
     const plansOf = groupByStudent(plans);
     const appointmentsOf = groupByStudent(appointments);
     const pendingSessionsOf = groupByStudent(pendingSessions);

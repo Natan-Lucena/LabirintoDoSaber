@@ -24,7 +24,7 @@ export class DeleteAppointmentUseCase {
       request.educatorId
     );
     if (!loaded.ok) return loaded;
-    const appointment = loaded.value;
+    const { appointment } = loaded.value;
 
     // Tirar de PENDING antes de mexer na cadeia: senão o scheduleNext chamado por
     // cancel reescolheria este mesmo atendimento como próximo líder.

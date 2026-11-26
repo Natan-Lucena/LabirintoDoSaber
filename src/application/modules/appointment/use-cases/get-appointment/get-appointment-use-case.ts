@@ -23,7 +23,7 @@ export class GetAppointmentUseCase {
       request.educatorId
     );
     if (!loaded.ok) return loaded;
-    const appointment = loaded.value;
+    const { appointment } = loaded.value;
 
     return success(mapAppointmentToResponse(appointment));
   }

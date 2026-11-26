@@ -193,6 +193,18 @@ describe("GeneratePlanDraftUseCase", () => {
     expect(planRepository.save).not.toHaveBeenCalled();
   });
 
+  it("aluno arquivado: STUDENT_ARCHIVED sem montar contexto nem chamar a IA (PA-04)", async () => {
+    const archived = makeStudent(educatorId);
+    archived.archive(new Date());
+    (studentRepository.getById as any).mockResolvedValue(archived);
+
+    const result = await useCase.execute({ ...pdiRequest, studentId: archived.id.value });
+
+    expect(result).toEqual({ ok: false, error: "STUDENT_ARCHIVED" });
+    expect(aiService.generateDraft).not.toHaveBeenCalled();
+    expect(analysisUseCase.loadAnalysisData).not.toHaveBeenCalled();
+  });
+
   it("does not send identifiable data of the student to the AI", async () => {
     const template = makeTemplate(educatorId);
     (templateRepository.findById as any).mockResolvedValue(template);

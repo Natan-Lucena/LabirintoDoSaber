@@ -7,11 +7,8 @@ import {
   ScaleApplication,
 } from "../../../../../domain/entities/scale-application";
 import { AnamneseResponseRepository } from "../../../../../domain/repositories/anamnese-response-repository";
-import {
-  AppointmentRepository,
-  SearchAppointmentParams,
-} from "../../../../../domain/repositories/appointment-repository";
-import { PlanRepository, SearchPlanParams } from "../../../../../domain/repositories/plan-repository";
+import { AppointmentRepository } from "../../../../../domain/repositories/appointment-repository";
+import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
 import {
   ScaleApplicationRepository,
   SearchScaleApplicationParams,
@@ -46,15 +43,18 @@ const setup = () => {
     !list || list.some((item) => item.value === id.value);
 
   // Os repositórios em memória aplicam os mesmos filtros das consultas reais.
+  // Mesma semântica das consultas reais: o próximo PENDING de cada aluno.
   const appointmentRepository = {
-    search: vi.fn(async (params: SearchAppointmentParams) =>
-      appointments.filter(
-        (a) =>
-          inIds(params.studentIds, a.studentId) &&
-          (!params.status || a.status === params.status) &&
-          (!params.scheduledAfter || a.scheduledAt >= params.scheduledAfter)
-      )
-    ),
+    findNextPendingByStudentIds: vi.fn(async (studentIds: Uuid[], after: Date) => {
+      const next = new Map<string, Appointment>();
+      for (const a of appointments) {
+        if (!inIds(studentIds, a.studentId)) continue;
+        if (a.status !== AppointmentStatus.PENDING || a.scheduledAt <= after) continue;
+        const current = next.get(a.studentId.value);
+        if (!current || a.scheduledAt < current.scheduledAt) next.set(a.studentId.value, a);
+      }
+      return [...next.values()];
+    }),
   } as unknown as AppointmentRepository;
 
   const sessionRepository = {
@@ -78,12 +78,28 @@ const setup = () => {
     ),
   } as unknown as SessionEvolutionRepository;
 
+  // PDIs ACTIVE, ACTIVE com revisão até reviewDueBy e o PE ACTIVE mais
+  // recente de cada aluno.
   const planRepository = {
-    search: vi.fn(async (params: SearchPlanParams) =>
-      plans.filter(
-        (p) => inIds(params.studentIds, p.studentId) && (!params.status || p.status === params.status)
-      )
-    ),
+    listForOverview: vi.fn(async (studentIds: Uuid[], reviewDueBy: string) => {
+      const active = plans.filter(
+        (p) => inIds(studentIds, p.studentId) && p.status === PlanStatus.ACTIVE
+      );
+      const latestPe = new Map<string, Plan>();
+      for (const p of active.filter((p) => p.type === PlanType.PE)) {
+        const current = latestPe.get(p.studentId.value);
+        if (!current || (p.sessionDate ?? "") > (current.sessionDate ?? "")) {
+          latestPe.set(p.studentId.value, p);
+        }
+      }
+      const latestIds = new Set([...latestPe.values()].map((p) => p.id.value));
+      return active.filter(
+        (p) =>
+          p.type === PlanType.PDI ||
+          (p.nextReviewDate !== undefined && p.nextReviewDate <= reviewDueBy) ||
+          latestIds.has(p.id.value)
+      );
+    }),
   } as unknown as PlanRepository;
 
   const scaleApplicationRepository = {
@@ -304,13 +320,11 @@ describe("GetStudentsOverviewUseCase", () => {
     expect(result).toHaveLength(3);
     const allIds = [student.id.value, second.id.value, third.id.value].sort();
 
-    expect(ctx.appointmentRepository.search).toHaveBeenCalledOnce();
-    const appointmentParams = vi.mocked(ctx.appointmentRepository.search).mock.calls[0][0];
-    expect(ids(appointmentParams.studentIds)).toEqual(allIds);
-    expect(appointmentParams).toMatchObject({
-      status: AppointmentStatus.PENDING,
-      scheduledAfter: NOW,
-    });
+    expect(ctx.appointmentRepository.findNextPendingByStudentIds).toHaveBeenCalledOnce();
+    const [appointmentIds, after] = vi.mocked(ctx.appointmentRepository.findNextPendingByStudentIds)
+      .mock.calls[0];
+    expect(ids(appointmentIds)).toEqual(allIds);
+    expect(after).toEqual(NOW);
 
     expect(ctx.sessionRepository.listFinishedBetween).toHaveBeenCalledOnce();
     const sessionParams = vi.mocked(ctx.sessionRepository.listFinishedBetween).mock.calls[0][0];
@@ -320,10 +334,11 @@ describe("GetStudentsOverviewUseCase", () => {
 
     expect(ctx.evolutionRepository.findIdsBySessionIds).toHaveBeenCalledOnce();
 
-    expect(ctx.planRepository.search).toHaveBeenCalledOnce();
-    const planParams = vi.mocked(ctx.planRepository.search).mock.calls[0][0];
-    expect(ids(planParams.studentIds)).toEqual(allIds);
-    expect(planParams.status).toBe(PlanStatus.ACTIVE);
+    expect(ctx.planRepository.listForOverview).toHaveBeenCalledOnce();
+    const [planIds, reviewDueBy] = vi.mocked(ctx.planRepository.listForOverview).mock.calls[0];
+    expect(ids(planIds)).toEqual(allIds);
+    // Hoje (2026-11-26 em São Paulo) + 2 dias.
+    expect(reviewDueBy).toBe("2026-11-28");
 
     expect(ctx.scaleApplicationRepository.search).toHaveBeenCalledOnce();
     const scaleParams = vi.mocked(ctx.scaleApplicationRepository.search).mock.calls[0][0];
@@ -340,8 +355,8 @@ describe("GetStudentsOverviewUseCase", () => {
     const { outsider, useCase, planRepository, appointmentRepository } = setup();
 
     expect(await useCase.execute({ educatorId: outsider.id, status: "ACTIVE" })).toEqual([]);
-    expect(planRepository.search).not.toHaveBeenCalled();
-    expect(appointmentRepository.search).not.toHaveBeenCalled();
+    expect(planRepository.listForOverview).not.toHaveBeenCalled();
+    expect(appointmentRepository.findNextPendingByStudentIds).not.toHaveBeenCalled();
   });
 
   it("sem sessão finalizada: não consulta evoluções", async () => {
@@ -350,5 +365,28 @@ describe("GetStudentsOverviewUseCase", () => {
     await useCase.execute({ educatorId: owner.id, status: "ACTIVE" });
 
     expect(evolutionRepository.findIdsBySessionIds).not.toHaveBeenCalled();
+  });
+
+  it("sem PDI, o plano ativo é o PE mais recente entre os vários do aluno", async () => {
+    const { owner, student, useCase, plans } = setup();
+    const pe = (sessionDate: string, title: string) => {
+      const created = Plan.create({
+        educatorId: owner.id,
+        studentId: student.id,
+        type: PlanType.PE,
+        source: PlanSource.MANUAL,
+        title,
+        generalObjective: "Sessão",
+        sessionDate,
+        goals: [{ description: "Meta" }],
+      });
+      if (!created.ok) throw new Error(String(created.error));
+      return created.value;
+    };
+    plans.push(pe("2026-11-01", "Antigo"), pe("2026-11-20", "Recente"), pe("2026-11-10", "Meio"));
+
+    const [overview] = await useCase.execute({ educatorId: owner.id, status: "ACTIVE" });
+
+    expect(overview.activePlan).toMatchObject({ type: "PE", title: "Recente" });
   });
 });

@@ -31,7 +31,7 @@ export class UpdateAppointmentUseCase {
       request.educatorId
     );
     if (!loaded.ok) return loaded;
-    const appointment = loaded.value;
+    const { appointment, student } = loaded.value;
 
     // Reativar (status PENDING) vem antes da edição, para permitir reativar e remarcar
     // na mesma requisição. Nos demais casos a edição vem antes de sair de PENDING.
@@ -67,18 +67,11 @@ export class UpdateAppointmentUseCase {
       previousStatus === AppointmentStatus.CANCELLED && updated.status === AppointmentStatus.PENDING;
 
     // Reativar é um atendimento novo na agenda: aluno arquivado não recebe
-    // (PA-04), inclusive os cancelados ao arquivar (PA-05).
-    if (reactivated) {
-      const active = await this.studentAccess.assertActiveStudentAccess(
-        appointment.studentId,
-        request.educatorId
-      );
-      if (!active.ok) {
-        return failure(active.error === "STUDENT_ARCHIVED" ? active.error : "NOT_FOUND");
-      }
-    }
-
+    // (PA-04), inclusive os cancelados ao arquivar (PA-05). Remarcar um PENDING
+    // também: é horário novo na agenda.
     if (updated.status === AppointmentStatus.PENDING && (rescheduled || reactivated)) {
+      if (student.isArchived) return failure("STUDENT_ARCHIVED");
+
       const conflict = await findAppointmentConflict(this.appointmentRepository, updated);
       if (conflict) {
         return failure({

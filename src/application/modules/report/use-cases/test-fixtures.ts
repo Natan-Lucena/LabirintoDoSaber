@@ -294,6 +294,7 @@ export const makePlanRepository = (plans: Plan[]) =>
     ),
     findActivePdi: vi.fn(),
     listActiveWithReviewDueBy: vi.fn(),
+    listForOverview: vi.fn(),
   }) satisfies PlanRepository;
 
 export const makeApplicationRepository = (applications: ScaleApplication[]) =>

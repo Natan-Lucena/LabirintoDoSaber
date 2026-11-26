@@ -35,6 +35,7 @@ const setup = () => {
     }),
     findById: vi.fn(),
     delete: vi.fn(),
+    findNextPendingByStudentIds: vi.fn(),
   } satisfies AppointmentRepository;
 
   const schedulerService = {
