@@ -101,6 +101,7 @@ describe("GenerateAnamneseSummaryUseCase", () => {
       findById: vi.fn(async (id: Uuid) => store.get(id.value) ?? null),
       listByStudentId: vi.fn(async () => [...store.values()]),
       existsByTemplateId: vi.fn(),
+      findStudentIdsWithResponses: vi.fn(),
     };
     templateRepository = {
       findById: vi.fn().mockResolvedValue(template),

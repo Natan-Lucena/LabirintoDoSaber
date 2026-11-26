@@ -34,6 +34,8 @@ export class StartTaskNotebookSessionController extends BaseController {
           return this.notFound(res, "STUDENT_NOT_FOUND");
         case "UNAUTHORIZED":
           return this.forbidden(res, "UNAUTHORIZED");
+        case "STUDENT_ARCHIVED":
+          return this.conflict(res, "STUDENT_ARCHIVED");
         case "NOTEBOOK_NOT_FOUND":
           return this.notFound(res, "NOTEBOOK_NOT_FOUND");
         case "APPOINTMENT_NOT_FOUND":

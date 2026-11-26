@@ -299,4 +299,20 @@ describe("StartTaskNotebookSessionUseCase", () => {
       expect(saved.appointmentId).toBeUndefined();
     });
   });
+
+  it("aluno arquivado: STUDENT_ARCHIVED, sem iniciar a sessão (PA-04)", async () => {
+    const educatorId = Uuid.random();
+    const archived = makeStudent(educatorId);
+    archived.archive(new Date());
+    (studentRepo.getById as any).mockResolvedValue(archived);
+
+    const result = await useCase.execute({
+      studentId: archived.id.value,
+      name: "Sessão",
+      educatorId,
+    });
+
+    expect(result).toEqual({ ok: false, error: "STUDENT_ARCHIVED" });
+    expect(sessionRepo.save).not.toHaveBeenCalled();
+  });
 });

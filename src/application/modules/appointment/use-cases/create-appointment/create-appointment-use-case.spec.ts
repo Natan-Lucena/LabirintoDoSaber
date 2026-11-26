@@ -180,4 +180,20 @@ describe("CreateAppointmentUseCase", () => {
     expect(result.ok).toBe(true);
     expect(appointmentRepository.save).toHaveBeenCalledOnce();
   });
+
+  it("aluno arquivado: STUDENT_ARCHIVED, sem gravar nem agendar (PA-04, BE-PA-02)", async () => {
+    const archived = makeStudent(educatorId, "Bia");
+    archived.archive(new Date());
+    useCase = new CreateAppointmentUseCase(
+      appointmentRepository,
+      schedulerService,
+      makeStudentAccess(makeStudentRepositoryFake([archived]), shareRepository)
+    );
+
+    const result = await useCase.execute({ educatorId, studentId: archived.id.value, scheduledAt });
+
+    expect(result).toEqual({ ok: false, error: "STUDENT_ARCHIVED" });
+    expect(appointmentRepository.save).not.toHaveBeenCalled();
+    expect(schedulerService.ensureScheduled).not.toHaveBeenCalled();
+  });
 });

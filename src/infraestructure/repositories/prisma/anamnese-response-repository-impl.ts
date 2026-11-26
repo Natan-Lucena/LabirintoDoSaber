@@ -90,6 +90,16 @@ export class AnamneseResponseRepositoryImpl implements AnamneseResponseRepositor
     return count > 0;
   }
 
+  async findStudentIdsWithResponses(studentIds: Uuid[]): Promise<Set<string>> {
+    if (studentIds.length === 0) return new Set();
+    const results = await this.prismaService.anamneseResponse.findMany({
+      where: { studentId: { in: studentIds.map((id) => id.value) } },
+      select: { studentId: true },
+      distinct: ["studentId"],
+    });
+    return new Set(results.map((r) => r.studentId));
+  }
+
   private mapToEntity(data: PrismaAnamneseResponse): AnamneseResponse {
     const answers: AnamneseAnswer[] = data.answers.map((a) => ({
       questionId: a.questionId,

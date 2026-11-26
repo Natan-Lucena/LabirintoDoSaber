@@ -53,6 +53,7 @@ export class UpdateAppointmentController extends BaseController {
           return this.clientError(res, result.error);
         case "INVALID_STATUS_TRANSITION":
         case "APPOINTMENT_NOT_EDITABLE":
+        case "STUDENT_ARCHIVED":
           return this.conflict(res, result.error);
         default:
           return this.fail(res, result.error);

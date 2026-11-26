@@ -433,4 +433,48 @@ describe("UpdateAppointmentUseCase", () => {
       expect(appointmentRepository.save).not.toHaveBeenCalled();
     });
   });
+
+  describe("aluno arquivado (PA-04)", () => {
+    const archivedStudentOf = (owner: Uuid) => {
+      const studentId = ownStudentOf(owner);
+      students.get(studentId.value)!.archive(new Date());
+      return studentId;
+    };
+
+    it("reativar (status PENDING) um atendimento cancelado: STUDENT_ARCHIVED, sem gravar nem agendar", async () => {
+      const appt = makeAppointment(educatorId, {
+        studentId: archivedStudentOf(educatorId),
+        status: AppointmentStatus.CANCELLED,
+        scheduledAt: futureDate(),
+      });
+      (appointmentRepository.findById as any).mockResolvedValue(appt);
+
+      const result = await useCase.execute({ id: appt.id, educatorId, status: AppointmentStatus.PENDING });
+
+      expect(result).toEqual({ ok: false, error: "STUDENT_ARCHIVED" });
+      expect(appointmentRepository.save).not.toHaveBeenCalled();
+      expect(schedulerService.ensureScheduled).not.toHaveBeenCalled();
+    });
+
+    it("editar sem reativar continua permitido (o cancelado mantém a observação editável)", async () => {
+      const appt = makeAppointment(educatorId, {
+        studentId: archivedStudentOf(educatorId),
+        status: AppointmentStatus.CANCELLED,
+      });
+      (appointmentRepository.findById as any).mockResolvedValue(appt);
+
+      const result = await useCase.execute({ id: appt.id, educatorId, observation: "Nota" });
+
+      expect(result.ok).toBe(true);
+    });
+
+    it("status PENDING num atendimento já PENDING não é reativação", async () => {
+      const appt = makeAppointment(educatorId, { studentId: archivedStudentOf(educatorId) });
+      (appointmentRepository.findById as any).mockResolvedValue(appt);
+
+      const result = await useCase.execute({ id: appt.id, educatorId, status: AppointmentStatus.PENDING });
+
+      expect(result.ok).toBe(true);
+    });
+  });
 });

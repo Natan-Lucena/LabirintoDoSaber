@@ -34,7 +34,7 @@ export function checkMediaUrls(fileStorage: FileStorage, task: Task) {
 
 // imageFile/audioFile da múltipla escolha enviados como URL (PUT e lote).
 export function multipleChoiceMediaRefs(
-  media: { imageFile?: string; audioFile?: string },
+  media: { imageFile?: string | null; audioFile?: string | null },
   prefix = ""
 ): MediaUrlRef[] {
   return [

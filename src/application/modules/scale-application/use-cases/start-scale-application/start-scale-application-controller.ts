@@ -42,6 +42,7 @@ export class StartScaleApplicationController extends BaseController {
         case "UNAUTHORIZED":
           return this.forbidden(res, result.error);
         case "SCALE_INACTIVE":
+        case "STUDENT_ARCHIVED":
           return this.conflict(res, result.error);
         default:
           return this.clientError(res, result.error);

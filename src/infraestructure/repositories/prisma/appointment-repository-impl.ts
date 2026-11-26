@@ -64,6 +64,10 @@ export class AppointmentRepositoryImpl implements AppointmentRepository {
       where.studentId = params.studentId.value;
     }
 
+    if (params.studentIds) {
+      where.studentId = { in: params.studentIds.map((id) => id.value) };
+    }
+
     if (params.status) {
       where.status = this.mapStatus(params.status);
     }

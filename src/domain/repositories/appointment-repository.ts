@@ -4,6 +4,8 @@ import { Appointment, AppointmentStatus } from "../entities/appointment";
 export interface SearchAppointmentParams {
   educatorId?: Uuid;
   studentId?: Uuid;
+  // Atendimentos de qualquer um destes alunos (consulta em lote).
+  studentIds?: Uuid[];
   status?: AppointmentStatus;
   scheduledBefore?: Date;
   scheduledAfter?: Date;

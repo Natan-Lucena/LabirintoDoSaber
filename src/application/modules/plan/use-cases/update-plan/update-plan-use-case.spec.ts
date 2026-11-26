@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Uuid } from "@wave-telecom/framework/core";
 import { UpdatePlanUseCase } from "./update-plan-use-case";
+import { updatePlanSchema } from "../../schemas/update-plan.schema";
 import { Plan, PlanSource, PlanStatus, PlanType } from "../../../../../domain/entities/plan";
 import { Gender, Student } from "../../../../../domain/entities/student";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
@@ -134,5 +135,57 @@ describe("UpdatePlanUseCase", () => {
 
     expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
     expect(planRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("null apaga nextReviewDate e professionalNotes; ausente mantém (PP-05)", async () => {
+    const created = Plan.create({
+      educatorId,
+      studentId: student.id,
+      type: PlanType.PDI,
+      source: PlanSource.MANUAL,
+      title: "PDI",
+      generalObjective: "Objetivo",
+      professionalNotes: "Nota",
+      startDate: "2026-01-01",
+      endDate: "2026-06-30",
+      nextReviewDate: "2026-03-01",
+      goals: [{ description: "Meta" }],
+    });
+    if (!created.ok) throw new Error(created.error);
+    (planRepository.findById as any).mockResolvedValue(created.value);
+
+    const cleared = await useCase.execute({
+      educatorId,
+      planId: created.value.id.value,
+      nextReviewDate: null,
+    });
+
+    expect(cleared.ok).toBe(true);
+    if (!cleared.ok) return;
+    expect(cleared.value.nextReviewDate).toBeUndefined();
+    expect(cleared.value.professionalNotes).toBe("Nota");
+
+    (planRepository.findById as any).mockResolvedValue(cleared.value);
+    const clearedNotes = await useCase.execute({
+      educatorId,
+      planId: created.value.id.value,
+      professionalNotes: null,
+    });
+
+    expect(clearedNotes.ok).toBe(true);
+    if (!clearedNotes.ok) return;
+    expect(clearedNotes.value.professionalNotes).toBeUndefined();
+  });
+});
+
+describe("updatePlanSchema (PP-05)", () => {
+  it("aceita null em nextReviewDate e professionalNotes", () => {
+    expect(
+      updatePlanSchema.safeParse({ nextReviewDate: null, professionalNotes: null }).data
+    ).toEqual({ nextReviewDate: null, professionalNotes: null });
+  });
+
+  it("ausente continua ausente", () => {
+    expect(updatePlanSchema.safeParse({ title: "Novo" }).data).toEqual({ title: "Novo" });
   });
 });

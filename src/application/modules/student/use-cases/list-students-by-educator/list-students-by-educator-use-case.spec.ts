@@ -51,4 +51,53 @@ describe("ListStudentsByEducatorUseCase", () => {
     expect(afterShare.map((item) => item.id)).toEqual([student.id.value]);
     expect(afterShare[0].access).toBe("SHARED");
   });
+
+  describe("status (PA-03)", () => {
+    const withArchived = () => {
+      const ctx = setup();
+      const archived = makeStudent(ctx.owner.id, "Bruno");
+      archived.archive(new Date("2026-11-01T10:00:00.000Z"));
+      ctx.studentRepository.store.set(archived.id.value, archived);
+      return { ...ctx, archived };
+    };
+
+    it("padrão ACTIVE: o arquivado sai da lista", async () => {
+      const { owner, student, useCase } = withArchived();
+
+      const result = await useCase.execute({ educatorId: owner.id });
+
+      expect(result.map((item) => item.id)).toEqual([student.id.value]);
+      expect(result[0].status).toBe("ACTIVE");
+    });
+
+    it("ARCHIVED: só os arquivados", async () => {
+      const { owner, archived, useCase } = withArchived();
+
+      const result = await useCase.execute({ educatorId: owner.id, status: "ARCHIVED" });
+
+      expect(result.map((item) => item.id)).toEqual([archived.id.value]);
+      expect(result[0]).toMatchObject({ status: "ARCHIVED", archivedAt: archived.archivedAt });
+    });
+
+    it("ALL: todos", async () => {
+      const { owner, student, archived, useCase } = withArchived();
+
+      const result = await useCase.execute({ educatorId: owner.id, status: "ALL" });
+
+      expect(result.map((item) => item.id).sort()).toEqual(
+        [student.id.value, archived.id.value].sort()
+      );
+    });
+
+    it("compartilhado arquivado também sai do padrão", async () => {
+      const { colleague, student, shareRepository, useCase } = setup();
+      shareRepository.store.push(shareStudent(student, colleague.id));
+      student.archive(new Date());
+
+      expect(await useCase.execute({ educatorId: colleague.id })).toEqual([]);
+      expect(
+        (await useCase.execute({ educatorId: colleague.id, status: "ARCHIVED" })).map((i) => i.id)
+      ).toEqual([student.id.value]);
+    });
+  });
 });

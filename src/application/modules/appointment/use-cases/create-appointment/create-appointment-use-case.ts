@@ -23,8 +23,9 @@ export class CreateAppointmentUseCase {
 
   async execute(request: CreateAppointmentUseCaseRequest) {
     // Dono ou compartilhado (EQ-11). O atendimento é de quem o cria: entra na
-    // agenda dele e é ele quem recebe o lembrete (EQ-14).
-    const access = await this.studentAccess.assertStudentAccess(
+    // agenda dele e é ele quem recebe o lembrete (EQ-14). Arquivado não
+    // recebe atendimento novo (PA-04).
+    const access = await this.studentAccess.assertActiveStudentAccess(
       new Uuid(request.studentId),
       request.educatorId
     );

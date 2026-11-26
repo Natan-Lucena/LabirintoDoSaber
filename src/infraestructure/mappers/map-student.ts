@@ -18,6 +18,9 @@ export const mapStudentToResponse = (student: Student) => {
     guardianName: student.guardianName ?? null,
     guardianPhone: student.guardianPhone ?? null,
     guardianRelationship: student.guardianRelationship ?? null,
+    status: student.status,
+    // Ausente quando o aluno está ativo.
+    ...(student.archivedAt ? { archivedAt: student.archivedAt } : {}),
     educators: student.educators.map((educator) => ({
       id: educator.id.value,
       name: educator.name,

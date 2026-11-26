@@ -66,6 +66,18 @@ export class UpdateAppointmentUseCase {
     const reactivated =
       previousStatus === AppointmentStatus.CANCELLED && updated.status === AppointmentStatus.PENDING;
 
+    // Reativar é um atendimento novo na agenda: aluno arquivado não recebe
+    // (PA-04), inclusive os cancelados ao arquivar (PA-05).
+    if (reactivated) {
+      const active = await this.studentAccess.assertActiveStudentAccess(
+        appointment.studentId,
+        request.educatorId
+      );
+      if (!active.ok) {
+        return failure(active.error === "STUDENT_ARCHIVED" ? active.error : "NOT_FOUND");
+      }
+    }
+
     if (updated.status === AppointmentStatus.PENDING && (rescheduled || reactivated)) {
       const conflict = await findAppointmentConflict(this.appointmentRepository, updated);
       if (conflict) {

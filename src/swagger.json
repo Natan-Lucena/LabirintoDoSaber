@@ -1411,17 +1411,17 @@
                   "guardianName": {
                     "type": "string",
                     "maxLength": 100,
-                    "description": "Responsável. Vazio = ausente."
+                    "description": "Responsável. Vazio = ausente. O texto `null` (ou `null` em JSON) apaga o valor; vazio ou ausente mantém o atual."
                   },
                   "guardianPhone": {
                     "type": "string",
                     "pattern": "^\\d{7,15}$",
-                    "description": "Só dígitos (7 a 15). Vazio = ausente."
+                    "description": "Só dígitos (7 a 15). Vazio = ausente. O texto `null` (ou `null` em JSON) apaga o valor; vazio ou ausente mantém o atual."
                   },
                   "guardianRelationship": {
                     "type": "string",
                     "maxLength": 50,
-                    "description": "Vazio = ausente."
+                    "description": "Vazio = ausente. O texto `null` (ou `null` em JSON) apaga o valor; vazio ou ausente mantém o atual."
                   },
                   "photo": {
                     "type": "string",
@@ -1861,6 +1861,16 @@
               }
             }
           },
+          "400": {
+            "description": "Falha de validação (`message: \"Bad Request\"` + `errors[]`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
             "content": {
@@ -1912,7 +1922,395 @@
             "bearerAuth": []
           }
         ],
-        "description": "Traz os pacientes dos quais o educador é dono (`access: OWNER`) e os compartilhados com ele (`access: SHARED`, com `ownerName`). Pertencer à clínica não dá acesso: o ADMIN só vê o que foi compartilhado com ele (EQ-13)."
+        "description": "Traz os pacientes dos quais o educador é dono (`access: OWNER`) e os compartilhados com ele (`access: SHARED`, com `ownerName`). Pertencer à clínica não dá acesso: o ADMIN só vê o que foi compartilhado com ele (EQ-13).",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Padrão ACTIVE: os arquivados ficam de fora. ARCHIVED traz só os arquivados; ALL, todos.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "ARCHIVED",
+                "ALL"
+              ],
+              "default": "ACTIVE"
+            }
+          }
+        ]
+      }
+    },
+    "/student/overview": {
+      "get": {
+        "tags": [
+          "Student"
+        ],
+        "summary": "Status, plano ativo, próximo atendimento e pendências dos pacientes.",
+        "description": "Um item por paciente que o educador acessa (dono ou compartilhado), calculado na hora da leitura.",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Padrão ACTIVE. ARCHIVED traz só os arquivados; ALL, todos.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "ARCHIVED",
+                "ALL"
+              ],
+              "default": "ACTIVE"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PatientOverview"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação (`message: \"Bad Request\"` + `errors[]`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/student/{id}": {
+      "get": {
+        "tags": [
+          "Student"
+        ],
+        "summary": "Um paciente, no mesmo formato de GET /student/.",
+        "description": "Para o dono ou o educador com quem o paciente foi compartilhado. Arquivado continua legível.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Id do paciente. Id que não é UUID responde 404 STUDENT_NOT_FOUND.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentListItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Paciente fora do alcance do educador (nem dono nem compartilhado).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Paciente inexistente ou id que não é UUID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/student/{id}/status": {
+      "put": {
+        "tags": [
+          "Student"
+        ],
+        "summary": "Arquiva ou reativa o paciente.",
+        "description": "Só o dono. Arquivado sai de GET /student/ e de GET /student/overview (salvo pelo filtro `status`), da recomendação de atividades e das notificações; os dados continuam legíveis e entram em relatórios. Não recebe atendimento, sessão, plano nem aplicação de escala novos (409 STUDENT_ARCHIVED). Reativar volta a ACTIVE sem recriar os atendimentos cancelados. Repetir o status atual não muda nada.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Id do paciente. Id que não é UUID responde 404 STUDENT_NOT_FOUND.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudentStatusBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentListItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação (`message: \"Bad Request\"` + `errors[]`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Não é o dono do paciente (inclusive o compartilhado).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Paciente inexistente ou id que não é UUID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Há atendimentos futuros PENDING e `cancelFutureAppointments` não veio `true`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HasFutureAppointmentsConflict"
+                },
+                "examples": {
+                  "HAS_FUTURE_APPOINTMENTS": {
+                    "value": {
+                      "message": "HAS_FUTURE_APPOINTMENTS",
+                      "count": 2
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
       }
     },
     "/student/{id}/shares": {
@@ -3079,6 +3477,11 @@
                           "message": "Use uma URL de POST /task/upload-media"
                         }
                       ]
+                    }
+                  },
+                  "MEDIA_TASK_REQUIRES_IMAGE_OR_AUDIO": {
+                    "value": {
+                      "message": "MEDIA_TASK_REQUIRES_IMAGE_OR_AUDIO"
                     }
                   }
                 }
@@ -5365,6 +5768,23 @@
               }
             }
           },
+          "409": {
+            "description": "`STUDENT_ARCHIVED`: o paciente está arquivado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "STUDENT_ARCHIVED": {
+                    "value": {
+                      "message": "STUDENT_ARCHIVED"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "500": {
             "description": "`SESSION_CREATION_FAILED`, `INTERNAL_SERVER_ERROR`. Qualquer exceção não tratada também cai aqui com `An unexpected error occurred`.",
             "content": {
@@ -7253,11 +7673,25 @@
             }
           },
           "409": {
-            "description": "`APPOINTMENT_CONFLICT`: o horário colide com outro atendimento do educador.",
+            "description": "`APPOINTMENT_CONFLICT`: o horário colide com outro atendimento do educador. Ou `STUDENT_ARCHIVED`: o paciente está arquivado.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AppointmentConflict"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/AppointmentConflict"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "STUDENT_ARCHIVED": {
+                    "value": {
+                      "message": "STUDENT_ARCHIVED"
+                    }
+                  }
                 }
               }
             }
@@ -7663,7 +8097,7 @@
             }
           },
           "409": {
-            "description": "`INVALID_STATUS_TRANSITION`, `APPOINTMENT_NOT_EDITABLE` (`Error`) ou `APPOINTMENT_CONFLICT` (`AppointmentConflict`).",
+            "description": "`INVALID_STATUS_TRANSITION`, `APPOINTMENT_NOT_EDITABLE`, `STUDENT_ARCHIVED` (reativar, com `status: PENDING`, um atendimento cancelado de paciente arquivado) (`Error`) ou `APPOINTMENT_CONFLICT` (`AppointmentConflict`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -7691,6 +8125,11 @@
                     "value": {
                       "message": "APPOINTMENT_CONFLICT",
                       "conflictingAppointmentId": "00000000-0000-4000-8000-000000000000"
+                    }
+                  },
+                  "STUDENT_ARCHIVED": {
+                    "value": {
+                      "message": "STUDENT_ARCHIVED"
                     }
                   }
                 }
@@ -9442,11 +9881,25 @@
             }
           },
           "409": {
-            "description": "`ACTIVE_PDI_ALREADY_EXISTS`: o aluno já tem um PDI ativo.",
+            "description": "`ACTIVE_PDI_ALREADY_EXISTS`: o aluno já tem um PDI ativo. Ou `STUDENT_ARCHIVED`: o paciente está arquivado.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ActivePdiConflict"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ActivePdiConflict"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "STUDENT_ARCHIVED": {
+                    "value": {
+                      "message": "STUDENT_ARCHIVED"
+                    }
+                  }
                 }
               }
             }
@@ -12778,7 +13231,7 @@
             }
           },
           "409": {
-            "description": "`DRAFT_ALREADY_EXISTS` (com o `applicationId` do rascunho aberto) ou `SCALE_INACTIVE` (escala inativa ou versão superada: só a maior versão publicada, se ativa, aceita aplicação nova).",
+            "description": "`DRAFT_ALREADY_EXISTS` (com o `applicationId` do rascunho aberto) ou `SCALE_INACTIVE` (escala inativa ou versão superada: só a maior versão publicada, se ativa, aceita aplicação nova). Ou `STUDENT_ARCHIVED`: o paciente está arquivado.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12801,6 +13254,11 @@
                   "SCALE_INACTIVE": {
                     "value": {
                       "message": "SCALE_INACTIVE"
+                    }
+                  },
+                  "STUDENT_ARCHIVED": {
+                    "value": {
+                      "message": "STUDENT_ARCHIVED"
                     }
                   }
                 }
@@ -16600,6 +17058,14 @@
             "items": {
               "$ref": "#/components/schemas/StudentEducator"
             }
+          },
+          "status": {
+            "$ref": "#/components/schemas/StudentStatus"
+          },
+          "archivedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Quando o paciente foi arquivado. Ausente quando ACTIVE."
           }
         },
         "required": [
@@ -16609,7 +17075,8 @@
           "gender",
           "educatorId",
           "learningTopics",
-          "documents"
+          "documents",
+          "status"
         ]
       },
       "AssignEducatorBody": {
@@ -16850,11 +17317,13 @@
           },
           "imageFile": {
             "type": "string",
-            "description": "Múltipla escolha com mídia: URL de `POST /task/upload-media` (senão INVALID_MEDIA_URL)."
+            "description": "Múltipla escolha com mídia: URL de `POST /task/upload-media` (senão INVALID_MEDIA_URL). `null` apaga a mídia; ausente mantém. Uma múltipla escolha com mídia precisa manter imagem ou áudio (senão 400 MEDIA_TASK_REQUIRES_IMAGE_OR_AUDIO); para tirar todas as mídias, envie também `type: \"multipleChoice\"`.",
+            "nullable": true
           },
           "audioFile": {
             "type": "string",
-            "description": "Múltipla escolha com mídia: URL de `POST /task/upload-media` (senão INVALID_MEDIA_URL)."
+            "description": "Múltipla escolha com mídia: URL de `POST /task/upload-media` (senão INVALID_MEDIA_URL). `null` apaga a mídia; ausente mantém. Uma múltipla escolha com mídia precisa manter imagem ou áudio (senão 400 MEDIA_TASK_REQUIRES_IMAGE_OR_AUDIO); para tirar todas as mídias, envie também `type: \"multipleChoice\"`.",
+            "nullable": true
           },
           "content": {
             "$ref": "#/components/schemas/TaskContent"
@@ -18808,7 +19277,9 @@
           },
           "professionalNotes": {
             "type": "string",
-            "maxLength": 2000
+            "maxLength": 2000,
+            "nullable": true,
+            "description": "`null` apaga as notas; ausente mantém."
           },
           "endDate": {
             "type": "string",
@@ -18818,7 +19289,9 @@
           "nextReviewDate": {
             "type": "string",
             "format": "date",
-            "example": "2026-03-01"
+            "example": "2026-03-01",
+            "nullable": true,
+            "description": "`null` apaga a data de revisão; ausente mantém."
           },
           "goals": {
             "type": "array",
@@ -21948,6 +22421,157 @@
             ]
           }
         ]
+      },
+      "StudentStatus": {
+        "type": "string",
+        "enum": [
+          "ACTIVE",
+          "ARCHIVED"
+        ],
+        "description": "Pacientes cadastrados antes do arquivamento existir são ACTIVE."
+      },
+      "StudentStatusBody": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/StudentStatus"
+          },
+          "cancelFutureAppointments": {
+            "type": "boolean",
+            "description": "Ao arquivar: `true` cancela os atendimentos futuros PENDING do paciente (de qualquer educador). Sem ela, havendo algum, responde 409 HAS_FUTURE_APPOINTMENTS."
+          }
+        }
+      },
+      "HasFutureAppointmentsConflict": {
+        "type": "object",
+        "required": [
+          "message",
+          "count"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "enum": [
+              "HAS_FUTURE_APPOINTMENTS"
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Atendimentos futuros PENDING do paciente."
+          }
+        }
+      },
+      "PatientPending": {
+        "type": "object",
+        "required": [
+          "kind",
+          "count"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "EVOLUTION_PENDING",
+              "PLAN_REVIEW_DUE",
+              "SCALE_DRAFT",
+              "ANAMNESIS_MISSING"
+            ],
+            "description": "EVOLUTION_PENDING: sessões finalizadas nos últimos 30 dias sem evolução (aparece assim que a sessão termina). PLAN_REVIEW_DUE: planos ativos com revisão até daqui a 2 dias, inclusive as vencidas. SCALE_DRAFT: aplicações de escala em rascunho. ANAMNESIS_MISSING: nenhuma anamnese respondida."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Presente só quando há um único alvo: id da sessão (EVOLUTION_PENDING), do plano (PLAN_REVIEW_DUE) ou da aplicação (SCALE_DRAFT). Nunca em ANAMNESIS_MISSING."
+          }
+        }
+      },
+      "PatientOverview": {
+        "type": "object",
+        "required": [
+          "studentId",
+          "primaryStatus",
+          "pendings"
+        ],
+        "properties": {
+          "studentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "primaryStatus": {
+            "type": "string",
+            "enum": [
+              "PDI_ACTIVE",
+              "ASSESSMENT_PENDING",
+              "PLAN_REVIEW",
+              "NO_PLAN"
+            ],
+            "description": "Primeira regra que vale, nesta ordem: revisão de plano ativo com data já alcançada (hoje ou antes) → PLAN_REVIEW; escala em rascunho ou sem anamnese → ASSESSMENT_PENDING; PDI ativo → PDI_ACTIVE; senão NO_PLAN."
+          },
+          "activePlan": {
+            "type": "object",
+            "description": "O PDI ativo; sem ele, o PE ativo mais recente. Ausente sem plano ativo.",
+            "required": [
+              "id",
+              "type",
+              "title",
+              "percent"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "PDI",
+                  "PE"
+                ]
+              },
+              "title": {
+                "type": "string"
+              },
+              "percent": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100,
+                "description": "Mesmo valor de `progress.percent` do plano."
+              }
+            }
+          },
+          "nextAppointment": {
+            "type": "object",
+            "description": "Próximo atendimento PENDING futuro do paciente (de qualquer educador). Ausente se não houver.",
+            "required": [
+              "id",
+              "scheduledAt"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "scheduledAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          "pendings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PatientPending"
+            }
+          }
+        }
       }
     }
   }

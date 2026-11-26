@@ -23,7 +23,8 @@ export class StartTaskNotebookSessionUseCase {
 
   async execute(request: StartTaskNotebookSessionUseCaseRequest) {
     // Dono ou compartilhado (EQ-11); a sessão guarda quem conduziu (EQ-12).
-    const access = await this.studentAccess.assertStudentAccess(
+    // Arquivado não recebe sessão nova (PA-04).
+    const access = await this.studentAccess.assertActiveStudentAccess(
       new Uuid(request.studentId),
       request.educatorId
     );

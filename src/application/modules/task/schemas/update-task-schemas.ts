@@ -9,8 +9,9 @@ export const updateTaskSchema = z.object({
   type: z.nativeEnum(TaskType).optional(),
   prompt: z.string().trim().min(1).optional(),
   alternatives: z.array(alternativeSchema).optional(),
-  imageFile: z.string().optional(),
-  audioFile: z.string().optional(),
+  // PP-05: null apaga a mídia; ausente mantém.
+  imageFile: z.string().nullable().optional(),
+  audioFile: z.string().nullable().optional(),
   content: z.unknown().optional(),
   skills: skillsSchema.optional(),
   theme: themeSchema.optional(),

@@ -28,6 +28,8 @@ export class StudentRepositoryImpl implements StudentRepository {
         guardianName: student.guardianName ?? null,
         guardianPhone: student.guardianPhone ?? null,
         guardianRelationship: student.guardianRelationship ?? null,
+        status: student.status,
+        archivedAt: student.archivedAt ?? null,
       },
       create: {
         educatorId: student.educatorId.value,
@@ -46,6 +48,8 @@ export class StudentRepositoryImpl implements StudentRepository {
         guardianName: student.guardianName ?? null,
         guardianPhone: student.guardianPhone ?? null,
         guardianRelationship: student.guardianRelationship ?? null,
+        status: student.status,
+        archivedAt: student.archivedAt ?? null,
       },
       include: {
         educatorStudents: {
@@ -161,6 +165,9 @@ export class StudentRepositoryImpl implements StudentRepository {
       guardianName: prismaStudent.guardianName ?? undefined,
       guardianPhone: prismaStudent.guardianPhone ?? undefined,
       guardianRelationship: prismaStudent.guardianRelationship ?? undefined,
+      // PA-01: registro antigo sem status é ACTIVE.
+      status: prismaStudent.status ?? "ACTIVE",
+      archivedAt: prismaStudent.archivedAt ?? undefined,
     });
   }
 

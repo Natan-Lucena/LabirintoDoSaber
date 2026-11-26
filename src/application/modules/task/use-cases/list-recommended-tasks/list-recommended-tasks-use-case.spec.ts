@@ -232,4 +232,17 @@ describe("ListRecommendedTasksUseCase (AT-08)", () => {
       expect(item.reason.length).toBeLessThanOrEqual(120);
     }
   });
+
+  it("PA-03: aluno arquivado sai da recomendação (lista vazia)", async () => {
+    const student = makeStudent(educatorId, ["alfabetização"]);
+    student.archive(new Date());
+    studentRepository.getById.mockResolvedValue(student);
+
+    expect(await useCase.execute({ educatorId, studentId: student.id.value })).toEqual({
+      ok: true,
+      value: [],
+    });
+    expect(taskRepository.listLibrary).not.toHaveBeenCalled();
+    expect(sessionRepository.listByStudentId).not.toHaveBeenCalled();
+  });
 });

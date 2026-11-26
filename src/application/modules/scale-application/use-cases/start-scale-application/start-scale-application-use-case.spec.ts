@@ -225,4 +225,20 @@ describe("StartScaleApplicationUseCase", () => {
       expect(result.ok).toBe(true);
     });
   });
+
+  it("aluno arquivado: STUDENT_ARCHIVED, sem iniciar a aplicação (PA-04)", async () => {
+    const archived = makeStudent(educatorId, "Bia");
+    archived.archive(new Date());
+    useCase = new StartScaleApplicationUseCase(
+      applicationRepository,
+      templateRepository,
+      makeStudentAccessFor([archived]),
+      appointmentRepository
+    );
+
+    const result = await useCase.execute({ ...request(), studentId: archived.id.value });
+
+    expect(result).toEqual({ ok: false, error: "STUDENT_ARCHIVED" });
+    expect(applicationRepository.save).not.toHaveBeenCalled();
+  });
 });

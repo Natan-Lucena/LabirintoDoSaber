@@ -337,6 +337,7 @@ export const makeAnamneseResponseRepository = (responses: AnamneseResponse[]) =>
     ),
     existsByTemplateId: vi.fn(),
     saveSummary: vi.fn(),
+    findStudentIdsWithResponses: vi.fn(),
   }) satisfies AnamneseResponseRepository;
 
 // Data (AAAA-MM-DD) de uma sessão, para conferir as evoluções no conteúdo.

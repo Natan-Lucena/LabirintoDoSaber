@@ -39,6 +39,15 @@ export class StudentAccessService {
     return success(student);
   }
 
+  // PA-04: acesso clínico para criar registro novo (atendimento, série,
+  // sessão, plano, aplicação de escala). Arquivado: STUDENT_ARCHIVED (409).
+  async assertActiveStudentAccess(studentId: Uuid, educatorId: Uuid) {
+    const access = await this.assertStudentAccess(studentId, educatorId);
+    if (!access.ok) return access;
+    if (access.value.isArchived) return failure("STUDENT_ARCHIVED");
+    return access;
+  }
+
   // Acesso do educador a um aluno já carregado; undefined = nenhum.
   async accessOf(student: Student, educatorId: Uuid): Promise<StudentAccessKind | undefined> {
     if (student.educatorId.value === educatorId.value) return "OWNER";

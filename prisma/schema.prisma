@@ -43,12 +43,21 @@ model Student {
   guardianPhone        String?
   guardianRelationship String?
 
+  // PA-01: ausente = ACTIVE.
+  status     StudentStatus?
+  archivedAt DateTime?
+
   createdAt      DateTime          @default(now())
   educatorId     String
 
   educatorStudents EducatorStudent[]
 
   @@index([educatorId])
+}
+
+enum StudentStatus {
+  ACTIVE
+  ARCHIVED
 }
 
 type StudentDocument {
@@ -323,6 +332,9 @@ model Appointment {
   // status sozinho sem precisar de índices extras.
   @@index([educatorId, studentId])
   @@index([status, scheduledAt])
+  // Atendimentos futuros PENDING de um conjunto de alunos (arquivar e
+  // GET /student/overview).
+  @@index([studentId, status, scheduledAt])
 }
 
 enum AppointmentStatus {

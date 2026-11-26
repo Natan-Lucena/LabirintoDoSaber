@@ -112,6 +112,17 @@ describe("CreatePlanUseCase", () => {
     );
   });
 
+  it("aluno arquivado: STUDENT_ARCHIVED, sem criar o plano (PA-04)", async () => {
+    const archived = makeStudent(educatorId);
+    archived.archive(new Date());
+    (studentRepository.getById as any).mockResolvedValue(archived);
+
+    const result = await useCase.execute({ ...pdiRequest, studentId: archived.id.value });
+
+    expect(result).toEqual({ ok: false, error: "STUDENT_ARCHIVED" });
+    expect(planRepository.save).not.toHaveBeenCalled();
+  });
+
   it("should create and save an active PDI", async () => {
     const result = await useCase.execute(pdiRequest);
 
