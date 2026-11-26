@@ -1,4 +1,5 @@
 import { Uuid } from "@wave-telecom/framework/core";
+import { dateInSaoPaulo } from "../utils/date-only";
 
 export enum NotificationKind {
   APPOINTMENTS_TODAY = "APPOINTMENTS_TODAY",
@@ -34,7 +35,8 @@ export interface NotificationProps {
   // Aluno da notificação: some da lista se deixar de ser do educador (NT-03).
   studentId?: Uuid;
   // APPOINTMENTS_TODAY: uma por educador e dia. Pendências: uma por pendência,
-  // sem a data, para não repetir a cada dia (PP-07).
+  // sem a data do cron, para não repetir a cada dia (PP-07). A pendência é a
+  // sessão, o plano com a data de revisão ou o rascunho com a última alteração.
   dedupeKey: string;
   // Quantidade do APPOINTMENTS_TODAY, para o texto do push.
   count?: number;
@@ -132,7 +134,13 @@ export class Notification {
   }
 
   static scaleDraftStale(
-    props: StudentProps & { applicationId: Uuid; templateName: string; days: number }
+    props: StudentProps & {
+      applicationId: Uuid;
+      templateName: string;
+      days: number;
+      // Última alteração do rascunho: retomar e abandonar de novo é outra pendência.
+      updatedAt: Date;
+    }
   ) {
     return Notification.build({
       ...props,
@@ -143,7 +151,7 @@ export class Notification {
         type: NotificationTargetType.SCALE_APPLICATION,
         id: props.applicationId.value,
       },
-      occurrence: props.applicationId.value,
+      occurrence: `${props.applicationId.value}:${dateInSaoPaulo(props.updatedAt)}`,
     });
   }
 

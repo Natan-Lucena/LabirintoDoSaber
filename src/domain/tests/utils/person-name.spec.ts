@@ -24,6 +24,11 @@ describe("shortDisplayName", () => {
     expect(shortDisplayName("Lucas do Carmo Lima")).toBe("Lucas C.");
   });
 
+  it("should use the word after the first name, since compound first names cannot be detected", () => {
+    // "Maria Clara" pode ser nome composto, mas não há como saber pelo texto.
+    expect(shortDisplayName("Maria Clara Souza")).toBe("Maria C.");
+  });
+
   it("should return only the name when the rest are particles", () => {
     expect(shortDisplayName("Ana de")).toBe("Ana");
   });

@@ -1,4 +1,4 @@
-import { success, Uuid } from "@wave-telecom/framework/core";
+import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { StudentAnalysisReportRepository } from "../../../../../domain/repositories/student-analysis-report-repository";
 import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 
@@ -15,6 +15,7 @@ export class ListStudentAnalysisHistoryUseCase {
 
   async execute(request: ListStudentAnalysisHistoryRequest) {
     // EQ-11: dono ou compartilhado.
+    if (!Uuid.isValid(request.studentId)) return failure("STUDENT_NOT_FOUND" as const);
     const access = await this.studentAccess.assertStudentAccess(
       new Uuid(request.studentId),
       request.educatorId

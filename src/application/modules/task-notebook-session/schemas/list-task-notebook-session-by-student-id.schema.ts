@@ -1,5 +1,6 @@
 import z from "zod";
 
 export const listTaskNotebookSessionByStudentId = z.object({
-  studentId: z.string().uuid(),
+  // Id inválido vira 404 STUDENT_NOT_FOUND no use case.
+  studentId: z.string().min(1),
 });

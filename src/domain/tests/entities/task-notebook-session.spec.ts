@@ -245,6 +245,16 @@ describe("timeToAnswerInMs (PP-08)", () => {
     expect(timeToAnswerInMs(answer(8, "2026-09-01T13:00:00.000Z"))).toBe(8000);
   });
 
+  it("should convert old answers up to 600, the ceiling of 10 minutes in seconds", () => {
+    expect(timeToAnswerInMs(answer(600, "2026-10-01T13:00:00.000Z"))).toBe(600000);
+    expect(timeToAnswerInMs(answer(0, "2026-10-01T13:00:00.000Z"))).toBe(0);
+  });
+
+  it("should keep old answers above 600, already recorded in milliseconds", () => {
+    expect(timeToAnswerInMs(answer(601, "2026-10-01T13:00:00.000Z"))).toBe(601);
+    expect(timeToAnswerInMs(answer(2689, "2026-10-08T13:00:00.000Z"))).toBe(2689);
+  });
+
   it("should keep the newer answers, already in milliseconds", () => {
     // 09/10 00:00 em São Paulo: já em milissegundos.
     expect(timeToAnswerInMs(answer(3000, "2026-10-09T03:00:00.000Z"))).toBe(3000);

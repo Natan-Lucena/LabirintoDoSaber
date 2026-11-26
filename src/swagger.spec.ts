@@ -22,35 +22,75 @@ const read = (path: string) => readFileSync(join(SRC, path), "utf-8");
 const toOpenApi = (path: string) =>
   path.replace(/:(\w+)/g, "{$1}").replace(/\/+$/, "") || "/";
 
-function registeredRoutes(): string[] {
-  const main = read("application/routes/index.ts");
-  const moduleOf = new Map(
-    [...main.matchAll(/import \{ (\w+) \} from "\.\.\/modules\/([\w-]+)\/routes"/g)].map(
-      ([, router, module]) => [router, module]
-    )
-  );
-  const mounts = [...main.matchAll(/router\.use\("([^"]+)", (\w+)\)/g)];
+interface RouteScan {
+  // Router importado de um módulo → nome do módulo.
+  imported: Map<string, string>;
+  // Routers montados em application/routes/index.ts, na ordem.
+  mounted: string[];
+  // Chamadas router.use( no arquivo principal, lidas ou não.
+  useCalls: number;
+  // Rotas por módulo, "MÉTODO /caminho".
+  routesByModule: Map<string, string[]>;
+  // Arquivos com chamada de método sem caminho literal ou com .route(.
+  unreadable: string[];
+}
 
-  const routes: string[] = [];
-  for (const [, prefix, router] of mounts) {
-    const module = moduleOf.get(router);
-    if (!module) throw new Error(`router sem import: ${router}`);
-    const source = read(`application/modules/${module}/routes/index.ts`);
+// Caminho entre aspas duplas, simples ou crase.
+const QUOTED = String.raw`["'\x60]([^"'\x60]+)["'\x60]`;
+
+function scanRoutes(): RouteScan {
+  const main = read("application/routes/index.ts");
+  const imported = new Map(
+    [
+      ...main.matchAll(
+        /import\s*\{\s*(\w+)\s*\}\s*from\s*["']\.\.\/modules\/([\w-]+)\/routes(?:\/index)?["']/g
+      ),
+    ].map(([, router, module]) => [router, module])
+  );
+
+  // router.use("/prefixo", middleware..., moduloRouter); o router é o último argumento.
+  const useCalls = main.match(/\brouter\.use\(/g)?.length ?? 0;
+  const mounts = [
+    ...main.matchAll(new RegExp(String.raw`\brouter\.use\(\s*${QUOTED}\s*,([^;]*?)\)\s*;`, "g")),
+  ].map(([, prefix, args]) => ({ prefix, router: args.split(",").pop()!.trim() }));
+
+  const unreadable: string[] = [];
+  if (/\.route\(/.test(main)) unreadable.push("application/routes/index.ts: .route(");
+
+  const routesByModule = new Map<string, string[]>();
+  for (const { prefix, router } of mounts) {
+    const module = imported.get(router);
+    if (!module) {
+      unreadable.push(`router montado sem import de módulo: ${router}`);
+      continue;
+    }
+    const file = `application/modules/${module}/routes/index.ts`;
+    const source = read(file);
+    if (/\.route\(/.test(source)) unreadable.push(`${file}: .route(`);
 
     // Toda chamada de método precisa ter o caminho literal para ser lida aqui.
-    const calls = source.match(new RegExp(`\\b${router}\\.(${METHODS.join("|")})\\(`, "g")) ?? [];
+    const methods = METHODS.join("|");
+    const calls =
+      source.match(new RegExp(String.raw`\b${router}\.(${methods})\(`, "g"))?.length ?? 0;
     const literal = [
-      ...source.matchAll(
-        new RegExp(`\\b${router}\\.(${METHODS.join("|")})\\(\\s*["'\`]([^"'\`]+)["'\`]`, "g")
-      ),
+      ...source.matchAll(new RegExp(String.raw`\b${router}\.(${methods})\(\s*${QUOTED}`, "g")),
     ];
-    expect(literal.length, `${module}: rota sem caminho literal`).toBe(calls.length);
+    if (literal.length !== calls) unreadable.push(`${file}: rota sem caminho literal`);
 
+    const routes = routesByModule.get(module) ?? [];
     for (const [, method, path] of literal) {
       routes.push(`${method.toUpperCase()} ${toOpenApi(prefix + path)}`);
     }
+    routesByModule.set(module, routes);
   }
-  return routes;
+
+  return {
+    imported,
+    mounted: mounts.map((mount) => mount.router),
+    useCalls,
+    routesByModule,
+    unreadable,
+  };
 }
 
 const swagger = JSON.parse(read("swagger.json"));
@@ -65,8 +105,24 @@ function documentedRoutes(): string[] {
 }
 
 describe("swagger.json (PP-10)", () => {
-  const registered = registeredRoutes();
+  const scan = scanRoutes();
+  const registered = [...scan.routesByModule.values()].flat();
   const documented = documentedRoutes();
+
+  it("should mount and read every imported router", () => {
+    expect(scan.imported.size).toBeGreaterThan(0);
+    expect(scan.mounted).toHaveLength(scan.useCalls);
+    expect(scan.mounted).toHaveLength(scan.imported.size);
+    expect([...scan.mounted].sort()).toEqual([...scan.imported.keys()].sort());
+    expect(scan.unreadable).toEqual([]);
+  });
+
+  it("should find at least one route in each module", () => {
+    expect([...scan.routesByModule.keys()].sort()).toEqual([...scan.imported.values()].sort());
+    for (const [module, routes] of scan.routesByModule) {
+      expect(routes.length, module).toBeGreaterThan(0);
+    }
+  });
 
   it("should read the routes of every mounted module", () => {
     expect(registered.length).toBeGreaterThan(100);

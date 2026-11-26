@@ -1,7 +1,6 @@
 // PP-11: TASK_NOT_FOUND, TASK_GROUP_NOT_FOUND e TASK_NOTEBOOK_NOT_FOUND são
 // 404 em todos os controllers, inclusive com id que não é UUID (nunca 400/500).
 import { describe, it, expect, vi } from "vitest";
-import { Request, Response } from "express";
 import { success, Uuid } from "@wave-telecom/framework/core";
 import { BaseController } from "@wave-telecom/framework/controllers";
 import { GetTaskByIdController } from "./task/use-cases/get-task-by-id/get-task-by-id-controller";
@@ -26,7 +25,24 @@ import { AnswerTaskNotebookSessionController } from "./task-notebook-session/use
 import { AnswerTaskNotebookSessionUseCase } from "./task-notebook-session/use-cases/answer-task-notebook-session/answer-task-notebook-session-use-case";
 import { RecordActivityResultController } from "./task-notebook-session/use-cases/record-activity-result/record-activity-result-controller";
 import { RecordActivityResultUseCase } from "./task-notebook-session/use-cases/record-activity-result/record-activity-result-use-case";
+import { FinishTaskNotebookController } from "./task-notebook-session/use-cases/finish-task-notebook-session/finish-task-notebook-session-controller";
+import { FinishTaskNotebookSessionUseCase } from "./task-notebook-session/use-cases/finish-task-notebook-session/finish-task-notebook-session-use-case";
+import { AddObservationTaskNotebookSessionController } from "./task-notebook-session/use-cases/add-observation-task-notebook-session/add-observation-task-notebook-session-controller";
+import { AddObservationTaskNotebookSessionUseCase } from "./task-notebook-session/use-cases/add-observation-task-notebook-session/add-observation-task-notebook-session-use-case";
+import { GeneratorReportTaskNotebookSessionController } from "./task-notebook-session/use-cases/generator-report-task-notebook-session/generator-report-task-notebook-session-controller";
+import { GeneratorReportTaskNotebookSessionUseCase } from "./task-notebook-session/use-cases/generator-report-task-notebook-session/generator-report-task-notebook-session-use-case";
+import { ListTaskNotebookSessionByStudentIdController } from "./task-notebook-session/use-cases/list-task-notebook-session-by-student-id/list-task-notebook-session-by-student-id-controller";
+import { ListTaskNotebookSessionByStudentIdUseCase } from "./task-notebook-session/use-cases/list-task-notebook-session-by-student-id/list-task-notebook-session-by-student-id-use-case";
+import { GenerateStudentAnalysisController } from "./task-notebook-session/use-cases/generate-student-analisys/generate-student-analisys-controller";
+import { GenerateStudentAnalysisUseCase } from "./task-notebook-session/use-cases/generate-student-analisys/generate-student-analisys-use-case";
+import { GenerateStudentAiAnalysisController } from "./task-notebook-session/use-cases/generate-student-ai-analysis/generate-student-ai-analysis-controller";
+import { GenerateStudentAiAnalysisUseCase } from "./task-notebook-session/use-cases/generate-student-ai-analysis/generate-student-ai-analysis-use-case";
+import { ListStudentAnalysisHistoryController } from "./task-notebook-session/use-cases/list-student-analysis-history/list-student-analysis-history-controller";
+import { ListStudentAnalysisHistoryUseCase } from "./task-notebook-session/use-cases/list-student-analysis-history/list-student-analysis-history-use-case";
+import { SaveStudentAnalysisSnapshotController } from "./task-notebook-session/use-cases/save-student-analysis-snapshot/save-student-analysis-snapshot-controller";
+import { SaveStudentAnalysisSnapshotUseCase } from "./task-notebook-session/use-cases/save-student-analysis-snapshot/save-student-analysis-snapshot-use-case";
 import { TaskNotebookSession } from "../../domain/entities/task-notebook-session";
+import { runController } from "./controller-test-helper";
 
 const NOT_UUID = "nao-e-uuid";
 const user = { id: Uuid.random(), email: "edu@mail.com" };
@@ -43,20 +59,8 @@ const emptyRepository = () =>
     }
   ) as any;
 
-const run = async (
-  controller: BaseController,
-  input: { params?: object; body?: object }
-) => {
-  const res = {
-    status: vi.fn().mockReturnThis(),
-    json: vi.fn().mockReturnThis(),
-    type: vi.fn().mockReturnThis(),
-    sendStatus: vi.fn().mockReturnThis(),
-  };
-  const req = { params: {}, body: {}, query: {}, user, ...input } as unknown as Request;
-  await controller.execute(req, res as unknown as Response);
-  return { status: res.status.mock.calls[0]?.[0], body: res.json.mock.calls[0]?.[0] };
-};
+const run = (controller: BaseController, input: { params?: object; body?: object }) =>
+  runController(controller, { user, ...input });
 
 // Sessão aberta e acessível, para chegar à busca da tarefa.
 const openSessionDeps = () => {
@@ -247,6 +251,81 @@ describe("PP-11: 404 for missing tasks, task groups and task notebooks", () => {
       });
 
       expect(response).toEqual({ status: 404, body: { message: "SESSION_NOT_FOUND" } });
+    });
+  });
+
+  describe("session and student ids that are not UUIDs", () => {
+    const repo = emptyRepository;
+    const analysis = () => new GenerateStudentAnalysisUseCase(repo(), repo(), repo(), repo());
+
+    it("should answer 404 SESSION_NOT_FOUND in finish, observation and report", async () => {
+      const cases = [
+        [
+          "POST /task-notebook-session/finish",
+          new FinishTaskNotebookController(
+            new FinishTaskNotebookSessionUseCase(repo(), repo(), repo(), repo())
+          ),
+          { body: { sessionId: NOT_UUID } },
+        ],
+        [
+          "POST /task-notebook-session/observation",
+          new AddObservationTaskNotebookSessionController(
+            new AddObservationTaskNotebookSessionUseCase(repo(), repo())
+          ),
+          { body: { sessionId: NOT_UUID, observation: "Obs" } },
+        ],
+        [
+          "GET /task-notebook-session/report/:sessionId",
+          new GeneratorReportTaskNotebookSessionController(
+            new GeneratorReportTaskNotebookSessionUseCase(repo(), repo(), repo(), repo(), repo(), repo())
+          ),
+          { params: { sessionId: NOT_UUID } },
+        ],
+      ] as const;
+
+      for (const [route, controller, input] of cases) {
+        expect([route, await run(controller as BaseController, input)]).toEqual([
+          route,
+          { status: 404, body: { message: "SESSION_NOT_FOUND" } },
+        ]);
+      }
+    });
+
+    it("should answer 404 STUDENT_NOT_FOUND in the student routes", async () => {
+      const cases = [
+        [
+          "GET /task-notebook-session/student/:studentId",
+          new ListTaskNotebookSessionByStudentIdController(
+            new ListTaskNotebookSessionByStudentIdUseCase(repo(), repo(), repo(), repo(), repo())
+          ),
+        ],
+        ["GET /task-notebook-session/analysis/student/:studentId", new GenerateStudentAnalysisController(analysis())],
+        [
+          "GET /task-notebook-session/analysis/student/:studentId/ai",
+          new GenerateStudentAiAnalysisController(
+            new GenerateStudentAiAnalysisUseCase(analysis(), repo(), repo(), repo(), repo())
+          ),
+        ],
+        [
+          "GET /task-notebook-session/analysis/student/:studentId/history",
+          new ListStudentAnalysisHistoryController(
+            new ListStudentAnalysisHistoryUseCase(repo(), repo())
+          ),
+        ],
+        [
+          "POST /task-notebook-session/analysis/student/:studentId/snapshot",
+          new SaveStudentAnalysisSnapshotController(
+            new SaveStudentAnalysisSnapshotUseCase(analysis(), repo())
+          ),
+        ],
+      ] as const;
+
+      for (const [route, controller] of cases) {
+        expect([
+          route,
+          await run(controller as BaseController, { params: { studentId: NOT_UUID } }),
+        ]).toEqual([route, { status: 404, body: { message: "STUDENT_NOT_FOUND" } }]);
+      }
     });
   });
 });

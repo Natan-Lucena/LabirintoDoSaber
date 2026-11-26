@@ -105,10 +105,11 @@ describe("GenerateDailyNotificationsUseCase", () => {
     studentId: Uuid,
     updatedAt: Date,
     status = ApplicationStatus.DRAFT,
-    educatorId = educatorA
+    educatorId = educatorA,
+    id = Uuid.random()
   ) =>
     ScaleApplication.fromPersistence({
-      id: Uuid.random(),
+      id,
       templateId: Uuid.random(),
       templateCode: "SNAP-IV",
       templateVersion: 1,
@@ -464,8 +465,38 @@ describe("GenerateDailyNotificationsUseCase", () => {
       );
       expect(notifications[1].body).toContain("12 dias");
       expect(notifications[0].dedupeKey).toBe(
-        `${educatorA.value}:SCALE_DRAFT_STALE:${stale.id.value}`
+        `${educatorA.value}:SCALE_DRAFT_STALE:${stale.id.value}:2026-11-05`
       );
+    });
+  });
+
+  describe("SCALE_DRAFT_STALE once per abandonment (PP-07)", () => {
+    it("should not repeat while the draft stays untouched", async () => {
+      applications = [application(ana.id, ago(8 * DAY))];
+      await useCase.execute();
+      vi.setSystemTime(new Date(NOW.getTime() + 2 * DAY));
+
+      await useCase.execute();
+
+      expect(ofKind(NotificationKind.SCALE_DRAFT_STALE)).toHaveLength(1);
+    });
+
+    it("should notify again when the draft is resumed and abandoned again", async () => {
+      const id = Uuid.random();
+      applications = [application(ana.id, ago(8 * DAY), ApplicationStatus.DRAFT, educatorA, id)];
+      await useCase.execute();
+
+      // Retomada amanhã e parada de novo por 7 dias.
+      applications = [
+        application(ana.id, new Date(NOW.getTime() + DAY), ApplicationStatus.DRAFT, educatorA, id),
+      ];
+      vi.setSystemTime(new Date(NOW.getTime() + 9 * DAY));
+      await useCase.execute();
+
+      expect(ofKind(NotificationKind.SCALE_DRAFT_STALE).map((n) => n.dedupeKey)).toEqual([
+        `${educatorA.value}:SCALE_DRAFT_STALE:${id.value}:2026-11-04`,
+        `${educatorA.value}:SCALE_DRAFT_STALE:${id.value}:2026-11-13`,
+      ]);
     });
   });
 
@@ -617,6 +648,7 @@ describe("GenerateDailyNotificationsUseCase", () => {
         applicationId: draft.id,
         templateName: "SNAP-IV",
         days: 9,
+        updatedAt: draft.updatedAt,
         now: ago(91 * DAY),
       });
       notificationRepository.store.push(old);

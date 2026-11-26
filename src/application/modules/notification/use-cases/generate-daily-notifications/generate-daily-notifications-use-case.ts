@@ -183,6 +183,7 @@ export class GenerateDailyNotificationsUseCase {
           applicationId: application.id,
           templateName: application.templateName,
           days: Math.floor((now.getTime() - application.updatedAt.getTime()) / DAY_MS),
+          updatedAt: application.updatedAt,
           now,
         })
       );

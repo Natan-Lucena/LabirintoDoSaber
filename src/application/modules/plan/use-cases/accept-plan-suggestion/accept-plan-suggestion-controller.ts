@@ -26,6 +26,9 @@ export class AcceptPlanSuggestionController extends BaseController {
           return this.forbidden(res, result.error);
         case "SUGGESTION_ALREADY_RESOLVED":
         case "SUGGESTION_NOT_APPLICABLE":
+        // A meta da sugestão saiu do plano: conflito de estado. Hoje o use
+        // case já converte em SUGGESTION_NOT_APPLICABLE ao aplicar.
+        case "GOAL_NOT_FOUND":
           return this.conflict(res, result.error);
         default:
           return this.clientError(res, result.error);

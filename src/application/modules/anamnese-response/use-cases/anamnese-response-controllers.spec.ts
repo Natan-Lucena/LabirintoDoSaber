@@ -1,10 +1,10 @@
 // POST e PUT devolvem o mesmo JSON que o GET, com summaryOutdated (Swagger).
 import { describe, it, expect, vi } from "vitest";
-import { Request, Response } from "express";
 import { success, Uuid } from "@wave-telecom/framework/core";
 import { AnamneseResponse } from "../../../../domain/entities/anamnese-response";
 import { AnamneseQuestionType } from "../../../../domain/entities/anamnese-template";
 import { SubmitAnamneseResponseController } from "./submit-anamnese-response/submit-anamnese-response-controller";
+import { runController } from "../../controller-test-helper";
 import { UpdateAnamneseResponseController } from "./update-anamnese-response/update-anamnese-response-controller";
 
 const summaryAt = new Date("2026-11-10T12:00:00.000Z");
@@ -22,22 +22,7 @@ const response = AnamneseResponse.fromPersistence({
   summary: { text: "Síntese", generatedAt: summaryAt },
 });
 
-const run = async (controller: any, req: object) => {
-  const res = {
-    status: vi.fn().mockReturnThis(),
-    json: vi.fn().mockReturnThis(),
-    type: vi.fn().mockReturnThis(),
-    sendStatus: vi.fn().mockReturnThis(),
-  };
-  await controller.execute(
-    { params: {}, query: {}, user: { id: Uuid.random() }, ...req } as unknown as Request,
-    res as unknown as Response
-  );
-  return {
-    status: res.status.mock.calls[0][0],
-    body: JSON.parse(JSON.stringify(res.json.mock.calls[0][0])),
-  };
-};
+const run = (controller: any, req: object) => runController(controller, req);
 
 const body = { studentId: response.studentId.value, answers: [] };
 

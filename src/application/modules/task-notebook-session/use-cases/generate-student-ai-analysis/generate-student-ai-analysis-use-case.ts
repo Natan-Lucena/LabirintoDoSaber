@@ -37,6 +37,7 @@ export class GenerateStudentAiAnalysisUseCase {
 
   async execute(request: GenerateStudentAiAnalysisUseCaseRequest) {
     // EQ-11: dono ou compartilhado; confere antes de qualquer busca ou IA.
+    if (!Uuid.isValid(request.studentId)) return failure("STUDENT_NOT_FOUND" as const);
     const access = await this.studentAccess.assertStudentAccess(
       new Uuid(request.studentId),
       request.educatorId

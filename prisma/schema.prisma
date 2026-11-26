@@ -723,7 +723,10 @@ model Notification {
   targetId   String?
   // Aluno da notificação: some da lista se ele deixar de ser do educador.
   studentId  String?
-  // Uma por kind + alvo + dia; o cron pode rodar de novo sem duplicar.
+  // <educatorId>:<kind>:<ocorrência>. APPOINTMENTS_TODAY: a data (uma por dia).
+  // Pendências, uma por pendência: EVOLUTION_PENDING <sessionId>; PLAN_REVIEW_DUE
+  // <planId>:<nextReviewDate>; SCALE_DRAFT_STALE <applicationId>:<updatedAt
+  // AAAA-MM-DD>. O cron pode rodar de novo sem duplicar.
   dedupeKey  String                  @unique
   // Quantidade do APPOINTMENTS_TODAY, para o texto do push.
   count      Int?
