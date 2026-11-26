@@ -1,23 +1,39 @@
 import { failure, success, Uuid } from "@wave-telecom/framework/core";
+import { Task } from "../../../../domain/entities/task";
 import { TaskNotebookSession } from "../../../../domain/entities/task-notebook-session";
 import { TaskGroupRepository } from "../../../../domain/repositories/task-group-repository";
 import { TaskNotebookRepository } from "../../../../domain/repositories/task-notebook-repository";
+import { TaskRepository } from "../../../../domain/repositories/task-repository";
+import { findUnusableTask } from "../../task/use-cases/task-rules";
 
-// Sessão com caderno: a atividade precisa estar nele ou num dos grupos dele.
-// Sessão sem caderno aceita qualquer atividade. Usado pela resposta e pelo
-// resultado de jogo (RS-02).
-export async function assertTaskInSessionNotebook(
-  notebookRepository: TaskNotebookRepository,
-  taskGroupRepository: TaskGroupRepository,
+// Atividade que pode ser jogada/respondida na sessão. Usado pela resposta e
+// pelo resultado de jogo.
+// - Sessão com caderno: a atividade precisa estar nele ou num dos grupos dele
+//   (RS-02).
+// - Sessão sem caderno: só atividade que o educador pode usar (isUsableBy).
+export async function assertTaskAllowedInSession(
+  repositories: {
+    notebookRepository: TaskNotebookRepository;
+    taskGroupRepository: TaskGroupRepository;
+    taskRepository: TaskRepository;
+  },
   session: TaskNotebookSession,
-  taskId: Uuid
+  task: Task,
+  educatorId: Uuid
 ) {
-  if (!session.taskNotebookId) return success(undefined);
+  const { notebookRepository, taskGroupRepository, taskRepository } = repositories;
+
+  if (!session.taskNotebookId) {
+    if (await findUnusableTask(taskRepository, [task], educatorId)) {
+      return failure("UNAUTHORIZED");
+    }
+    return success(undefined);
+  }
 
   const notebook = await notebookRepository.getById(session.taskNotebookId);
   if (!notebook) return failure("NOTEBOOK_NOT_FOUND");
 
-  if (notebook.tasks.some((task) => task.id.value === taskId.value)) {
+  if (notebook.tasks.some((item) => item.id.value === task.id.value)) {
     return success(undefined);
   }
 
@@ -25,7 +41,7 @@ export async function assertTaskInSessionNotebook(
     const groups = await taskGroupRepository.findByIds(
       notebook.taskGroupsIds.map((id) => new Uuid(id))
     );
-    if (groups.some((group) => group.tasksIds.includes(taskId.value))) {
+    if (groups.some((group) => group.tasksIds.includes(task.id.value))) {
       return success(undefined);
     }
   }

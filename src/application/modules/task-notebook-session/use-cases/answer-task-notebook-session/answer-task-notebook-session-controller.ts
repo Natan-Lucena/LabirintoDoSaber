@@ -12,6 +12,9 @@ export class AnswerTaskNotebookSessionController extends BaseController {
   }
 
   async executeImpl(req: Request, res: Response): Promise<unknown> {
+    const educator = req.user;
+    if (!educator) return this.unauthorized(res);
+
     const validation = await answerTaskNotebookSessionSchema.safeParseAsync(
       req.body
     );
@@ -21,7 +24,10 @@ export class AnswerTaskNotebookSessionController extends BaseController {
       return this.clientError(res, undefined, errors);
     }
 
-    const result = await this.useCase.execute(validation.data);
+    const result = await this.useCase.execute({
+      ...validation.data,
+      educatorId: educator.id,
+    });
 
     if (!result.ok) {
       switch (result.error) {
@@ -37,6 +43,8 @@ export class AnswerTaskNotebookSessionController extends BaseController {
           return this.clientError(res, "TASK_NOT_IN_NOTEBOOK");
         case "PRINTABLE_NOT_PLAYABLE":
           return this.clientError(res, "PRINTABLE_NOT_PLAYABLE");
+        case "UNAUTHORIZED":
+          return this.forbidden(res, "UNAUTHORIZED");
         case "USE_ACTIVITY_RESULT_ROUTE":
           return this.clientError(res, "USE_ACTIVITY_RESULT_ROUTE");
         case "TASK_ALREADY_ANSWERED":

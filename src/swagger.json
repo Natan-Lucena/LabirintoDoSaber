@@ -5029,6 +5029,23 @@
               }
             }
           },
+          "403": {
+            "description": "`UNAUTHORIZED`: em sessão sem caderno, atividade que o educador não pode usar (de outro educador, ou antiga de cadernos/grupos de outros educadores).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "404": {
             "description": "`SESSION_NOT_FOUND`, `TASK_NOT_FOUND`, `NOTEBOOK_NOT_FOUND`",
             "content": {
@@ -5183,7 +5200,7 @@
             }
           },
           "403": {
-            "description": "`UNAUTHORIZED`: aluno de outro educador.",
+            "description": "`UNAUTHORIZED`: aluno de outro educador; ou, em sessão sem caderno, atividade que o educador não pode usar (de outro educador, ou antiga de cadernos/grupos de outros educadores).",
             "content": {
               "application/json": {
                 "schema": {
@@ -15311,17 +15328,18 @@
           },
           "averageTimePerQuestion": {
             "type": "number",
-            "description": "Média de `timeToAnswer`, em milissegundos."
+            "description": "Média de `timeToAnswer`, em milissegundos. `null` quando a sessão não tem respostas de múltipla escolha (por exemplo, só jogos).",
+            "nullable": true
           },
           "averageCorrectTime": {
             "type": "number",
             "nullable": true,
-            "description": "Média de `timeToAnswer`, em milissegundos."
+            "description": "Média de `timeToAnswer`, em milissegundos. `null` quando não há respostas nesse grupo."
           },
           "averageIncorrectTime": {
             "type": "number",
             "nullable": true,
-            "description": "Média de `timeToAnswer`, em milissegundos."
+            "description": "Média de `timeToAnswer`, em milissegundos. `null` quando não há respostas nesse grupo."
           },
           "percentageByCategory": {
             "type": "object",
@@ -19472,12 +19490,12 @@
           },
           "resultId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Resultado já gravado para a atividade na sessão."
           }
         },
         "required": [
-          "message",
-          "resultId"
+          "message"
         ]
       }
     }

@@ -16,6 +16,7 @@ import { makeSession, makeStudent } from "../../../session-evolution/use-cases/t
 import {
   makeMultipleChoiceTask,
   makePrintableTask,
+  makeLibraryTask,
   makeTaskRepository,
   makeWordBuilderTask,
 } from "../../../task/use-cases/test-fixtures";
@@ -172,6 +173,50 @@ describe("RecordActivityResultUseCase", () => {
       error: "PRINTABLE_NOT_PLAYABLE",
     });
     expect(resultRepository.save).not.toHaveBeenCalled();
+  });
+
+  describe("session without a notebook: only tasks the educator can use", () => {
+    it("should return UNAUTHORIZED for a task of another educator", async () => {
+      const foreign = makeWordBuilderTask({ educatorId: Uuid.random() });
+      taskRepository.getById.mockResolvedValue(foreign);
+
+      expect(await execute({ taskId: foreign.id.value })).toEqual({
+        ok: false,
+        error: "UNAUTHORIZED",
+      });
+      expect(resultRepository.save).not.toHaveBeenCalled();
+    });
+
+    it("should return UNAUTHORIZED for a legacy task owned by other educators", async () => {
+      const legacy = makeWordBuilderTask();
+      taskRepository.getById.mockResolvedValue(legacy);
+      taskRepository.findLegacyOwners.mockResolvedValue(
+        new Map([[legacy.id.value, [Uuid.random().value]]])
+      );
+
+      expect(await execute({ taskId: legacy.id.value })).toEqual({
+        ok: false,
+        error: "UNAUTHORIZED",
+      });
+      expect(resultRepository.save).not.toHaveBeenCalled();
+    });
+
+    it("should accept the educator's own task, a library task and a legacy task of his", async () => {
+      const own = makeWordBuilderTask({ educatorId });
+      taskRepository.getById.mockResolvedValue(own);
+      expect((await execute({ taskId: own.id.value })).ok).toBe(true);
+
+      const library = makeLibraryTask();
+      taskRepository.getById.mockResolvedValue(library);
+      expect((await execute({ taskId: library.id.value })).ok).toBe(true);
+
+      const legacy = makeWordBuilderTask();
+      taskRepository.getById.mockResolvedValue(legacy);
+      taskRepository.findLegacyOwners.mockResolvedValue(
+        new Map([[legacy.id.value, [educatorId.value]]])
+      );
+      expect((await execute({ taskId: legacy.id.value })).ok).toBe(true);
+    });
   });
 
   describe("RS-02: session with a notebook", () => {

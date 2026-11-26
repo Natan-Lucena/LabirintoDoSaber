@@ -190,6 +190,31 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
     });
   });
 
+  it("should return null averages, never NaN, for a session with only games", async () => {
+    const session = makeSession({ answers: [] });
+    (sessionRepository.getById as any).mockResolvedValue(session);
+    const created = ActivityResult.create({
+      sessionId: session.id,
+      task: makeWordBuilderTask(),
+      completed: true,
+      correct: true,
+      attempts: 1,
+      errors: 0,
+      durationMs: 9000,
+    });
+    if (!created.ok) throw new Error(String(created.error));
+    (activityResultRepository.listBySessionId as any).mockResolvedValue([created.value]);
+
+    const report = ((await useCase.execute({ sessionId: session.id.value })) as any).value;
+
+    expect(report.totalQuestions).toBe(0);
+    expect(report.averageTimePerQuestion).toBeNull();
+    expect(report.averageCorrectTime).toBeNull();
+    expect(report.averageIncorrectTime).toBeNull();
+    expect(JSON.parse(JSON.stringify(report)).averageTimePerQuestion).toBeNull();
+    expect(report.activitySummary).toEqual({ total: 1, completed: 1, correct: 1 });
+  });
+
   it("should fail if session does not exist", async () => {
     (sessionRepository.getById as any).mockResolvedValue(null);
 
@@ -285,7 +310,8 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
     const expectedTotalTimeSession = 50;
     const expectedTotalQuestions = 0;
 
-    const expectedAverageTimePerQuestion = NaN;
+    // Sem respostas não há média: null explícito, nunca NaN.
+    const expectedAverageTimePerQuestion = null;
     const expectedAverageCorrectTime = null;
     const expectedAverageIncorrectTime = null;
 

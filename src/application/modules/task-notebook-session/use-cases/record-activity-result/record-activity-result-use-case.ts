@@ -10,7 +10,7 @@ import { TaskNotebookRepository } from "../../../../../domain/repositories/task-
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
 import { loadOwnedSession } from "../../../session-evolution/use-cases/evolution-access";
-import { assertTaskInSessionNotebook } from "../session-task-access";
+import { assertTaskAllowedInSession } from "../session-task-access";
 
 export interface RecordActivityResultUseCaseRequest {
   educatorId: Uuid;
@@ -66,13 +66,17 @@ export class RecordActivityResultUseCase {
     if (!created.ok) return created;
     const result = created.value;
 
-    const inNotebook = await assertTaskInSessionNotebook(
-      this.notebookRepository,
-      this.taskGroupRepository,
+    const allowed = await assertTaskAllowedInSession(
+      {
+        notebookRepository: this.notebookRepository,
+        taskGroupRepository: this.taskGroupRepository,
+        taskRepository: this.taskRepository,
+      },
       session,
-      task.id
+      task,
+      request.educatorId
     );
-    if (!inNotebook.ok) return inNotebook;
+    if (!allowed.ok) return allowed;
 
     const existing = await this.resultRepository.findBySessionAndTask(session.id, task.id);
     if (existing) return alreadyExists(existing.id.value);

@@ -51,9 +51,12 @@ export class GeneratorReportTaskNotebookSessionUseCase {
 
     const totalQuestions = session.answers.length;
 
+    // Sessão sem respostas (por exemplo, só jogos): null, nunca NaN.
     const averageTimePerQuestion =
-      session.answers.reduce((acc, curr) => acc + curr.timeToAnswer, 0) /
-      totalQuestions; // milissegundos (timeToAnswer cru)
+      totalQuestions > 0
+        ? session.answers.reduce((acc, curr) => acc + curr.timeToAnswer, 0) /
+          totalQuestions
+        : null; // milissegundos (timeToAnswer cru)
 
     const correctTimes = session.answers
       .filter((a) => a.isCorrect)

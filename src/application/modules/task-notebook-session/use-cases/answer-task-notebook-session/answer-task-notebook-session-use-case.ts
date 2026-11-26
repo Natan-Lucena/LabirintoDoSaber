@@ -5,9 +5,10 @@ import { TaskNotebookRepository } from "../../../../../domain/repositories/task-
 import { isMultipleChoiceType } from "../../../../../domain/entities/task";
 import { TaskGroupRepository } from "../../../../../domain/repositories/task-group-repository";
 import { TaskAnswer } from "../../../../../domain/entities/task-notebook-session";
-import { assertTaskInSessionNotebook } from "../session-task-access";
+import { assertTaskAllowedInSession } from "../session-task-access";
 
 export interface AnswerTaskNotebookSessionUseCaseRequest {
+  educatorId: Uuid;
   sessionId: string;
   taskId: string;
   selectedAlternativeId: string;
@@ -54,13 +55,17 @@ export class AnswerTaskNotebookSessionUseCase {
       return failure("USE_ACTIVITY_RESULT_ROUTE");
     }
 
-    const inNotebook = await assertTaskInSessionNotebook(
-      this.notebookRepository,
-      this.taskGroupRepository,
+    const allowed = await assertTaskAllowedInSession(
+      {
+        notebookRepository: this.notebookRepository,
+        taskGroupRepository: this.taskGroupRepository,
+        taskRepository: this.taskRepository,
+      },
       session,
-      task.id
+      task,
+      request.educatorId
     );
-    if (!inNotebook.ok) return inNotebook;
+    if (!allowed.ok) return allowed;
 
     const alreadyAnswered = session.answers.some(
       (a) => a.taskId.value === task.id.value
