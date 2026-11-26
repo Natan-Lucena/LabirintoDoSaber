@@ -1,5 +1,5 @@
 import { Uuid } from "@wave-telecom/framework/core";
-import { Task, TaskSource } from "../../../domain/entities/task";
+import { isUsableBy, Task, TaskSource } from "../../../domain/entities/task";
 import { TaskRepository } from "../../../domain/repositories/task-repository";
 
 export class MockTaskRepository implements TaskRepository {
@@ -29,8 +29,13 @@ export class MockTaskRepository implements TaskRepository {
     return this.data.filter((t) => idSet.has(t.id.value));
   }
 
+  // Sem cadernos e grupos aqui: toda antiga sem dono é legado avulso.
   async listByEducator(educatorId: Uuid): Promise<Task[]> {
-    return this.data.filter((t) => t.educatorId?.value === educatorId.value);
+    return this.data.filter((t) => !t.isLibrary && isUsableBy(t, educatorId));
+  }
+
+  async findLegacyOwners(taskIds: Uuid[]): Promise<Map<string, string[]>> {
+    return new Map(taskIds.map((id) => [id.value, []]));
   }
 
   async listLibrary(): Promise<Task[]> {

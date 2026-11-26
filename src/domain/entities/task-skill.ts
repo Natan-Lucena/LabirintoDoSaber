@@ -18,6 +18,10 @@ const CODE = /^[A-Z][A-Z0-9_]{1,39}$/;
 // Namespace dos ids determinísticos do seed (habilidades e biblioteca).
 export const TASK_LIBRARY_NAMESPACE = "8f7c2b1e-4d3a-4c5b-9e6f-1a2b3c4d5e6f";
 
+// Só letras e números, separados por um espaço.
+const words = (value: string) =>
+  normalizeText(value).replace(/[^a-z0-9]+/g, " ").trim();
+
 export class TaskSkill {
   private constructor(private readonly props: TaskSkillProps) {}
 
@@ -72,10 +76,15 @@ export class TaskSkill {
     return this.props.order;
   }
 
-  // Casa com os temas do aluno ignorando acento e maiúscula.
+  // Casa com os temas do aluno ignorando acento, maiúscula e pontuação: o
+  // tópico do catálogo pode ser o tema inteiro ou aparecer nele como
+  // palavra(s) inteira(s) ("Dificuldade de leitura" casa com "leitura").
   matchesAnyTopic(topics: string[]): boolean {
-    const wanted = new Set(topics.map(normalizeText));
-    return this.props.learningTopics.some((topic) => wanted.has(normalizeText(topic)));
+    const studentTopics = topics.map(words).filter(Boolean).map((topic) => ` ${topic} `);
+    return this.props.learningTopics.some((topic) => {
+      const needle = words(topic);
+      return !!needle && studentTopics.some((topic) => topic.includes(` ${needle} `));
+    });
   }
 
   toJSON() {

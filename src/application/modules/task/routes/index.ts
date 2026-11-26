@@ -67,7 +67,8 @@ const listRecommendedTasksUseCase = new ListRecommendedTasksUseCase(
 const saveTaskBatchUseCase = new SaveTaskBatchUseCase(
   taskRepository,
   taskGroupRepository,
-  educatorRepository
+  educatorRepository,
+  fileStorage
 );
 
 const uploadTaskMediaUseCase = new UploadTaskMediaUseCase(fileStorage);

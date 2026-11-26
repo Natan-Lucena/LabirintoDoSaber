@@ -2,7 +2,7 @@ import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { TaskGroupRepository } from "../../../../../domain/repositories/task-group-repository";
 import { TaskCategory } from "../../../../../domain/entities/task";
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
-import { hasPrintableTask } from "../task-group-rules";
+import { checkGroupTasks } from "../task-group-rules";
 
 interface UpdateTaskGroupUseCaseRequest {
   id: string;
@@ -36,9 +36,12 @@ export class UpdateTaskGroupUseCase {
         return failure("NOT_GROUP_OWNER");
       }
 
-      if (await hasPrintableTask(this.taskRepository, props.tasksIds)) {
-        return failure("PRINTABLE_NOT_PLAYABLE");
-      }
+      const usable = await checkGroupTasks(
+        this.taskRepository,
+        props.tasksIds,
+        props.educatorId
+      );
+      if (!usable.ok) return usable;
 
       const updatedTaskGroupResult = existingTaskGroup.updateTaskGroup({
         name: props.name,

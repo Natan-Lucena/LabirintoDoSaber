@@ -85,6 +85,7 @@ export const makeTaskRepository = () =>
     getByIds: vi.fn().mockResolvedValue([]),
     listByEducator: vi.fn().mockResolvedValue([]),
     listLibrary: vi.fn().mockResolvedValue([]),
+    findLegacyOwners: vi.fn(async () => new Map<string, string[]>()),
     delete: vi.fn(),
   }) satisfies Record<keyof TaskRepository, unknown> as unknown as TaskRepository & {
     [K in keyof TaskRepository]: ReturnType<typeof vi.fn>;

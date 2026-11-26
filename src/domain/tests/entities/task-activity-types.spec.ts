@@ -159,6 +159,45 @@ describe("Task: tipos novos", () => {
       expect(task.content).toMatchObject({ pairs: [{ colorHex: "#0000FF" }, { colorHex: "#00FF00" }] });
     });
 
+    it("colorMatch recusa cor repetida (sem diferenciar maiúscula)", () => {
+      const result = Task.create({
+        ...base,
+        type: TaskType.ColorMatch,
+        content: {
+          kind: "colorMatch",
+          pairs: [
+            { id: "a", word: "Azul", colorHex: "#0000FF" },
+            { id: "b", word: "Anil", colorHex: "#0000ff" },
+          ],
+        },
+      });
+      expect(fieldsOf(result)).toEqual(["content.pairs.1.colorHex"]);
+    });
+
+    it("memoryGame recusa cartas idênticas (label normalizado e mesma imagem)", () => {
+      const create = (cards: unknown) =>
+        Task.create({ ...base, type: TaskType.MemoryGame, content: { kind: "memoryGame", cards } });
+
+      expect(
+        fieldsOf(create([{ id: "1", label: "Leão" }, { id: "2", label: "  leao " }]))
+      ).toEqual(["content.cards.1"]);
+      expect(
+        fieldsOf(
+          create([
+            { id: "1", label: "Sol", imageUrl: "https://bucket/sol.png" },
+            { id: "2", label: "SOL", imageUrl: "https://bucket/sol.png" },
+          ])
+        )
+      ).toEqual(["content.cards.1"]);
+      // Mesmo rótulo com imagens diferentes são cartas diferentes.
+      expect(
+        create([
+          { id: "1", label: "Sol", imageUrl: "https://bucket/sol-1.png" },
+          { id: "2", label: "Sol", imageUrl: "https://bucket/sol-2.png" },
+        ]).ok
+      ).toBe(true);
+    });
+
     it("memoryGame: 2 a 8 cartas, cada uma com label ou imagem", () => {
       const create = (cards: unknown) =>
         Task.create({ ...base, type: TaskType.MemoryGame, content: { kind: "memoryGame", cards } });
@@ -278,6 +317,33 @@ describe("Task: tipos novos", () => {
   });
 
   describe("updateTask", () => {
+    it("permite trocar entre as duas variantes de múltipla escolha", () => {
+      const quiz = unwrap(
+        Task.create({
+          ...base,
+          type: TaskType.MultipleChoice,
+          alternatives: [
+            { text: "A", isCorrect: true },
+            { text: "B", isCorrect: false },
+          ],
+        })
+      );
+
+      const withMedia = unwrap(
+        quiz.updateTask({
+          type: TaskType.MultipleChoiceWithMedia,
+          imageFile: "https://bucket/img.png",
+        })
+      );
+      expect(withMedia.type).toBe(TaskType.MultipleChoiceWithMedia);
+      expect(withMedia.id.value).toBe(quiz.id.value);
+
+      expect(quiz.updateTask({ type: TaskType.WordBuilder })).toEqual({
+        ok: false,
+        error: "TYPE_CHANGE_NOT_ALLOWED",
+      });
+    });
+
     it("TYPE_CHANGE_NOT_ALLOWED quando o tipo muda", () => {
       const task = unwrap(wordBuilderWith({}));
       expect(task.updateTask({ type: TaskType.MemoryGame })).toEqual({

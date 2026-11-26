@@ -3,7 +3,12 @@ import { TaskRepository } from "../../../../../domain/repositories/task-reposito
 import { TaskSkillRepository } from "../../../../../domain/repositories/task-skill-repository";
 import { TaskCategory, TaskTone, TaskType } from "../../../../../domain/entities/task";
 import { FileStorage } from "../../../../services/file-storage";
-import { checkMediaUrls, checkSkills, loadEditableTask } from "../task-rules";
+import {
+  checkMediaRefs,
+  checkSkills,
+  loadEditableTask,
+  multipleChoiceMediaRefs,
+} from "../task-rules";
 
 export interface UpdateTaskUseCaseRequest {
   educatorId: Uuid;
@@ -40,7 +45,12 @@ export class UpdateTaskUseCase {
     const updated = existing.value.updateTask(changes);
     if (!updated.ok) return updated;
 
-    const media = checkMediaUrls(this.fileStorage, updated.value);
+    // Mídias do content e os imageFile/audioFile enviados agora (os já gravados
+    // não são revalidados).
+    const media = checkMediaRefs(this.fileStorage, [
+      ...updated.value.mediaUrls,
+      ...multipleChoiceMediaRefs(changes),
+    ]);
     if (!media.ok) return media;
 
     await this.taskRepository.save(updated.value);

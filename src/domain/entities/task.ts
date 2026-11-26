@@ -235,9 +235,14 @@ export class Task {
     return new Task(props);
   }
 
-  // Atualização revalida tudo; o tipo não muda.
+  // Atualização revalida tudo. O tipo só muda entre as duas variantes de
+  // múltipla escolha (com e sem mídia).
   public updateTask(props: UpdateTaskProps) {
-    if (props.type !== undefined && props.type !== this.type) {
+    const type = props.type ?? this.type;
+    if (
+      type !== this.type &&
+      !(isMultipleChoiceType(type) && isMultipleChoiceType(this.type))
+    ) {
       return failure<TaskError>("TYPE_CHANGE_NOT_ALLOWED");
     }
 
@@ -246,7 +251,7 @@ export class Task {
       createdAt: this.createdAt,
       source: this.source,
       educatorId: this.educatorId,
-      type: this.type,
+      type,
       category: props.category ?? this.category,
       prompt: props.prompt ?? this.prompt,
       alternatives: props.alternatives ?? this.alternatives,
@@ -292,10 +297,6 @@ export class Task {
     return this.type === TaskType.Printable;
   }
 
-  // Dono explícito diferente do educador. Tarefas antigas não têm dono gravado.
-  public belongsToAnotherEducator(educatorId: Uuid): boolean {
-    return !!this.educatorId && this.educatorId.value !== educatorId.value;
-  }
 
   // Título de exibição (TaskSummary).
   get title(): string {
@@ -336,6 +337,23 @@ export class Task {
     const correct = this.alternatives.find((alt) => alt.isCorrect);
     return success(correct!);
   }
+}
+
+// Quem pode usar a tarefa (editar, excluir, duplicar, pôr em caderno ou grupo).
+// - biblioteca: todos (a edição é barrada à parte, LIBRARY_TASK_READ_ONLY);
+// - com dono gravado: só o dono;
+// - antiga sem dono: os donos dos cadernos e grupos em que ela está
+//   (`legacyOwnerIds`); fora de qualquer caderno ou grupo ("legado avulso"),
+//   todos, como antes do banco de atividades.
+export function isUsableBy(task: Task, educatorId: Uuid, legacyOwnerIds: string[] = []): boolean {
+  if (task.isLibrary) return true;
+  if (task.educatorId) return task.educatorId.value === educatorId.value;
+  return legacyOwnerIds.length === 0 || legacyOwnerIds.includes(educatorId.value);
+}
+
+// Tarefa antiga, sem dono gravado, cujo dono vem dos cadernos e grupos.
+export function isLegacyTask(task: Task): boolean {
+  return !task.isLibrary && !task.educatorId;
 }
 
 function validMultipleChoice(

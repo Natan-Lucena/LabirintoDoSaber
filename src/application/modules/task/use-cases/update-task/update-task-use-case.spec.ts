@@ -68,6 +68,71 @@ describe("UpdateTaskUseCase", () => {
     expect(result).toEqual({ ok: true, value: saved });
   });
 
+  it("antiga sem dono em caderno/grupo de outro educador → UNAUTHORIZED", async () => {
+    const legacy = makeMultipleChoiceTask();
+    taskRepository.getById.mockResolvedValue(legacy);
+    taskRepository.findLegacyOwners.mockResolvedValue(
+      new Map([[legacy.id.value, [Uuid.random().value]]])
+    );
+
+    const result = await useCase.execute({ educatorId, id: legacy.id.value, prompt: "Novo" });
+
+    expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
+    expect(taskRepository.findLegacyOwners).toHaveBeenCalledWith([legacy.id]);
+    expect(taskRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("antiga sem dono em caderno/grupo do próprio educador é editável", async () => {
+    const legacy = makeMultipleChoiceTask();
+    taskRepository.getById.mockResolvedValue(legacy);
+    taskRepository.findLegacyOwners.mockResolvedValue(
+      new Map([[legacy.id.value, [Uuid.random().value, educatorId.value]]])
+    );
+
+    const result = await useCase.execute({ educatorId, id: legacy.id.value, prompt: "Novo" });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("troca entre multipleChoice e multipleChoiceWithMedia", async () => {
+    const quiz = makeMultipleChoiceTask({ educatorId });
+    taskRepository.getById.mockResolvedValue(quiz);
+
+    const result = await useCase.execute({
+      educatorId,
+      id: quiz.id.value,
+      type: TaskType.MultipleChoiceWithMedia,
+      imageFile: `${BUCKET_URL}figura.png`,
+    });
+
+    expect(result.ok).toBe(true);
+    const saved = taskRepository.save.mock.calls[0][0] as Task;
+    expect(saved.type).toBe(TaskType.MultipleChoiceWithMedia);
+    expect(saved.imageFile).toBe(`${BUCKET_URL}figura.png`);
+  });
+
+  it("AT-05: imageFile/audioFile enviados fora do armazenamento → INVALID_MEDIA_URL", async () => {
+    const quiz = makeMultipleChoiceTask({ educatorId });
+    taskRepository.getById.mockResolvedValue(quiz);
+
+    const result = await useCase.execute({
+      educatorId,
+      id: quiz.id.value,
+      type: TaskType.MultipleChoiceWithMedia,
+      imageFile: `${BUCKET_URL}figura.png`,
+      audioFile: "https://example.com/som.mp3",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "INVALID_MEDIA_URL",
+        errors: [{ field: "audioFile", message: expect.any(String) }],
+      },
+    });
+    expect(taskRepository.save).not.toHaveBeenCalled();
+  });
+
   it("TYPE_CHANGE_NOT_ALLOWED ao mudar o tipo", async () => {
     const task = makeWordBuilderTask({ educatorId });
     taskRepository.getById.mockResolvedValue(task);

@@ -6,6 +6,7 @@ import {
 import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
 import { TaskNotebookRepository } from "../../../../../domain/repositories/task-notebook-repository";
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
+import { checkPlayableTasks } from "../../../task-group/use-cases/task-group-rules";
 import { mapTaskNotebookToResponse } from "../../../../../infraestructure/mappers/map-task-notebook";
 
 export interface CreateTaskNotebookRequest {
@@ -46,10 +47,13 @@ export class CreateTaskNotebookUseCase {
       return failure("TASKS_DOES_NOT_EXISTS");
     }
 
-    // AT-10: imprimível não entra em caderno.
-    if (existingTasks.some((task) => task.isPrintable)) {
-      return failure("PRINTABLE_NOT_PLAYABLE");
-    }
+    // AT-10: sem imprimível e só tarefas que o educador pode usar.
+    const usable = await checkPlayableTasks(
+      this.taskRepository,
+      existingTasks,
+      educatorExists.id
+    );
+    if (!usable.ok) return usable;
     const taskNotebookResult = TaskNotebook.create({
       educator: educatorExists,
       description: props.description,

@@ -28,6 +28,9 @@ export class CreateTaskNotebookController extends BaseController {
       if (result.error === "PRINTABLE_NOT_PLAYABLE") {
         return this.clientError(res, result.error);
       }
+      if (result.error === "UNAUTHORIZED") {
+        return this.forbidden(res, result.error);
+      }
       if (
         result.error === "EDUCATOR_DOES_NOT_EXISTS" ||
         result.error === "TASKS_DOES_NOT_EXISTS"

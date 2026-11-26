@@ -240,6 +240,7 @@ export const makeTaskRepository = (tasks: Task[]) =>
     ),
     listByEducator: vi.fn(),
     listLibrary: vi.fn(),
+    findLegacyOwners: vi.fn(async () => new Map<string, string[]>()),
     delete: vi.fn(),
   }) satisfies TaskRepository;
 

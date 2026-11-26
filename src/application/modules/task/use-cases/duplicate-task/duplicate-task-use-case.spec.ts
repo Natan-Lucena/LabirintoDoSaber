@@ -67,7 +67,21 @@ describe("DuplicateTaskUseCase", () => {
     expect(edited.ok).toBe(true);
   });
 
-  it("duplica tarefa antiga sem dono, com ids novos nas alternativas", async () => {
+  it("antiga sem dono em caderno/grupo de outro educador → UNAUTHORIZED", async () => {
+    const legacy = makeMultipleChoiceTask();
+    taskRepository.getById.mockResolvedValue(legacy);
+    taskRepository.findLegacyOwners.mockResolvedValue(
+      new Map([[legacy.id.value, [Uuid.random().value]]])
+    );
+
+    expect(await useCase.execute({ taskId: legacy.id.value, educatorId })).toEqual({
+      ok: false,
+      error: "UNAUTHORIZED",
+    });
+    expect(taskRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("duplica tarefa antiga avulsa, com ids novos nas alternativas", async () => {
     const legacy = makeMultipleChoiceTask();
     taskRepository.getById.mockResolvedValue(legacy);
 

@@ -2132,7 +2132,7 @@
             }
           },
           "400": {
-            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `EMPTY_TASK_LIST`, `INVALID_TASK_DATA`.",
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), erro de negócio (`EMPTY_TASK_LIST`, `INVALID_TASK_DATA`) ou `INVALID_MEDIA_URL` com `errors[].field` (`tasks.N.imageFile`/`tasks.N.audioFile` fora de `POST /task/upload-media`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2142,6 +2142,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TaskFieldErrors"
                     }
                   ]
                 },
@@ -2165,6 +2168,17 @@
                   "INVALID_TASK_DATA": {
                     "value": {
                       "message": "INVALID_TASK_DATA"
+                    }
+                  },
+                  "INVALID_MEDIA_URL": {
+                    "value": {
+                      "message": "INVALID_MEDIA_URL",
+                      "errors": [
+                        {
+                          "field": "tasks.0.imageFile",
+                          "message": "Use uma URL de POST /task/upload-media"
+                        }
+                      ]
                     }
                   }
                 }
@@ -2495,7 +2509,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Tarefas `EDUCATOR` do educador do token, com os campos novos. Tarefas antigas sem dono gravado contam como do educador quando estão num caderno ou grupo dele."
+        "description": "Tarefas `EDUCATOR` que o educador pode usar, com os campos novos: as dele, as antigas sem dono que estão num caderno/grupo dele e as antigas avulsas (fora de qualquer caderno/grupo), que aparecem para todos como antes. Regra de uso: biblioteca é de todos; tarefa com dono, só do dono; tarefa antiga sem dono conta como dos donos dos cadernos/grupos em que está e, fora de qualquer caderno/grupo (legado avulso), é de todos."
       }
     },
     "/task/update": {
@@ -2595,6 +2609,17 @@
                         }
                       ]
                     }
+                  },
+                  "INVALID_MEDIA_URL_FILE": {
+                    "value": {
+                      "message": "INVALID_MEDIA_URL",
+                      "errors": [
+                        {
+                          "field": "imageFile",
+                          "message": "Use uma URL de POST /task/upload-media"
+                        }
+                      ]
+                    }
                   }
                 }
               }
@@ -2628,7 +2653,7 @@
             }
           },
           "403": {
-            "description": "Biblioteca ou tarefa de outro educador.",
+            "description": "Biblioteca (`LIBRARY_TASK_READ_ONLY`) ou tarefa que o educador não pode usar (`UNAUTHORIZED`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2682,7 +2707,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Revalida a tarefa inteira. `content` substitui o conteúdo. Tarefa da biblioteca: 403 LIBRARY_TASK_READ_ONLY (duplique antes)."
+        "description": "Revalida a tarefa inteira. `content` substitui o conteúdo. `type` só muda entre `multipleChoice` e `multipleChoiceWithMedia`. `imageFile`/`audioFile` enviados precisam ser URLs de `POST /task/upload-media`. Tarefa da biblioteca: 403 LIBRARY_TASK_READ_ONLY (duplique antes). Regra de uso: biblioteca é de todos; tarefa com dono, só do dono; tarefa antiga sem dono conta como dos donos dos cadernos/grupos em que está e, fora de qualquer caderno/grupo (legado avulso), é de todos."
       }
     },
     "/task/delete/{id}": {
@@ -2734,7 +2759,7 @@
             }
           },
           "403": {
-            "description": "Biblioteca ou tarefa de outro educador.",
+            "description": "Biblioteca (`LIBRARY_TASK_READ_ONLY`) ou tarefa que o educador não pode usar (`UNAUTHORIZED`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2787,7 +2812,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Regra de uso: biblioteca é de todos; tarefa com dono, só do dono; tarefa antiga sem dono conta como dos donos dos cadernos/grupos em que está e, fora de qualquer caderno/grupo (legado avulso), é de todos."
       }
     },
     "/task/catalog": {
@@ -2796,7 +2822,7 @@
           "Task"
         ],
         "summary": "Catálogo de atividades: biblioteca + tarefas do educador.",
-        "description": "Mais recentes primeiro, paginado por cursor. `search` ignora acento e maiúscula e procura em prompt, theme, título do conteúdo e rótulo da habilidade.",
+        "description": "Mais recentes primeiro, paginado por cursor. `search` ignora acento e maiúscula e procura em prompt, theme, título do conteúdo e rótulo da habilidade. As tarefas `EDUCATOR` seguem a mesma regra de `GET /task/` (inclui o legado avulso).",
         "parameters": [
           {
             "name": "search",
@@ -3191,7 +3217,7 @@
           "Task"
         ],
         "summary": "Duplica uma tarefa como cópia editável do educador.",
-        "description": "Funciona com a biblioteca, as próprias e as antigas sem dono. A cópia tem id novo e `source: EDUCATOR`.",
+        "description": "Duplica o que o educador pode usar (biblioteca inclusive). A cópia tem id novo e `source: EDUCATOR`. Regra de uso: biblioteca é de todos; tarefa com dono, só do dono; tarefa antiga sem dono conta como dos donos dos cadernos/grupos em que está e, fora de qualquer caderno/grupo (legado avulso), é de todos.",
         "parameters": [
           {
             "name": "id",
@@ -3242,7 +3268,7 @@
             }
           },
           "403": {
-            "description": "Tarefa de outro educador.",
+            "description": "Tarefa que o educador não pode usar.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3640,6 +3666,23 @@
               }
             }
           },
+          "403": {
+            "description": "`UNAUTHORIZED`: alguma tarefa é de outro educador (ou antiga em caderno/grupo de outro). Biblioteca e legado avulso são permitidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "404": {
             "description": "`EDUCATOR_NOT_FOUND`",
             "content": {
@@ -3849,7 +3892,7 @@
             }
           },
           "403": {
-            "description": "`NOT_GROUP_OWNER`: o grupo pertence a outro educador.",
+            "description": "`NOT_GROUP_OWNER`: o grupo pertence a outro educador. `UNAUTHORIZED`: alguma tarefa é de outro educador (ou antiga em caderno/grupo de outro).",
             "content": {
               "application/json": {
                 "schema": {
@@ -3859,6 +3902,11 @@
                   "NOT_GROUP_OWNER": {
                     "value": {
                       "message": "NOT_GROUP_OWNER"
+                    }
+                  },
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
                     }
                   }
                 }
@@ -4241,6 +4289,23 @@
                   "Educator not found": {
                     "value": {
                       "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: alguma tarefa é de outro educador (ou antiga em caderno/grupo de outro). Biblioteca e legado avulso são permitidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
                     }
                   }
                 }
@@ -14405,7 +14470,7 @@
               "memoryGame",
               "printable"
             ],
-            "description": "Não muda: outro valor dá TYPE_CHANGE_NOT_ALLOWED."
+            "description": "Só troca entre `multipleChoice` e `multipleChoiceWithMedia`; outra troca dá TYPE_CHANGE_NOT_ALLOWED."
           },
           "prompt": {
             "type": "string",
@@ -14418,10 +14483,12 @@
             }
           },
           "imageFile": {
-            "type": "string"
+            "type": "string",
+            "description": "Múltipla escolha com mídia: URL de `POST /task/upload-media` (senão INVALID_MEDIA_URL)."
           },
           "audioFile": {
-            "type": "string"
+            "type": "string",
+            "description": "Múltipla escolha com mídia: URL de `POST /task/upload-media` (senão INVALID_MEDIA_URL)."
           },
           "content": {
             "$ref": "#/components/schemas/TaskContent"
@@ -18696,7 +18763,8 @@
                 "word",
                 "colorHex"
               ]
-            }
+            },
+            "description": "Cada `colorHex` aparece uma vez só."
           }
         },
         "required": [
@@ -18717,7 +18785,7 @@
             "type": "array",
             "minItems": 2,
             "maxItems": 8,
-            "description": "Cada carta vira um par. Precisa de `label` ou `imageUrl`.",
+            "description": "Cada carta vira um par. Precisa de `label` ou `imageUrl`; não pode haver duas cartas com o mesmo `label` (sem acento/maiúscula) e a mesma imagem.",
             "items": {
               "type": "object",
               "properties": {

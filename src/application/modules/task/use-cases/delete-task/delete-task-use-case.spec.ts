@@ -50,7 +50,20 @@ describe("DeleteTaskUseCase", () => {
     expect(taskRepository.delete).not.toHaveBeenCalled();
   });
 
-  it("exclui a própria e a antiga sem dono", async () => {
+  it("antiga sem dono em caderno/grupo de outro educador → UNAUTHORIZED", async () => {
+    const legacy = makeMultipleChoiceTask();
+    taskRepository.getById.mockResolvedValue(legacy);
+    taskRepository.findLegacyOwners.mockResolvedValue(
+      new Map([[legacy.id.value, [Uuid.random().value]]])
+    );
+
+    const result = await useCase.execute({ taskId: legacy.id.value, educatorId });
+
+    expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
+    expect(taskRepository.delete).not.toHaveBeenCalled();
+  });
+
+  it("exclui a própria e a antiga avulsa (sem dono, fora de caderno e grupo)", async () => {
     for (const task of [makeWordBuilderTask({ educatorId }), makeMultipleChoiceTask()]) {
       taskRepository.getById.mockResolvedValue(task);
       const result = await useCase.execute({ taskId: task.id.value, educatorId });

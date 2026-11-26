@@ -13,6 +13,8 @@ import {
   TaskSource,
   TaskTone,
   TaskType,
+  isLegacyTask,
+  isUsableBy,
   toneForId,
 } from "../../../domain/entities/task";
 
@@ -134,49 +136,79 @@ export class TaskRepositoryImpl implements TaskRepository {
     return prismaTasks.map(mapPrismaTaskToEntity);
   }
 
+  // Próprias + antigas sem dono que o educador pode usar. As antigas são só as
+  // anteriores ao banco de atividades, então dá para trazer todas e filtrar.
   async listByEducator(educatorId: Uuid): Promise<Task[]> {
-    const [notebooks, groups] = await Promise.all([
-      this.prismaService.taskNotebook.findMany({
-        where: { educatorId: educatorId.value },
-        select: { id: true, taskIds: true },
-      }),
-      this.prismaService.taskGroup.findMany({
-        where: { educatorId: educatorId.value },
-        select: { taskIds: true },
-      }),
-    ]);
-
-    const legacyIds = Array.from(
-      new Set([
-        ...notebooks.flatMap((notebook) => notebook.taskIds ?? []),
-        ...groups.flatMap((group) => group.taskIds),
-      ])
-    );
-
-    const prismaTasks = await this.prismaService.task.findMany({
+    const records = await this.prismaService.task.findMany({
       where: {
         OR: [
           { educatorId: educatorId.value },
-          {
-            AND: [
-              { OR: [{ educatorId: null }, { educatorId: { isSet: false } }] },
-              {
-                OR: [
-                  { id: { in: legacyIds } },
-                  { notebookId: { in: notebooks.map((notebook) => notebook.id) } },
-                ],
-              },
-            ],
-          },
+          { educatorId: null },
+          { educatorId: { isSet: false } },
         ],
       },
       orderBy: { createdAt: "desc" },
     });
 
-    // Tarefas da biblioteca nos cadernos e grupos não são do educador.
-    return prismaTasks
-      .map(mapPrismaTaskToEntity)
-      .filter((task) => task.source === TaskSource.Educator);
+    const tasks = records
+      .map((record) => ({ record, task: mapPrismaTaskToEntity(record) }))
+      .filter(({ task }) => task.source === TaskSource.Educator);
+    const owners = await this.legacyOwnersOf(
+      tasks.filter(({ task }) => isLegacyTask(task)).map(({ record }) => record)
+    );
+
+    return tasks
+      .map(({ task }) => task)
+      .filter((task) => isUsableBy(task, educatorId, owners.get(task.id.value)));
+  }
+
+  async findLegacyOwners(taskIds: Uuid[]): Promise<Map<string, string[]>> {
+    if (taskIds.length === 0) return new Map();
+    const records = await this.prismaService.task.findMany({
+      where: { id: { in: Array.from(new Set(taskIds.map((id) => id.value))) } },
+      select: { id: true, notebookId: true },
+    });
+    return this.legacyOwnersOf(records);
+  }
+
+  // Duas buscas para todas as tarefas: cadernos (relação antiga ou taskIds) e
+  // grupos que as contêm.
+  private async legacyOwnersOf(
+    records: { id: string; notebookId: string | null }[]
+  ): Promise<Map<string, string[]>> {
+    const owners = new Map<string, string[]>();
+    if (records.length === 0) return owners;
+
+    const ids = records.map((record) => record.id);
+    const notebookIds = Array.from(
+      new Set(records.flatMap((record) => (record.notebookId ? [record.notebookId] : [])))
+    );
+    const [notebooks, groups] = await Promise.all([
+      this.prismaService.taskNotebook.findMany({
+        where: { OR: [{ id: { in: notebookIds } }, { taskIds: { hasSome: ids } }] },
+        select: { id: true, educatorId: true, taskIds: true },
+      }),
+      this.prismaService.taskGroup.findMany({
+        where: { taskIds: { hasSome: ids } },
+        select: { educatorId: true, taskIds: true },
+      }),
+    ]);
+
+    for (const record of records) {
+      const educatorIds = [
+        ...notebooks
+          .filter(
+            (notebook) =>
+              notebook.id === record.notebookId || (notebook.taskIds ?? []).includes(record.id)
+          )
+          .map((notebook) => notebook.educatorId),
+        ...groups
+          .filter((group) => group.taskIds.includes(record.id))
+          .map((group) => group.educatorId),
+      ];
+      owners.set(record.id, Array.from(new Set(educatorIds)));
+    }
+    return owners;
   }
 
   async listLibrary(): Promise<Task[]> {

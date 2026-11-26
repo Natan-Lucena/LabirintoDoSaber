@@ -1,3 +1,5 @@
+import { normalizeText } from "../utils/text";
+
 // Conteúdo dos tipos de atividade novos (jogos e imprimível). A validação
 // devolve o conteúdo normalizado e os erros com o campo no formato
 // `content.word`, `content.pairs.0.colorHex`.
@@ -229,6 +231,7 @@ function readColorMatch(reader: ContentReader, source: Source): ColorMatchConten
   if (!values) return undefined;
 
   const pairs: ColorMatchPair[] = [];
+  const colors = new Set<string>();
   for (const entry of reader.entries(values, "content.pairs")) {
     const word = reader.text(entry.source, "word", entry.path, CONTENT_LIMITS.pairWordMax);
     const rawHex = reader.text(entry.source, "colorHex", entry.path, 7);
@@ -236,6 +239,14 @@ function readColorMatch(reader: ContentReader, source: Source): ColorMatchConten
     if (rawHex !== undefined && !COLOR_HEX.test(colorHex!)) {
       reader.error(`${entry.path}.colorHex`, "Deve estar no formato #RRGGBB");
       continue;
+    }
+    // Duas palavras com a mesma cor tornam o jogo ambíguo.
+    if (colorHex !== undefined) {
+      if (colors.has(colorHex)) {
+        reader.error(`${entry.path}.colorHex`, "Cor repetida");
+        continue;
+      }
+      colors.add(colorHex);
     }
     if (entry.id && word && colorHex) pairs.push({ id: entry.id, word, colorHex });
   }
@@ -253,6 +264,7 @@ function readMemoryGame(reader: ContentReader, source: Source): MemoryGameConten
   if (!values) return undefined;
 
   const cards: MemoryGameCard[] = [];
+  const faces = new Set<string>();
   for (const entry of reader.entries(values, "content.cards")) {
     const label = reader.text(entry.source, "label", entry.path, CONTENT_LIMITS.cardLabelMax, true);
     const imageUrl = reader.url(entry.source, "imageUrl", entry.path);
@@ -260,6 +272,13 @@ function readMemoryGame(reader: ContentReader, source: Source): MemoryGameConten
       reader.error(entry.path, "Informe label ou imageUrl");
       continue;
     }
+    // Cartas iguais formariam pares trocados.
+    const face = `${normalizeText(label ?? "")}|${imageUrl ?? ""}`;
+    if (faces.has(face)) {
+      reader.error(entry.path, "Carta repetida");
+      continue;
+    }
+    faces.add(face);
     if (entry.id) {
       cards.push({
         id: entry.id,

@@ -11,13 +11,18 @@ import { CreateTaskNotebookUseCase } from "./create-task-notebook-use-case";
 import {
   makeLibraryTask,
   makePrintableTask,
+  makeWordBuilderTask,
 } from "../../../task/use-cases/test-fixtures";
 
 const mockEducatorRepository = { getByEmail: vi.fn() };
 // getById fica disponível (contrato legado), mas o use case sob teste deve
 // usar getByIds em lote — os testes abaixo travam isso e evitam a volta do
 // fan-out (um getById por task, via Promise.all).
-const mockTaskRepository = { getById: vi.fn(), getByIds: vi.fn() };
+const mockTaskRepository = {
+  getById: vi.fn(),
+  getByIds: vi.fn(),
+  findLegacyOwners: vi.fn(),
+};
 const mockTaskNotebookRepository = { save: vi.fn() };
 
 let useCase: CreateTaskNotebookUseCase;
@@ -36,6 +41,7 @@ const stubTaskCatalog = (catalog: Record<string, Task>) => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockTaskRepository.findLegacyOwners.mockResolvedValue(new Map());
   useCase = new CreateTaskNotebookUseCase(
     mockTaskNotebookRepository as any,
     mockEducatorRepository as any,
@@ -126,6 +132,66 @@ describe("CreateTaskNotebookUseCase", () => {
 
     expect(result).toEqual(failure("PRINTABLE_NOT_PLAYABLE"));
     expect(mockTaskNotebookRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("tarefa de outro educador ou antiga em caderno/grupo de outro → UNAUTHORIZED", async () => {
+    const owner = Educator.create({ name: "Maria", email: "maria@example.com", password: "h" });
+    mockEducatorRepository.getByEmail.mockResolvedValue(owner);
+    const othersTask = makeWordBuilderTask({ educatorId: Uuid.random() });
+    stubTaskCatalog({ [othersTask.id.value]: othersTask, [mockTask.id.value]: mockTask });
+
+    expect(
+      await useCase.execute({
+        educatorEmail: "maria@example.com",
+        tasks: [othersTask.id.value],
+        category: TaskNotebookCategory.Writing,
+        description: "Caderno",
+      })
+    ).toEqual(failure("UNAUTHORIZED"));
+
+    mockTaskRepository.findLegacyOwners.mockResolvedValue(
+      new Map([[mockTask.id.value, [Uuid.random().value]]])
+    );
+    expect(
+      await useCase.execute({
+        educatorEmail: "maria@example.com",
+        tasks: [mockTask.id.value],
+        category: TaskNotebookCategory.Reading,
+        description: "Caderno",
+      })
+    ).toEqual(failure("UNAUTHORIZED"));
+    expect(mockTaskNotebookRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("aceita a própria, a antiga avulsa e a antiga já em caderno/grupo do educador", async () => {
+    const owner = Educator.create({ name: "Maria", email: "maria@example.com", password: "h" });
+    mockEducatorRepository.getByEmail.mockResolvedValue(owner);
+    const own = makeWordBuilderTask({ educatorId: owner.id });
+    const legacyMine = makeWordBuilderTask();
+    stubTaskCatalog({
+      [own.id.value]: own,
+      [mockTask.id.value]: mockTask,
+      [legacyMine.id.value]: legacyMine,
+    });
+    mockTaskRepository.findLegacyOwners.mockResolvedValue(
+      new Map([
+        [mockTask.id.value, []],
+        [legacyMine.id.value, [owner.id.value]],
+      ])
+    );
+    mockTaskNotebookRepository.save.mockImplementation(async (nb) => nb);
+
+    const result = await useCase.execute({
+      educatorEmail: "maria@example.com",
+      tasks: [own.id.value, mockTask.id.value, legacyMine.id.value],
+      category: TaskNotebookCategory.Writing,
+      description: "Caderno",
+    });
+
+    expect(result.ok).toBe(true);
+    // Uma busca só para os donos das duas antigas.
+    expect(mockTaskRepository.findLegacyOwners).toHaveBeenCalledTimes(1);
+    expect(mockTaskRepository.findLegacyOwners.mock.calls[0][0]).toHaveLength(2);
   });
 
   it("AT-10: aceita tarefa da biblioteca e de tipo novo", async () => {

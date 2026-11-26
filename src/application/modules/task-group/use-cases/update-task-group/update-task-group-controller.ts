@@ -33,6 +33,7 @@ export class UpdateTaskGroupController extends BaseController {
       switch (result.error) {
         case "TASK_GROUP_NOT_FOUND":
           return this.notFound(res, result.error);
+        case "UNAUTHORIZED":
         case "NOT_GROUP_OWNER":
           return this.forbidden(res, result.error);
         case "PRINTABLE_NOT_PLAYABLE":

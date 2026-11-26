@@ -115,6 +115,17 @@ describe("ListRecommendedTasksUseCase (AT-08)", () => {
     expect(result.value[0].reason).not.toContain("Aluno Fixture");
   });
 
+  it("casa o tópico do catálogo como palavra dentro do tema do aluno", async () => {
+    const student = makeStudent(educatorId, ["Dificuldade de linguagem"]);
+    studentRepository.getById.mockResolvedValue(student);
+    const vocabulary = makeWordBuilderTask({ source: TaskSource.Library, skills: ["VOCABULARIO"] });
+    taskRepository.listLibrary.mockResolvedValue([vocabulary]);
+
+    const result = await useCase.execute({ educatorId, studentId: student.id.value });
+
+    expect(recommendedIds(result)).toEqual([vocabulary.id.value]);
+  });
+
   it("sem temas e sem sessões não recomenda nada", async () => {
     const student = makeStudent(educatorId, []);
     studentRepository.getById.mockResolvedValue(student);

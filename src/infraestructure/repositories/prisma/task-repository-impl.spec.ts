@@ -83,13 +83,19 @@ describe("TaskRepositoryImpl", () => {
     expect(JSON.stringify(read)).toBe(JSON.stringify(task));
   });
 
-  it("listByEducator: próprias + antigas sem dono dos cadernos e grupos, sem a biblioteca", async () => {
+  describe("listByEducator e findLegacyOwners", () => {
     const educatorId = Uuid.random();
+    const otherId = Uuid.random();
     const own = makeWordBuilderTask({ educatorId });
+    const othersTask = makeWordBuilderTask({ educatorId: otherId });
     const library = makeLibraryTask();
-    const legacy = legacyRecord();
+    const loose = legacyRecord(); // legado avulso
+    const inMyGroup = legacyRecord();
+    const inMyOldNotebook = { ...legacyRecord(), notebookId: "nb-mine" }; // relação antiga
+    const inOthersNotebook = legacyRecord();
     const toRecord = (task: typeof own) => ({
       ...JSON.parse(JSON.stringify(task)),
+      educatorId: task.educatorId?.value ?? null,
       category: "Writing",
       type: "WordBuilder",
       createdAt: task.createdAt,
@@ -98,24 +104,93 @@ describe("TaskRepositoryImpl", () => {
       audioFile: null,
     });
 
-    const findMany = vi.fn().mockResolvedValue([toRecord(own), toRecord(library), legacy]);
-    const prisma = {
-      taskNotebook: {
-        findMany: vi.fn().mockResolvedValue([{ id: "nb-1", taskIds: [library.id.value] }]),
-      },
-      taskGroup: { findMany: vi.fn().mockResolvedValue([{ taskIds: [legacy.id] }]) },
-      task: { findMany },
-    } as unknown as PrismaClient;
+    const makePrisma = () => {
+      const notebooks = [
+        { id: "nb-mine", educatorId: educatorId.value, taskIds: [] as string[] },
+        {
+          id: "nb-other",
+          educatorId: otherId.value,
+          taskIds: [inOthersNotebook.id, library.id.value],
+        },
+      ];
+      const groups = [{ educatorId: educatorId.value, taskIds: [inMyGroup.id] }];
+      const records = [own, othersTask, library]
+        .map(toRecord)
+        .concat([loose, inMyGroup, inMyOldNotebook, inOthersNotebook]);
 
-    const tasks = await new TaskRepositoryImpl(prisma).listByEducator(educatorId);
+      const taskFindMany = vi.fn(async ({ where, select }: any) => {
+        if (where.id) {
+          const found = records.filter((record) => where.id.in.includes(record.id));
+          return select ? found.map(({ id, notebookId }) => ({ id, notebookId })) : found;
+        }
+        // Simula o filtro: do educador ou sem dono.
+        return records.filter(
+          (record) => record.educatorId === educatorId.value || record.educatorId === null
+        );
+      });
+      const notebookFindMany = vi.fn(async ({ where }: any) => {
+        const [byId, byTaskIds] = where.OR;
+        return notebooks.filter(
+          (notebook) =>
+            byId.id.in.includes(notebook.id) ||
+            notebook.taskIds.some((id) => byTaskIds.taskIds.hasSome.includes(id))
+        );
+      });
+      const groupFindMany = vi.fn(async ({ where }: any) =>
+        groups.filter((group) => group.taskIds.some((id) => where.taskIds.hasSome.includes(id)))
+      );
+      return {
+        prisma: {
+          task: { findMany: taskFindMany },
+          taskNotebook: { findMany: notebookFindMany },
+          taskGroup: { findMany: groupFindMany },
+        } as unknown as PrismaClient,
+        taskFindMany,
+        notebookFindMany,
+        groupFindMany,
+      };
+    };
 
-    expect(tasks.map((task) => task.id.value)).toEqual([own.id.value, legacy.id]);
-    const where = findMany.mock.calls[0][0].where;
-    expect(where.OR[0]).toEqual({ educatorId: educatorId.value });
-    expect(where.OR[1].AND[1].OR).toEqual([
-      { id: { in: [library.id.value, legacy.id] } },
-      { notebookId: { in: ["nb-1"] } },
-    ]);
+    it("traz as próprias, o legado avulso e o legado nos cadernos/grupos do educador", async () => {
+      const mock = makePrisma();
+
+      const tasks = await new TaskRepositoryImpl(mock.prisma).listByEducator(educatorId);
+
+      expect(tasks.map((task) => task.id.value).sort()).toEqual(
+        [own.id.value, loose.id, inMyGroup.id, inMyOldNotebook.id].sort()
+      );
+      expect(mock.taskFindMany.mock.calls[0][0].where.OR).toEqual([
+        { educatorId: educatorId.value },
+        { educatorId: null },
+        { educatorId: { isSet: false } },
+      ]);
+      // Sem N+1: uma busca de tarefas, uma de cadernos e uma de grupos.
+      expect(mock.taskFindMany).toHaveBeenCalledTimes(1);
+      expect(mock.notebookFindMany).toHaveBeenCalledTimes(1);
+      expect(mock.groupFindMany).toHaveBeenCalledTimes(1);
+    });
+
+    it("o legado avulso aparece para qualquer educador", async () => {
+      const mock = makePrisma();
+      const stranger = Uuid.random();
+
+      const tasks = await new TaskRepositoryImpl(mock.prisma).listByEducator(stranger);
+
+      expect(tasks.map((task) => task.id.value)).toEqual([loose.id]);
+    });
+
+    it("findLegacyOwners devolve os donos dos cadernos (taskIds e relação) e grupos", async () => {
+      const mock = makePrisma();
+
+      const owners = await new TaskRepositoryImpl(mock.prisma).findLegacyOwners(
+        [loose, inMyGroup, inMyOldNotebook, inOthersNotebook].map(({ id }) => new Uuid(id))
+      );
+
+      expect(owners.get(loose.id)).toEqual([]);
+      expect(owners.get(inMyGroup.id)).toEqual([educatorId.value]);
+      expect(owners.get(inMyOldNotebook.id)).toEqual([educatorId.value]);
+      expect(owners.get(inOthersNotebook.id)).toEqual([otherId.value]);
+    });
   });
 });
 

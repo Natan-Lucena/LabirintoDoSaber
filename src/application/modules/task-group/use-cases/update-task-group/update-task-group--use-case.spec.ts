@@ -115,6 +115,22 @@ describe("UpdateTaskGroupUseCase", () => {
     expect(repository.save).not.toHaveBeenCalled();
   });
 
+  it("tarefa EDUCATOR de outro educador → UNAUTHORIZED sem salvar", async () => {
+    const group = makeGroup(ownerId);
+    (repository.findById as any).mockResolvedValue(group);
+    const othersTask = makeLibraryTask({ source: undefined, educatorId: Uuid.random() });
+    taskRepository.getByIds.mockResolvedValue([othersTask]);
+
+    const result = await useCase.execute({
+      id: group.id.value,
+      educatorId: ownerId,
+      tasksIds: [othersTask.id.value],
+    });
+
+    expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+
   it("AT-10: aceita tarefa da biblioteca e de tipo novo", async () => {
     const group = makeGroup(ownerId);
     (repository.findById as any).mockResolvedValue(group);

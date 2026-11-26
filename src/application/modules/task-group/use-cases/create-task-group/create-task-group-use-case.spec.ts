@@ -61,6 +61,36 @@ describe("CreateTaskGroupUseCase", () => {
     expect(saved.educatorId.value).toBe(educator.id.value);
   });
 
+  it("tarefa de outro educador → UNAUTHORIZED; antiga avulsa entra", async () => {
+    const othersTask = makeWordBuilderTask({ educatorId: Uuid.random() });
+    const legacy = makeWordBuilderTask();
+    const request = (ids: string[]) => ({
+      name: "Grupo",
+      category: TaskCategory.Writing,
+      educatorEmail: educator.email,
+      tasksIds: ids,
+    });
+
+    taskRepository.getByIds.mockResolvedValue([othersTask]);
+    expect(await useCase.execute(request([othersTask.id.value]))).toEqual({
+      ok: false,
+      error: "UNAUTHORIZED",
+    });
+
+    taskRepository.getByIds.mockResolvedValue([legacy]);
+    taskRepository.findLegacyOwners.mockResolvedValue(
+      new Map([[legacy.id.value, [Uuid.random().value]]])
+    );
+    expect(await useCase.execute(request([legacy.id.value]))).toEqual({
+      ok: false,
+      error: "UNAUTHORIZED",
+    });
+    expect(groupRepository.save).not.toHaveBeenCalled();
+
+    taskRepository.findLegacyOwners.mockResolvedValue(new Map([[legacy.id.value, []]]));
+    expect((await useCase.execute(request([legacy.id.value]))).ok).toBe(true);
+  });
+
   it("grupo vazio não consulta tarefas", async () => {
     const result = await useCase.execute({
       name: "Grupo",

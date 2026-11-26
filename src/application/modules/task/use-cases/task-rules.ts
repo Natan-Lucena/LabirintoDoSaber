@@ -1,6 +1,12 @@
 import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { Response } from "express";
-import { Task, TaskFieldError } from "../../../../domain/entities/task";
+import {
+  isLegacyTask,
+  isUsableBy,
+  Task,
+  TaskFieldError,
+} from "../../../../domain/entities/task";
+import { MediaUrlRef } from "../../../../domain/entities/task-content";
 import { TaskRepository } from "../../../../domain/repositories/task-repository";
 import { TaskSkillRepository } from "../../../../domain/repositories/task-skill-repository";
 import { FileStorage } from "../../../services/file-storage";
@@ -13,18 +19,62 @@ export async function checkSkills(skillRepository: TaskSkillRepository, skills?:
   return success(void 0);
 }
 
-// AT-05: as URLs do content vêm de POST /task/upload-media.
-export function checkMediaUrls(fileStorage: FileStorage, task: Task) {
-  const errors: TaskFieldError[] = task.mediaUrls
+// AT-05: URLs de mídia vêm de POST /task/upload-media (o mesmo armazenamento).
+export function checkMediaRefs(fileStorage: FileStorage, refs: MediaUrlRef[]) {
+  const errors: TaskFieldError[] = refs
     .filter((ref) => !fileStorage.isStoredFileUrl(ref.url))
     .map((ref) => ({ field: ref.field, message: "Use uma URL de POST /task/upload-media" }));
   if (errors.length > 0) return failure({ code: "INVALID_MEDIA_URL" as const, errors });
   return success(void 0);
 }
 
+export function checkMediaUrls(fileStorage: FileStorage, task: Task) {
+  return checkMediaRefs(fileStorage, task.mediaUrls);
+}
+
+// imageFile/audioFile da múltipla escolha enviados como URL (PUT e lote).
+export function multipleChoiceMediaRefs(
+  media: { imageFile?: string; audioFile?: string },
+  prefix = ""
+): MediaUrlRef[] {
+  return [
+    ...(media.imageFile ? [{ field: `${prefix}imageFile`, url: media.imageFile }] : []),
+    ...(media.audioFile ? [{ field: `${prefix}audioFile`, url: media.audioFile }] : []),
+  ];
+}
+
+// Regra de uso das tarefas (isUsableBy), com os donos das antigas sem dono
+// numa busca só.
+export async function findUnusableTask(
+  taskRepository: TaskRepository,
+  tasks: Task[],
+  educatorId: Uuid
+): Promise<Task | undefined> {
+  const legacy = tasks.filter(isLegacyTask);
+  const owners =
+    legacy.length > 0
+      ? await taskRepository.findLegacyOwners(legacy.map((task) => task.id))
+      : new Map<string, string[]>();
+  return tasks.find((task) => !isUsableBy(task, educatorId, owners.get(task.id.value)));
+}
+
+// Tarefa que o educador pode duplicar (biblioteca inclusive).
+export async function loadUsableTask(
+  taskRepository: TaskRepository,
+  taskId: string,
+  educatorId: Uuid
+) {
+  const task = await loadTask(taskRepository, taskId);
+  if (!task.ok) return task;
+  if (await findUnusableTask(taskRepository, [task.value], educatorId)) {
+    return failure("UNAUTHORIZED" as const);
+  }
+  return task;
+}
+
 // Tarefa que o educador pode alterar (PUT, DELETE): da biblioteca → 403
-// LIBRARY_TASK_READ_ONLY; de outro educador → 403 UNAUTHORIZED. Id inválido
-// vira 404.
+// LIBRARY_TASK_READ_ONLY; que ele não pode usar → 403 UNAUTHORIZED. Id
+// inválido vira 404.
 export async function loadEditableTask(
   taskRepository: TaskRepository,
   taskId: string,
@@ -33,7 +83,9 @@ export async function loadEditableTask(
   const task = await loadTask(taskRepository, taskId);
   if (!task.ok) return task;
   if (task.value.isLibrary) return failure("LIBRARY_TASK_READ_ONLY" as const);
-  if (task.value.belongsToAnotherEducator(educatorId)) return failure("UNAUTHORIZED" as const);
+  if (await findUnusableTask(taskRepository, [task.value], educatorId)) {
+    return failure("UNAUTHORIZED" as const);
+  }
   return task;
 }
 

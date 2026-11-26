@@ -4,7 +4,7 @@ import { EducatorRepository } from "../../../../../domain/repositories/educator-
 import { TaskGroupRepository } from "../../../../../domain/repositories/task-group-repository";
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
 import { TaskGroup } from "../../../../../domain/entities/task-group";
-import { hasPrintableTask } from "../task-group-rules";
+import { checkGroupTasks } from "../task-group-rules";
 
 interface CreateTaskGroupUseCaseRequest {
   name: string;
@@ -29,9 +29,12 @@ export class CreateTaskGroupUseCase {
       return failure("EDUCATOR_NOT_FOUND");
     }
 
-    if (await hasPrintableTask(this.taskRepository, request.tasksIds)) {
-      return failure("PRINTABLE_NOT_PLAYABLE");
-    }
+    const usable = await checkGroupTasks(
+      this.taskRepository,
+      request.tasksIds,
+      educatorExists.id
+    );
+    if (!usable.ok) return usable;
 
     const taskGroup = TaskGroup.create({
       name: request.name,
