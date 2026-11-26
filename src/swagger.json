@@ -8370,7 +8370,7 @@
           "Appointment"
         ],
         "summary": "Cancela esta ocorrência e as seguintes e encerra a série.",
-        "description": "Cancela a ocorrência indicada e as seguintes pendentes; concluídas e já canceladas ficam como estão. A série passa a ter `endedAt`.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado.",
+        "description": "Cancela a ocorrência indicada e as seguintes pendentes e por acontecer; passadas, concluídas e já canceladas ficam como estão. A indicada pode já ter passado. A série passa a ter `endedAt`.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado.",
         "parameters": [
           {
             "name": "id",

@@ -110,6 +110,39 @@ describe("CancelAppointmentSeriesUseCase", () => {
     ]);
   });
 
+  it("should cancel only upcoming occurrences when the series started weeks ago, even from a past one", async () => {
+    // Série que começou há 6 semanas: 6 ocorrências passadas, ainda PENDING.
+    const started = seedSeries(
+      { appointments: appointmentRepository, series: seriesRepository },
+      {
+        educatorId,
+        studentId: student.id,
+        firstScheduledAt: atTimeInSaoPaulo(addDays(todayInSaoPaulo(), -42), "14:00:00.000"),
+        occurrences: 10,
+      }
+    );
+    const now = new Date();
+    const past = started.appointments.filter((appointment) => appointment.scheduledAt <= now);
+    const upcoming = started.appointments.filter((appointment) => appointment.scheduledAt > now);
+
+    const result = await useCase.execute(
+      request({ seriesId: started.series.id.value, fromAppointmentId: started.appointments[1].id.value })
+    );
+
+    if (!result.ok) throw new Error("unexpected failure");
+    for (const appointment of past) {
+      expect(stored(appointment)).toBe(appointment);
+      expect(stored(appointment).status).toBe(AppointmentStatus.PENDING);
+    }
+    for (const appointment of upcoming) {
+      expect(stored(appointment).status).toBe(AppointmentStatus.CANCELLED);
+    }
+    expect(result.value.created.map((appointment) => appointment.id.value)).toEqual(
+      upcoming.map((appointment) => appointment.id.value)
+    );
+    expect(result.value.series.isEnded).toBe(true);
+  });
+
   it("should save every occurrence as CANCELLED before touching the reminder chain", async () => {
     const leader = occurrences[3].withMetadata("qstashMessageId", "msg-leader");
     appointmentRepository.store.set(leader.id.value, leader);

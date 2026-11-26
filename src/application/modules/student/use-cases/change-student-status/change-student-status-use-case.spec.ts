@@ -40,6 +40,7 @@ const setup = () => {
 
   const schedulerService = {
     ensureScheduled: vi.fn(),
+    reschedule: vi.fn(),
     cancel: vi.fn(async (appointment: Appointment) => {
       calls.push(`cancel:${appointment.id.value}:${appointment.status}`);
     }),

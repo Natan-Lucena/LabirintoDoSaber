@@ -23,6 +23,7 @@ const mockAppointmentRepository = (): AppointmentRepository =>
 const mockSchedulerService = (): AppointmentSchedulerService =>
   ({
     ensureScheduled: vi.fn(),
+    reschedule: vi.fn(),
     cancel: vi.fn(),
     scheduleNext: vi.fn(),
   } as unknown as AppointmentSchedulerService);

@@ -13,8 +13,9 @@ export interface CancelAppointmentSeriesUseCaseRequest {
   fromAppointmentId: string;
 }
 
-// RC-06: cancela a ocorrência indicada e as seguintes PENDING e encerra a
-// série. Concluídas e já canceladas ficam como estão.
+// RC-06: cancela a ocorrência indicada e as seguintes PENDING que ainda vão
+// acontecer e encerra a série. Passadas, concluídas e já canceladas ficam
+// como estão, como no arquivamento; a indicada pode já ter passado.
 export class CancelAppointmentSeriesUseCase {
   constructor(
     private appointmentRepository: AppointmentRepository,
@@ -39,8 +40,12 @@ export class CancelAppointmentSeriesUseCase {
     );
     if (!occurrences.ok) return occurrences;
 
+    const now = new Date();
     const cancelled = occurrences.value
-      .filter((appointment) => appointment.status === AppointmentStatus.PENDING)
+      .filter(
+        (appointment) =>
+          appointment.status === AppointmentStatus.PENDING && appointment.scheduledAt > now
+      )
       .map((appointment) => appointment.cancel());
 
     // Mesmo fluxo do arquivamento: todas gravadas como CANCELLED antes de
@@ -50,7 +55,7 @@ export class CancelAppointmentSeriesUseCase {
       await this.appointmentRepository.save(appointment);
     }
 
-    const series = loaded.value.end(new Date());
+    const series = loaded.value.end(now);
     await this.seriesRepository.save(series);
 
     for (const appointment of cancelled) {

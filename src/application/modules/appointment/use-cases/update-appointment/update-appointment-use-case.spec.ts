@@ -24,6 +24,7 @@ const mockAppointmentRepository = (): AppointmentRepository =>
 const mockSchedulerService = (): AppointmentSchedulerService =>
   ({
     ensureScheduled: vi.fn(),
+    reschedule: vi.fn(),
     cancel: vi.fn(),
     scheduleNext: vi.fn(),
   } as unknown as AppointmentSchedulerService);
@@ -326,6 +327,43 @@ describe("UpdateAppointmentUseCase", () => {
 
       expect(schedulerService.cancel).not.toHaveBeenCalled();
       expect(schedulerService.ensureScheduled).not.toHaveBeenCalled();
+      expect(schedulerService.reschedule).not.toHaveBeenCalled();
+    });
+
+    it("rescheduling a PENDING appointment should save and then reschedule it in the reminder chain", async () => {
+      const appt = makeAppointment(educatorId, {
+        scheduledAt: futureDate(),
+        metadata: { qstashMessageId: "msg-leader" },
+      });
+      (appointmentRepository.findById as any).mockResolvedValue(appt);
+      const callOrder: string[] = [];
+      (appointmentRepository.save as any).mockImplementation(async () => {
+        callOrder.push("save");
+      });
+      (schedulerService.reschedule as any).mockImplementation(async () => {
+        callOrder.push("reschedule");
+      });
+      const newTime = new Date(appt.scheduledAt.getTime() + 2 * 60 * 60 * 1000);
+
+      const result = await useCase.execute({ id: appt.id, educatorId, scheduledAt: newTime });
+
+      expect(result.ok).toBe(true);
+      expect(callOrder).toEqual(["save", "reschedule"]);
+      const rescheduled = (schedulerService.reschedule as any).mock.calls[0][0] as Appointment;
+      expect(rescheduled.id.value).toBe(appt.id.value);
+      expect(rescheduled.scheduledAt).toEqual(newTime);
+      expect(schedulerService.cancel).not.toHaveBeenCalled();
+      expect(schedulerService.ensureScheduled).not.toHaveBeenCalled();
+    });
+
+    it("changing only the duration of a PENDING appointment should not reschedule the reminder", async () => {
+      const appt = makeAppointment(educatorId, { scheduledAt: futureDate() });
+      (appointmentRepository.findById as any).mockResolvedValue(appt);
+
+      const result = await useCase.execute({ id: appt.id, educatorId, durationMinutes: 30 });
+
+      expect(result.ok).toBe(true);
+      expect(schedulerService.reschedule).not.toHaveBeenCalled();
     });
   });
 

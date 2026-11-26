@@ -27,8 +27,6 @@ export interface UpdateAppointmentSeriesUseCaseRequest {
   observation?: string | null;
 }
 
-const CHAIN_KEY = "qstashMessageId";
-
 // RC-05: "este e os seguintes". Muda a ocorrência indicada e as seguintes
 // PENDING que ainda vão acontecer; passadas, concluídas e canceladas ficam
 // como estão. A série guarda a regra de criação e não muda.
@@ -79,6 +77,10 @@ export class UpdateAppointmentSeriesUseCase {
       changes.push({ before, after: updated.value });
     }
 
+    // A indicada não pode ir para um horário que já passou (hoje às 18:00
+    // remarcada para as 08:00 quando já são 10:00).
+    if (changes[0].after.scheduledAt <= now) return failure("APPOINTMENT_NOT_EDITABLE");
+
     const rescheduled = (change: { before: Appointment; after: Appointment }) =>
       change.after.scheduledAt.getTime() !== change.before.scheduledAt.getTime() ||
       change.after.durationMinutes !== change.before.durationMinutes;
@@ -110,19 +112,15 @@ export class UpdateAppointmentSeriesUseCase {
       await this.appointmentRepository.save(change.after);
     }
 
-    // Cadeia de lembretes: salvar antes de cancelar, para o scheduleNext do
-    // cancel enxergar o horário novo. Se o líder mudou de horário, a mensagem
-    // dele é descartada; depois a primeira ocorrência remarcada é oferecida
-    // à cadeia, que só a adota se ela vier antes do líder atual.
-    const movedInTime = applied
-      .filter((change) => change.after.scheduledAt.getTime() !== change.before.scheduledAt.getTime())
-      .map((change) => change.after);
-    if (movedInTime.length > 0) {
-      const leader = movedInTime.find(
-        (appointment) => typeof appointment.metadata[CHAIN_KEY] === "string"
-      );
-      if (leader) await this.schedulerService.cancel(leader);
-      await this.schedulerService.ensureScheduled(movedInTime[0]);
+    // Cadeia de lembretes, depois de salvar. O líder é o PENDING futuro mais
+    // próximo, então, se for desta série, é a primeira ocorrência remarcada;
+    // as demais ficam semanas depois e não mudam de dia. Basta remarcar a
+    // primeira.
+    const firstMoved = applied.find(
+      (change) => change.after.scheduledAt.getTime() !== change.before.scheduledAt.getTime()
+    );
+    if (firstMoved) {
+      await this.schedulerService.reschedule(firstMoved.after);
     }
 
     return success<SeriesResult>({

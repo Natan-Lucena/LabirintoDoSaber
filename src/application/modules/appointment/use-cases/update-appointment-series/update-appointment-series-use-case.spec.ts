@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Uuid } from "@wave-telecom/framework/core";
 import { UpdateAppointmentSeriesUseCase } from "./update-appointment-series-use-case";
 import { Appointment, AppointmentStatus } from "../../../../../domain/entities/appointment";
@@ -201,11 +201,8 @@ describe("UpdateAppointmentSeriesUseCase", () => {
       order.push("save");
       appointmentRepository.store.set(appointment.id.value, appointment);
     });
-    scheduler.cancel.mockImplementation(async () => {
-      order.push("cancel");
-    });
-    scheduler.ensureScheduled.mockImplementation(async () => {
-      order.push("ensureScheduled");
+    scheduler.reschedule.mockImplementation(async () => {
+      order.push("reschedule");
     });
 
     const result = await useCase.execute(
@@ -213,13 +210,13 @@ describe("UpdateAppointmentSeriesUseCase", () => {
     );
 
     if (!result.ok) throw new Error("unexpected failure");
-    expect(scheduler.cancel).toHaveBeenCalledOnce();
-    const cancelled = scheduler.cancel.mock.calls[0][0];
-    expect(cancelled.id.value).toBe(leader.id.value);
-    expect(timeInSaoPaulo(cancelled.scheduledAt)).toBe("09:00:00.000");
-    expect(scheduler.ensureScheduled).toHaveBeenCalledOnce();
-    expect(scheduler.ensureScheduled.mock.calls[0][0].id.value).toBe(leader.id.value);
-    expect(order).toEqual(["save", "save", "save", "cancel", "ensureScheduled"]);
+    expect(scheduler.reschedule).toHaveBeenCalledOnce();
+    const rescheduled = scheduler.reschedule.mock.calls[0][0];
+    expect(rescheduled.id.value).toBe(leader.id.value);
+    expect(timeInSaoPaulo(rescheduled.scheduledAt)).toBe("09:00:00.000");
+    expect(rescheduled.metadata["qstashMessageId"]).toBe("msg-leader");
+    expect(scheduler.cancel).not.toHaveBeenCalled();
+    expect(order).toEqual(["save", "save", "save", "reschedule"]);
   });
 
   it("should leave the reminder chain alone when no time changes", async () => {
@@ -227,8 +224,48 @@ describe("UpdateAppointmentSeriesUseCase", () => {
 
     await useCase.execute(request({ observation: "Sala 3" }));
 
+    expect(scheduler.reschedule).not.toHaveBeenCalled();
     expect(scheduler.cancel).not.toHaveBeenCalled();
     expect(scheduler.ensureScheduled).not.toHaveBeenCalled();
+  });
+
+  it("should not touch the chain when only the duration changes", async () => {
+    await useCase.execute(request({ durationMinutes: 30 }));
+
+    expect(scheduler.reschedule).not.toHaveBeenCalled();
+  });
+
+  it("should return APPOINTMENT_NOT_EDITABLE when the new time of the indicated occurrence has passed", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      // Hoje às 10:00; a ocorrência é hoje às 18:00 e iria para as 08:00.
+      vi.setSystemTime(atTimeInSaoPaulo("2026-12-01", "10:00:00.000"));
+      const today = seedSeries(
+        { appointments: appointmentRepository, series: seriesRepository },
+        {
+          educatorId,
+          studentId: student.id,
+          firstScheduledAt: atTimeInSaoPaulo("2026-12-01", "18:00:00.000"),
+          occurrences: 3,
+        }
+      );
+
+      const result = await useCase.execute({
+        educatorId,
+        seriesId: today.series.id.value,
+        fromAppointmentId: today.appointments[0].id.value,
+        scheduledAt: atTimeInSaoPaulo("2026-12-01", "08:00:00.000"),
+      });
+
+      expect(result).toEqual({ ok: false, error: "APPOINTMENT_NOT_EDITABLE" });
+      expect(appointmentRepository.save).not.toHaveBeenCalled();
+      expect(scheduler.reschedule).not.toHaveBeenCalled();
+      for (const appointment of today.appointments) {
+        expect(stored(appointment)).toBe(appointment);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("should return APPOINTMENT_NOT_EDITABLE when the indicated occurrence is not PENDING", async () => {

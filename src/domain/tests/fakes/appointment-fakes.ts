@@ -81,6 +81,7 @@ export const makeAppointmentSeriesRepositoryFake = (initial: AppointmentSeries[]
 export const makeSchedulerMock = () => {
   const scheduler = {
     ensureScheduled: vi.fn(async (_appointment: Appointment) => {}),
+    reschedule: vi.fn(async (_appointment: Appointment) => {}),
     cancel: vi.fn(async (_appointment: Appointment) => {}),
     scheduleNext: vi.fn(async () => {}),
   };
