@@ -37,7 +37,6 @@ export class UpdateTaskGroupController extends BaseController {
         case "NOT_GROUP_OWNER":
           return this.forbidden(res, result.error);
         case "PRINTABLE_NOT_PLAYABLE":
-        case "INVALID_TASK_GROUP_ID":
         case "INVALID_TASK_GROUP_DATA":
           return this.clientError(res, result.error);
         default:

@@ -274,6 +274,26 @@ describe("CreateReportUseCase", () => {
     expect(aiInput).not.toContain(PROFESSIONAL.name);
   });
 
+  it("should show only the first name and the surname initial to the SCHOOL audience (RP-02)", async () => {
+    const report = unwrap<Report>(
+      await useCase.execute(request({ audience: ReportAudience.SCHOOL }))
+    );
+
+    expect(report.content.patient).toEqual({ displayName: "Joaozinho F.", ageYears: 7 });
+    // Nenhum outro campo do documento leva o nome completo nem o sobrenome.
+    const content = JSON.stringify(report.content);
+    expect(content).not.toContain(SENSITIVE.name);
+    expect(content).not.toContain("Pereira");
+    expect(content).not.toContain("Joaozinho Fixture");
+  });
+
+  it("should keep the full name for the FAMILY and PROFESSIONAL audiences", async () => {
+    for (const audience of [ReportAudience.FAMILY, ReportAudience.PROFESSIONAL]) {
+      const report = unwrap<Report>(await useCase.execute(request({ audience })));
+      expect(report.content.patient?.displayName).toBe(SENSITIVE.name);
+    }
+  });
+
   it("should send the audience and only the requested sections to the AI", async () => {
     await useCase.execute(request({ audience: ReportAudience.SCHOOL }));
 

@@ -246,7 +246,7 @@ type TaskAnswer {
   taskId                String
   selectedAlternativeId String
   isCorrect             Boolean
-  timeToAnswer          Int // segundos
+  timeToAnswer          Int // milissegundos; antes de 2026-10-09, segundos (timeToAnswerInMs)
   answeredAt            DateTime
 }
 

@@ -150,7 +150,7 @@ describe("GenerateStudentAiAnalysisUseCase", () => {
     expect(input.anamnese).toBeUndefined();
   });
 
-  it("omits the time of answers recorded before 2026-10-09 (legacy seconds)", async () => {
+  it("converts the time of answers recorded before 2026-10-09 from seconds (PP-08)", async () => {
     const legacy = {
       ...rawAnalysisValue,
       sessions: [
@@ -176,10 +176,10 @@ describe("GenerateStudentAiAnalysisUseCase", () => {
     await useCase.execute({ studentId, educatorId: OWNER_ID });
 
     const input = (aiService.generate as any).mock.calls[0][0];
-    expect(input.sessions[0].answers.map((a: any) => a.timeToAnswer)).toEqual([undefined, 3000]);
-    expect(input.sessions[0].averageTimeToAnswer).toBe(3000);
-    expect(input.sessions[1].answers[0].timeToAnswer).toBeUndefined();
-    expect(input.sessions[1].averageTimeToAnswer).toBeUndefined();
+    expect(input.sessions[0].answers.map((a: any) => a.timeToAnswer)).toEqual([12000, 3000]);
+    expect(input.sessions[0].averageTimeToAnswer).toBe(7500);
+    expect(input.sessions[1].answers[0].timeToAnswer).toBe(8000);
+    expect(input.sessions[1].averageTimeToAnswer).toBe(8000);
   });
 
   it("does not call loadAnalysisData more than once (no redundant fetch)", async () => {

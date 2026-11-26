@@ -5,7 +5,6 @@ import {
 import { Request, Response } from "express";
 import { DeleteTaskGroupUseCase } from "./delete-task-group-use-case";
 import { deleteTaskGroupSchema } from "../../schemas/delete-task-group-schema";
-import { Uuid } from "@wave-telecom/framework/core";
 
 export class DeleteTaskGroupController extends BaseController {
   constructor(private useCase: DeleteTaskGroupUseCase) {
@@ -26,7 +25,7 @@ export class DeleteTaskGroupController extends BaseController {
     }
 
     const result = await this.useCase.execute({
-      taskGroupId: new Uuid(validation.data.taskGroupId),
+      taskGroupId: validation.data.taskGroupId,
       educatorId: user.id,
     });
 

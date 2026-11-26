@@ -35,7 +35,6 @@ export class UpdateTaskNotebookController extends BaseController {
           return this.notFound(res, result.error);
         case "NOT_NOTEBOOK_OWNER":
           return this.forbidden(res, result.error);
-        case "INVALID_TASK_NOTEBOOK_ID":
         case "INVALID_TASK_NOTEBOOK_DATA":
           return this.clientError(res, result.error);
         default:

@@ -41,10 +41,9 @@ function renderSessions(input: StudentAnalysisAiInput): string {
       const answers = session.answers
         .map(
           (a) =>
-            `    • [${a.isCorrect ? "ACERTOU" : "ERROU"}] (${a.category ?? "?"}${
-              // Sem tempo nas respostas antigas, gravadas em segundos.
-              a.timeToAnswer !== undefined ? `, ${seconds(a.timeToAnswer)}` : ""
-            }) ${a.taskPrompt ?? "(enunciado indisponível)"}`
+            `    • [${a.isCorrect ? "ACERTOU" : "ERROU"}] (${a.category ?? "?"}, ${seconds(
+              a.timeToAnswer
+            )}) ${a.taskPrompt ?? "(enunciado indisponível)"}`
         )
         .join("\n");
 

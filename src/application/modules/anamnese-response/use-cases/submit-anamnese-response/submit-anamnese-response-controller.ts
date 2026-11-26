@@ -3,6 +3,7 @@ import {
   formatValidationErrors,
 } from "@wave-telecom/framework/controllers";
 import { Request, Response } from "express";
+import { mapAnamneseResponse } from "../../../../../infraestructure/mappers/map-anamnese-response";
 import { SubmitAnamneseResponseUseCase } from "./submit-anamnese-response-use-case";
 import { submitAnamneseResponseSchema } from "../../schemas/submit-anamnese-response.schema";
 
@@ -48,6 +49,6 @@ export class SubmitAnamneseResponseController extends BaseController {
       }
     }
 
-    return this.ok(res, result.value);
+    return this.ok(res, mapAnamneseResponse(result.value));
   }
 }

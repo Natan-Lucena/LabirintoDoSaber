@@ -2,6 +2,7 @@ import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
 import { Task } from "../../../../../domain/entities/task";
+import { timeToAnswerInMs } from "../../../../../domain/entities/task-notebook-session";
 import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
 import { ActivityResultRepository } from "../../../../../domain/repositories/activity-result-repository";
 import { summarizeActivityResults } from "../../../../../domain/entities/activity-result";
@@ -61,19 +62,20 @@ export class GeneratorReportTaskNotebookSessionUseCase {
     const totalQuestions = session.answers.length;
 
     // Sessão sem respostas (por exemplo, só jogos): null, nunca NaN.
+    // Tempos em milissegundos, com as respostas antigas normalizadas (PP-08).
     const averageTimePerQuestion =
       totalQuestions > 0
-        ? session.answers.reduce((acc, curr) => acc + curr.timeToAnswer, 0) /
+        ? session.answers.reduce((acc, curr) => acc + timeToAnswerInMs(curr), 0) /
           totalQuestions
-        : null; // milissegundos (timeToAnswer cru)
+        : null;
 
     const correctTimes = session.answers
       .filter((a) => a.isCorrect)
-      .map((a) => a.timeToAnswer);
+      .map(timeToAnswerInMs);
 
     const incorrectTimes = session.answers
       .filter((a) => !a.isCorrect)
-      .map((a) => a.timeToAnswer);
+      .map(timeToAnswerInMs);
 
     const averageCorrectTime =
       correctTimes.length > 0

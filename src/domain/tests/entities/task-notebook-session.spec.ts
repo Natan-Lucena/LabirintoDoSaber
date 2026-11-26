@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   TaskNotebookSession,
   TaskAnswer,
+  timeToAnswerInMs,
 } from "../../entities/task-notebook-session";
 import { Uuid, failure, success } from "@wave-telecom/framework/core";
 
@@ -226,5 +227,27 @@ describe("TaskNotebookSession Entity", () => {
       expect(observed.appointmentId).toBe(appointmentId);
       expect(finished.value.observation).toBeUndefined();
     });
+  });
+});
+
+describe("timeToAnswerInMs (PP-08)", () => {
+  const answer = (timeToAnswer: number, answeredAt: string): TaskAnswer => ({
+    taskId: Uuid.random(),
+    selectedAlternativeId: Uuid.random(),
+    isCorrect: true,
+    timeToAnswer,
+    answeredAt: new Date(answeredAt),
+  });
+
+  it("should convert answers recorded before 2026-10-09 in Sao Paulo from seconds", () => {
+    // 08/10 23:59 em São Paulo: ainda em segundos.
+    expect(timeToAnswerInMs(answer(12, "2026-10-09T02:59:00.000Z"))).toBe(12000);
+    expect(timeToAnswerInMs(answer(8, "2026-09-01T13:00:00.000Z"))).toBe(8000);
+  });
+
+  it("should keep the newer answers, already in milliseconds", () => {
+    // 09/10 00:00 em São Paulo: já em milissegundos.
+    expect(timeToAnswerInMs(answer(3000, "2026-10-09T03:00:00.000Z"))).toBe(3000);
+    expect(timeToAnswerInMs(answer(4500, "2026-11-20T13:00:00.000Z"))).toBe(4500);
   });
 });

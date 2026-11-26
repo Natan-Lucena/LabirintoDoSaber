@@ -2,7 +2,7 @@ import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { TaskGroupRepository } from "../../../../../domain/repositories/task-group-repository";
 
 interface DeleteTaskGroupUseCaseRequest {
-  taskGroupId: Uuid;
+  taskGroupId: string;
   educatorId: Uuid;
 }
 
@@ -10,10 +10,11 @@ export class DeleteTaskGroupUseCase {
   constructor(private taskGroupRepository: TaskGroupRepository) {}
 
   async execute(params: DeleteTaskGroupUseCaseRequest) {
+    if (!Uuid.isValid(params.taskGroupId)) return failure("TASK_GROUP_NOT_FOUND");
+    const taskGroupId = new Uuid(params.taskGroupId);
+
     try {
-      const existingTaskGroup = await this.taskGroupRepository.findById(
-        params.taskGroupId
-      );
+      const existingTaskGroup = await this.taskGroupRepository.findById(taskGroupId);
       if (!existingTaskGroup) {
         return failure("TASK_GROUP_NOT_FOUND");
       }
@@ -22,7 +23,7 @@ export class DeleteTaskGroupUseCase {
         return failure("NOT_GROUP_OWNER");
       }
 
-      await this.taskGroupRepository.deleteById(params.taskGroupId);
+      await this.taskGroupRepository.deleteById(taskGroupId);
       return success(null);
     } catch {
       return failure("DELETE_TASK_GROUP_FAILED");
