@@ -10,7 +10,11 @@ import {
 } from "../../../../../domain/entities/task-notebook-session";
 import { TaskGroupRepository } from "../../../../../domain/repositories/task-group-repository";
 import { AnswerTaskNotebookSessionUseCase } from "./answer-task-notebook-session-use-case";
-import { makePrintableTask } from "../../../task/use-cases/test-fixtures";
+import { TaskType } from "../../../../../domain/entities/task";
+import {
+  makePrintableTask,
+  makeWordBuilderTask,
+} from "../../../task/use-cases/test-fixtures";
 
 const ID = {
   session: Uuid.random().value,
@@ -44,6 +48,7 @@ const makeSession = (
 
 const makeTask = (taskId: string, correctAltId: string) => ({
   id: new Uuid(taskId),
+  type: TaskType.MultipleChoice,
   alternatives: [
     { id: new Uuid(correctAltId), isCorrect: true },
     { id: new Uuid(ID.altWrong), isCorrect: false },
@@ -156,6 +161,25 @@ describe("AnswerTaskNotebookSessionUseCase", () => {
     });
 
     expect(result).toEqual(failure("PRINTABLE_NOT_PLAYABLE"));
+    expect(sessionRepo.save).not.toHaveBeenCalled();
+  });
+
+  it("RS-03: tipo jogável novo usa a rota de resultado → USE_ACTIVITY_RESULT_ROUTE", async () => {
+    const session = makeSession(ID.session, ID.notebook);
+    const playable = makeWordBuilderTask();
+
+    (sessionRepo.getById as any).mockResolvedValue(session);
+    (taskRepo.getById as any).mockResolvedValue(playable);
+
+    const result = await useCase.execute({
+      sessionId: ID.session,
+      taskId: playable.id.value,
+      selectedAlternativeId: ID.altCorrect,
+      timeToAnswer: 10,
+    });
+
+    expect(result).toEqual(failure("USE_ACTIVITY_RESULT_ROUTE"));
+    expect(notebookRepo.getById).not.toHaveBeenCalled();
     expect(sessionRepo.save).not.toHaveBeenCalled();
   });
 

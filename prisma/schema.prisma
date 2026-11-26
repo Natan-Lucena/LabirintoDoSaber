@@ -215,6 +215,24 @@ model TaskGroup {
   @@index([educatorId])
 }
 
+// Resultado de um jogo (tipos jogáveis novos) numa sessão. Fora de
+// TaskNotebookSession.answers: não entra no accuracy das análises.
+model ActivityResult {
+  id         String   @id @map("_id")
+  sessionId  String
+  taskId     String
+  taskType   String
+  completed  Boolean
+  correct    Boolean
+  attempts   Int
+  errors     Int
+  durationMs Int
+  recordedAt DateTime
+
+  // Um resultado por atividade e sessão; o prefixo serve às buscas por sessão.
+  @@unique([sessionId, taskId])
+}
+
 type TaskAnswer {
   taskId                String
   selectedAlternativeId String

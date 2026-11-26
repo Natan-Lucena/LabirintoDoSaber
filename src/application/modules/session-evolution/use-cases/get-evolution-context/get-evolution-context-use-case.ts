@@ -6,6 +6,8 @@ import { PlanRepository } from "../../../../../domain/repositories/plan-reposito
 import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
+import { ActivityResultRepository } from "../../../../../domain/repositories/activity-result-repository";
+import { TaskRepository } from "../../../../../domain/repositories/task-repository";
 import { loadOwnedSession } from "../evolution-access";
 
 export interface GetEvolutionContextUseCaseRequest {
@@ -18,7 +20,9 @@ export class GetEvolutionContextUseCase {
     private sessionRepository: TaskNotebookSessionRepository,
     private studentRepository: StudentRepository,
     private planRepository: PlanRepository,
-    private evolutionRepository: SessionEvolutionRepository
+    private evolutionRepository: SessionEvolutionRepository,
+    private activityResultRepository: ActivityResultRepository,
+    private taskRepository: TaskRepository
   ) {}
 
   async execute(request: GetEvolutionContextUseCaseRequest) {
@@ -40,6 +44,7 @@ export class GetEvolutionContextUseCase {
     });
     const selection = selectEvolutionPlan({ session, plans });
     const existing = await this.evolutionRepository.findBySessionId(session.id);
+    const activityResults = await this.loadActivityResults(session.id);
 
     return success({
       session: {
@@ -63,6 +68,27 @@ export class GetEvolutionContextUseCase {
         : undefined,
       suggestedCriteria: selection?.suggestedCriteria ?? [],
       existingEvolutionId: existing?.id.value,
+      activityResults,
     });
+  }
+
+  // RS-06: resultados de jogo com o título da atividade (TaskSummary.title).
+  // Atividade excluída fica sem título.
+  private async loadActivityResults(sessionId: Uuid) {
+    const results = await this.activityResultRepository.listBySessionId(sessionId);
+    if (results.length === 0) return [];
+
+    const tasks = await this.taskRepository.getByIds(results.map((result) => result.taskId));
+    const titleById = new Map(tasks.map((task) => [task.id.value, task.title]));
+
+    return results.map((result) => ({
+      taskId: result.taskId.value,
+      title: titleById.get(result.taskId.value),
+      taskType: result.taskType,
+      completed: result.completed,
+      correct: result.correct,
+      attempts: result.attempts,
+      errors: result.errors,
+    }));
   }
 }

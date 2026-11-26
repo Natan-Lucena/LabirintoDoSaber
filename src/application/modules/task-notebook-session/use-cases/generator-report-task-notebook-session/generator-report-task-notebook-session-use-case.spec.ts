@@ -5,6 +5,9 @@ import { TaskRepository } from "../../../../../domain/repositories/task-reposito
 import { success, failure, Uuid } from "@wave-telecom/framework/core";
 import { Task } from "../../../../../domain/entities/task";
 import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
+import { ActivityResultRepository } from "../../../../../domain/repositories/activity-result-repository";
+import { ActivityResult } from "../../../../../domain/entities/activity-result";
+import { makeWordBuilderTask } from "../../../task/use-cases/test-fixtures";
 
 // --- Factories e Mocks ---
 
@@ -85,6 +88,7 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
   let sessionRepository: TaskNotebookSessionRepository;
   let taskRepository: TaskRepository;
   let evolutionRepository: SessionEvolutionRepository;
+  let activityResultRepository: ActivityResultRepository;
   let useCase: GeneratorReportTaskNotebookSessionUseCase;
 
   beforeEach(() => {
@@ -93,10 +97,14 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
     evolutionRepository = {
       findBySessionId: vi.fn().mockResolvedValue(null),
     } as unknown as SessionEvolutionRepository;
+    activityResultRepository = {
+      listBySessionId: vi.fn().mockResolvedValue([]),
+    } as unknown as ActivityResultRepository;
     useCase = new GeneratorReportTaskNotebookSessionUseCase(
       sessionRepository,
       taskRepository,
       evolutionRepository,
+      activityResultRepository,
     );
   });
 
@@ -120,6 +128,66 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
 
     expect(result.ok).toBe(true);
     expect((result as any).value.evolutionId).toBeUndefined();
+  });
+
+  describe("activity results (RS-05, RS-07)", () => {
+    const makeResult = (sessionId: Uuid, completed: boolean, correct: boolean) => {
+      const created = ActivityResult.create({
+        sessionId,
+        task: makeWordBuilderTask(),
+        completed,
+        correct,
+        attempts: 2,
+        errors: 1,
+        durationMs: 5000,
+      });
+      if (!created.ok) throw new Error(String(created.error));
+      return created.value;
+    };
+
+    it("should add activitySummary and activityResults without changing the accuracy", async () => {
+      const taskId = Uuid.random();
+      const session = makeSession({
+        answers: [
+          makeAnswer({ taskId, isCorrect: true }),
+          makeAnswer({ taskId, isCorrect: false }),
+        ],
+      });
+      (sessionRepository.getById as any).mockResolvedValue(session);
+      stubTaskCatalog(taskRepository, {
+        [taskId.value]: makeTask({ id: taskId, category: "reading", type: "multipleChoice" }),
+      });
+      const results = [
+        makeResult(session.id, true, true),
+        makeResult(session.id, true, true),
+        makeResult(session.id, false, false),
+      ];
+      (activityResultRepository.listBySessionId as any).mockResolvedValue(results);
+
+      const result = await useCase.execute({ sessionId: session.id.value });
+
+      expect(activityResultRepository.listBySessionId).toHaveBeenCalledWith(session.id);
+      const report = (result as any).value;
+      expect(report.activitySummary).toEqual({ total: 3, completed: 2, correct: 2 });
+      expect(report.activityResults).toEqual(
+        results.map((item) => ({
+          id: item.id.value,
+          sessionId: session.id.value,
+          taskId: item.taskId.value,
+          taskType: "wordBuilder",
+          completed: item.completed,
+          correct: item.correct,
+          attempts: 2,
+          errors: 1,
+          durationMs: 5000,
+          recordedAt: item.recordedAt,
+        }))
+      );
+      // Resultados de jogo não entram no accuracy (RS-05).
+      expect(report.totalQuestions).toBe(2);
+      expect(report.percentageByCategory).toEqual({ reading: 50 });
+      expect(report.percentageByType).toEqual({ multipleChoice: 50 });
+    });
   });
 
   it("should fail if session does not exist", async () => {
@@ -194,6 +262,8 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
       percentageByType: expectedPercentageByType,
       observation: null,
       sessionName: undefined,
+      activitySummary: { total: 0, completed: 0, correct: 0 },
+      activityResults: [],
     });
 
     expect(result).toEqual(expectedSuccess);
@@ -229,6 +299,8 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
       percentageByType: {},
       observation: null,
       sessionName: undefined,
+      activitySummary: { total: 0, completed: 0, correct: 0 },
+      activityResults: [],
     });
 
     expect(result).toEqual(expectedSuccess);

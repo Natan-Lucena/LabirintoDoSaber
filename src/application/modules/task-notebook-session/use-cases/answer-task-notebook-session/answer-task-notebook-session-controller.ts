@@ -37,6 +37,8 @@ export class AnswerTaskNotebookSessionController extends BaseController {
           return this.clientError(res, "TASK_NOT_IN_NOTEBOOK");
         case "PRINTABLE_NOT_PLAYABLE":
           return this.clientError(res, "PRINTABLE_NOT_PLAYABLE");
+        case "USE_ACTIVITY_RESULT_ROUTE":
+          return this.clientError(res, "USE_ACTIVITY_RESULT_ROUTE");
         case "TASK_ALREADY_ANSWERED":
           return this.clientError(res, "TASK_ALREADY_ANSWERED");
         default:

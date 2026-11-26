@@ -2,9 +2,10 @@ import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
 import { TaskNotebookRepository } from "../../../../../domain/repositories/task-notebook-repository";
-import { TaskNotebook } from "../../../../../domain/entities/task-notebook";
+import { isMultipleChoiceType } from "../../../../../domain/entities/task";
 import { TaskGroupRepository } from "../../../../../domain/repositories/task-group-repository";
 import { TaskAnswer } from "../../../../../domain/entities/task-notebook-session";
+import { assertTaskInSessionNotebook } from "../session-task-access";
 
 export interface AnswerTaskNotebookSessionUseCaseRequest {
   sessionId: string;
@@ -48,19 +49,18 @@ export class AnswerTaskNotebookSessionUseCase {
       return failure("PRINTABLE_NOT_PLAYABLE");
     }
 
-    if (session.taskNotebookId) {
-      const notebook = await this.notebookRepository.getById(
-        session.taskNotebookId
-      );
-
-      if (!notebook) {
-        return failure("NOTEBOOK_NOT_FOUND");
-      }
-
-      if (!(await this.isTaskInNotebook(task.id, notebook))) {
-        return failure("TASK_NOT_IN_NOTEBOOK");
-      }
+    // Tipos jogáveis novos têm a rota própria de resultado (RS-03).
+    if (!isMultipleChoiceType(task.type)) {
+      return failure("USE_ACTIVITY_RESULT_ROUTE");
     }
+
+    const inNotebook = await assertTaskInSessionNotebook(
+      this.notebookRepository,
+      this.taskGroupRepository,
+      session,
+      task.id
+    );
+    if (!inNotebook.ok) return inNotebook;
 
     const alreadyAnswered = session.answers.some(
       (a) => a.taskId.value === task.id.value
@@ -91,21 +91,5 @@ export class AnswerTaskNotebookSessionUseCase {
     await this.sessionRepository.save(updated.value);
 
     return success(updated.value);
-  }
-
-  private async isTaskInNotebook(taskId: Uuid, notebook: TaskNotebook) {
-    if (notebook.tasks.some((t) => t.id.value === taskId.value)) {
-      return true;
-    }
-
-    if (notebook.taskGroupsIds.length === 0) {
-      return false;
-    }
-
-    const groups = await this.taskGroupRepository.findByIds(
-      notebook.taskGroupsIds.map((id) => new Uuid(id))
-    );
-
-    return groups.some((g) => g.tasksIds.includes(taskId.value));
   }
 }
