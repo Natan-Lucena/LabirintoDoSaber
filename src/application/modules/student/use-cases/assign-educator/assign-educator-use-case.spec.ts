@@ -1,101 +1,143 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import {
-  AssignEducatorUseCase,
-  AssignEducatorUseCaseRequest,
-} from "./assign-educator-use-case";
+import { describe, it, expect } from "vitest";
+import { failure, Uuid } from "@wave-telecom/framework/core";
+import { AssignEducatorUseCase } from "./assign-educator-use-case";
 import { Educator } from "../../../../../domain/entities/educator";
 import { Gender, Student } from "../../../../../domain/entities/student";
-import { success, failure, Uuid } from "@wave-telecom/framework/core";
-import { MockStudentRepository } from "../../../../../infraestructure/repositories/mock/student-repository-impl";
-import { MockEducatorRepository } from "../../../../../infraestructure/repositories/mock/educator-repository-impl";
+import { shareStudent } from "../../../../../domain/tests/fakes/student-share-fakes";
+import { makeClinic } from "../../../clinic/use-cases/test-fixtures";
+import { joinClinic, setupSharing } from "../test-fixtures";
+
+const setup = () => {
+  const ctx = setupSharing();
+  const newEducator = Educator.create({
+    name: "New Educator",
+    email: "new@example.com",
+    password: "password123",
+  });
+  ctx.educatorRepository.store.set(newEducator.id.value, newEducator);
+
+  // Aluno com o dono na lista de educadores, como o cadastro grava.
+  const student = Student.create({
+    name: "Alice",
+    age: 20,
+    gender: Gender.Female,
+    zipcode: "12345",
+    road: "Main St",
+    housenumber: "10A",
+    phonenumber: "1234567890",
+    learningTopics: ["Math"],
+    educators: [ctx.owner],
+    educatorId: ctx.owner.id,
+  });
+  ctx.studentRepository.store.set(student.id.value, student);
+
+  const useCase = new AssignEducatorUseCase(
+    ctx.studentAccess,
+    ctx.studentRepository,
+    ctx.educatorRepository,
+    ctx.memberRepository
+  );
+  return { ...ctx, student, newEducator, useCase };
+};
 
 describe("AssignEducatorUseCase", () => {
-  let studentRepository: MockStudentRepository;
-  let educatorRepository: MockEducatorRepository;
-  let useCase: AssignEducatorUseCase;
-
-  let currentEducator: Educator;
-  let newEducator: Educator;
-  let student: Student;
-
-  beforeEach(() => {
-    studentRepository = new MockStudentRepository();
-    educatorRepository = new MockEducatorRepository();
-    useCase = new AssignEducatorUseCase(studentRepository, educatorRepository);
-
-    currentEducator = Educator.create({
-      name: "Current Educator",
-      email: "current@example.com",
-      password: "password123",
-    });
-    newEducator = Educator.create({
-      name: "New Educator",
-      email: "new@example.com",
-      password: "password123",
-    });
-
-    // Salvando educadores no repositório
-    educatorRepository.save(currentEducator);
-    educatorRepository.save(newEducator);
-
-    // Criando um estudante atribuído ao currentEducator
-    student = Student.create({
-      name: "Alice",
-      age: 20,
-      gender: Gender.Female,
-      zipcode: "12345",
-      road: "Main St",
-      housenumber: "10A",
-      phonenumber: "1234567890",
-      learningTopics: ["Math"],
-      educators: [currentEducator],
-      educatorId: currentEducator.id,
-    });
-
-    studentRepository.save(student);
-  });
-
   it("should fail if student does not exist", async () => {
+    const { owner, useCase } = setup();
+
     const result = await useCase.execute({
+      educatorId: owner.id,
       studentId: Uuid.random(),
-      currentEducatorEmail: "current@example.com",
       newEducatorEmail: "new@example.com",
     });
 
     expect(result).toEqual(failure("STUDENT_NOT_FOUND"));
   });
 
-  it("should fail if student is not assigned to current educator", async () => {
-    const anotherEducator = Educator.create({
-      name: "Another",
-      email: "another@example.com",
-      password: "password123",
-    });
-    educatorRepository.save(anotherEducator);
+  it("should fail if the current educator is not the owner", async () => {
+    const { outsider, student, useCase } = setup();
 
     const result = await useCase.execute({
+      educatorId: outsider.id,
       studentId: student.id,
-      currentEducatorEmail: "another@example.com",
       newEducatorEmail: "new@example.com",
     });
 
     expect(result).toEqual(failure("STUDENT_NOT_ASSIGNED_TO_CURRENT_EDUCATOR"));
   });
 
-  it("should fail if new educator does not exist", async () => {
+  it("o compartilhado não transfere (EQ-11)", async () => {
+    const { colleague, student, shareRepository, studentRepository, useCase } = setup();
+    shareRepository.store.push(shareStudent(student, colleague.id));
+
     const result = await useCase.execute({
+      educatorId: colleague.id,
       studentId: student.id,
-      currentEducatorEmail: "current@example.com",
+      newEducatorEmail: "carla@mail.com",
+    });
+
+    expect(result).toEqual(failure("STUDENT_NOT_ASSIGNED_TO_CURRENT_EDUCATOR"));
+    expect(studentRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("should fail if new educator does not exist", async () => {
+    const { owner, student, useCase } = setup();
+
+    const result = await useCase.execute({
+      educatorId: owner.id,
+      studentId: student.id,
       newEducatorEmail: "nonexistent@example.com",
     });
 
     expect(result).toEqual(failure("NEW_EDUCATOR_NOT_FOUND"));
   });
 
-  it("should assign new educator successfully", async () => {
+  it("dono numa clínica: o novo educador precisa ser da mesma clínica (EQ-15)", async () => {
+    const { owner, student, studentRepository, useCase } = setup();
+
     const result = await useCase.execute({
+      educatorId: owner.id,
       studentId: student.id,
-      currentEducatorEmail: "current@example.com",
+      newEducatorEmail: "new@example.com",
+    });
+
+    expect(result).toEqual(failure("NOT_IN_SAME_CLINIC"));
+    expect(studentRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("dono numa clínica: membro de outra clínica também é recusado (EQ-15)", async () => {
+    const { owner, student, newEducator, memberRepository, useCase } = setup();
+    joinClinic(memberRepository, makeClinic("Outra").id, newEducator);
+
+    const result = await useCase.execute({
+      educatorId: owner.id,
+      studentId: student.id,
+      newEducatorEmail: "new@example.com",
+    });
+
+    expect(result).toEqual(failure("NOT_IN_SAME_CLINIC"));
+  });
+
+  it("dono numa clínica: colega da mesma clínica é aceito", async () => {
+    const { owner, colleague, student, useCase } = setup();
+
+    const result = await useCase.execute({
+      educatorId: owner.id,
+      studentId: student.id,
+      newEducatorEmail: colleague.email,
+    });
+
+    expect(result.ok).toBe(true);
+    const updated = (result as any).value as { educators: { id: string }[] };
+    expect(updated.educators.map((e) => e.id)).toContain(colleague.id.value);
+  });
+
+  it("should assign new educator successfully when the owner has no clinic", async () => {
+    const { owner, student, newEducator, memberRepository, studentRepository, useCase } = setup();
+    memberRepository.store.delete(owner.id.value);
+
+    const result = await useCase.execute({
+      educatorId: owner.id,
+      studentId: student.id,
       newEducatorEmail: "new@example.com",
     });
 
@@ -104,17 +146,10 @@ describe("AssignEducatorUseCase", () => {
     const updatedStudent = (result as any).value as {
       educators: { id: string; name: string }[];
     };
-    expect(updatedStudent.educators.map((e) => e.id)).toContain(
-      currentEducator.id.value
-    );
-    expect(updatedStudent.educators.map((e) => e.id)).toContain(
-      newEducator.id.value
-    );
+    expect(updatedStudent.educators.map((e) => e.id)).toContain(owner.id.value);
+    expect(updatedStudent.educators.map((e) => e.id)).toContain(newEducator.id.value);
 
-    // Garantir que o repositório foi atualizado
     const savedStudent = await studentRepository.getById(student.id);
-    expect(savedStudent?.educators.map((e) => e.email)).toContain(
-      newEducator.email
-    );
+    expect(savedStudent?.educators.map((e) => e.email)).toContain(newEducator.email);
   });
 });

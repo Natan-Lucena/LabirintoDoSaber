@@ -22,7 +22,9 @@ export const updateAppointmentSchema = z.object({
 });
 
 // Período da agenda em dias de São Paulo (AAAA-MM-DD), os dois inclusivos.
+// Com studentId, os atendimentos do aluno de qualquer educador (EQ-11).
 export const listAppointmentsQuerySchema = z.object({
+  studentId: z.string().uuid().optional(),
   from: dateOnlySchema.optional(),
   to: dateOnlySchema.optional(),
 });

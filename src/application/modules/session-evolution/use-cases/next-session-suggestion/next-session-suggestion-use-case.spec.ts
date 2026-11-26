@@ -1,3 +1,8 @@
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Uuid } from "@wave-telecom/framework/core";
 import { NextSessionSuggestionUseCase } from "./next-session-suggestion-use-case";
@@ -42,6 +47,7 @@ describe("NextSessionSuggestionUseCase", () => {
   let session: TaskNotebookSession;
   let sessionRepository: TaskNotebookSessionRepository;
   let studentRepository: StudentRepository;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let planRepository: PlanRepository;
   let evolutionRepository: SessionEvolutionRepository;
   let aiService: AiClinicalService;
@@ -83,9 +89,10 @@ describe("NextSessionSuggestionUseCase", () => {
       reportSynthesis: vi.fn(),
     };
 
+    shareRepository = makeShareRepository();
     useCase = new NextSessionSuggestionUseCase(
       sessionRepository,
-      studentRepository,
+      makeStudentAccess(studentRepository, shareRepository),
       planRepository,
       evolutionRepository,
       aiService
@@ -145,7 +152,7 @@ describe("NextSessionSuggestionUseCase", () => {
     await execute();
 
     expect(planRepository.search).toHaveBeenCalledWith(
-      expect.objectContaining({ studentId: student.id })
+      expect.objectContaining({ studentIds: [student.id] })
     );
     expect(evolutionRepository.search).toHaveBeenCalledWith(
       // Só até a data da sessão: evoluções posteriores não entram.
@@ -266,6 +273,16 @@ describe("NextSessionSuggestionUseCase", () => {
     });
     const empty = await execute();
     expect(empty).toEqual({ ok: true, value: { suggestion: "Sugestão" } });
+  });
+
+  it("returns the suggestion to a colleague the student is shared with (EQ-11)", async () => {
+    const colleagueId = Uuid.random();
+    await shareRepository.create(shareStudent(student, colleagueId));
+
+    const result = await execute({ educatorId: colleagueId });
+
+    expect(result.ok).toBe(true);
+    expect(aiService.nextSessionSuggestion).toHaveBeenCalledTimes(1);
   });
 
   it("returns UNAUTHORIZED for a session of a student of another educator", async () => {

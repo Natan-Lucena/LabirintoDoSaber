@@ -1,8 +1,8 @@
 import { success, Uuid } from "@wave-telecom/framework/core";
 import { GoalStatus } from "../../../../../domain/entities/plan";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
-import { loadOwnedPlan } from "../plan-access";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
+import { loadAccessiblePlan } from "../plan-access";
 
 export interface ChangeGoalStatusUseCaseRequest {
   educatorId: Uuid;
@@ -14,13 +14,13 @@ export interface ChangeGoalStatusUseCaseRequest {
 export class ChangeGoalStatusUseCase {
   constructor(
     private planRepository: PlanRepository,
-    private studentRepository: StudentRepository
+    private studentAccess: StudentAccessService
   ) {}
 
   async execute(request: ChangeGoalStatusUseCaseRequest) {
-    const planResult = await loadOwnedPlan(
+    const planResult = await loadAccessiblePlan(
       this.planRepository,
-      this.studentRepository,
+      this.studentAccess,
       request.planId,
       request.educatorId
     );

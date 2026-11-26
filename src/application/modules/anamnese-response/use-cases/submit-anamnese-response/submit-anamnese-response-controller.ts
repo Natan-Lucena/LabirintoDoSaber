@@ -33,6 +33,8 @@ export class SubmitAnamneseResponseController extends BaseController {
           return this.notFound(res, "TEMPLATE_NOT_FOUND");
         case "STUDENT_NOT_FOUND":
           return this.notFound(res, "STUDENT_NOT_FOUND");
+        case "UNAUTHORIZED":
+          return this.forbidden(res, "UNAUTHORIZED");
         case "MISSING_REQUIRED_ANSWER":
         case "MISSING_TEXT_VALUE":
         case "MISSING_SELECTED_OPTION":

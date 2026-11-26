@@ -5,12 +5,15 @@ const mapShare = (share: ReportSummaryProps["shares"][number]) => ({
   at: share.at,
 });
 
-export function mapReportToResponse(report: Report) {
+// authorName: nome do autor quando não é quem lê (EQ-12); ausente do JSON
+// quando o autor é o leitor.
+export function mapReportToResponse(report: Report, authorName?: string) {
   return {
     id: report.id.value,
     studentId: report.studentId.value,
     studentName: report.studentName,
     educatorId: report.educatorId.value,
+    ...(authorName ? { authorName } : {}),
     type: report.type,
     audience: report.audience,
     period: { from: report.periodFrom, to: report.periodTo },
@@ -23,13 +26,14 @@ export function mapReportToResponse(report: Report) {
 }
 
 // Histórico: sem o conteúdo, com o último envio.
-export function mapReportToSummary(report: ReportSummaryProps) {
+export function mapReportToSummary(report: ReportSummaryProps, authorName?: string) {
   const lastShare = report.shares[report.shares.length - 1];
   return {
     id: report.id.value,
     studentId: report.studentId.value,
     studentName: report.studentName,
     educatorId: report.educatorId.value,
+    ...(authorName ? { authorName } : {}),
     type: report.type,
     audience: report.audience,
     period: { from: report.periodFrom, to: report.periodTo },

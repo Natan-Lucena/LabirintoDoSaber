@@ -8,6 +8,11 @@ import { PlanRepository } from "../../../../../domain/repositories/plan-reposito
 import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 import { makeSession, makeStudent } from "../test-fixtures";
 
 describe("ListPendingEvolutionsUseCase", () => {
@@ -24,6 +29,7 @@ describe("ListPendingEvolutionsUseCase", () => {
   let sessionRepository: TaskNotebookSessionRepository;
   let evolutionRepository: SessionEvolutionRepository;
   let studentRepository: StudentRepository;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let useCase: ListPendingEvolutionsUseCase;
 
   beforeEach(() => {
@@ -76,10 +82,12 @@ describe("ListPendingEvolutionsUseCase", () => {
       getByIds: vi.fn().mockResolvedValue([ana, bruno, moved]),
     } as unknown as StudentRepository;
 
+    shareRepository = makeShareRepository();
     useCase = new ListPendingEvolutionsUseCase(
       sessionRepository,
       evolutionRepository,
-      studentRepository
+      studentRepository,
+      makeStudentAccess(studentRepository, shareRepository)
     );
   });
 
@@ -124,7 +132,7 @@ describe("ListPendingEvolutionsUseCase", () => {
   it("should drop the session once its evolution is created", async () => {
     const create = new CreateSessionEvolutionUseCase(
       sessionRepository,
-      studentRepository,
+      makeStudentAccess(studentRepository, shareRepository),
       { findById: vi.fn(), save: vi.fn() } as unknown as PlanRepository,
       evolutionRepository
     );
@@ -142,6 +150,32 @@ describe("ListPendingEvolutionsUseCase", () => {
 
     const after = ((await useCase.execute({ educatorId, days: 30 })) as any).value;
     expect(after.map((p: any) => p.sessionId)).toEqual([older.id.value]);
+  });
+
+  it("EQ-14: should keep the pending session the educator conducted on a student shared with him", async () => {
+    await shareRepository.create(shareStudent(moved, educatorId));
+
+    const result = await useCase.execute({ educatorId, days: 30 });
+
+    expect((result as any).value.map((p: any) => p.sessionId)).toEqual(
+      expect.arrayContaining([fromMovedStudent.id.value, recent.id.value, older.id.value])
+    );
+    const shared = (result as any).value.find(
+      (p: any) => p.sessionId === fromMovedStudent.id.value
+    );
+    expect(shared.studentName).toBe("Carla");
+  });
+
+  it("EQ-14: should drop it again once the share is undone", async () => {
+    await shareRepository.create(shareStudent(moved, educatorId));
+    await shareRepository.delete(moved.id, educatorId);
+
+    const result = await useCase.execute({ educatorId, days: 30 });
+
+    expect((result as any).value.map((p: any) => p.sessionId)).toEqual([
+      recent.id.value,
+      older.id.value,
+    ]);
   });
 
   it("should return an empty list without querying evolutions when there are no sessions", async () => {

@@ -6,6 +6,8 @@ import { isMultipleChoiceType } from "../../../../../domain/entities/task";
 import { TaskGroupRepository } from "../../../../../domain/repositories/task-group-repository";
 import { TaskAnswer } from "../../../../../domain/entities/task-notebook-session";
 import { assertTaskAllowedInSession } from "../session-task-access";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
+import { loadAccessibleSession } from "../../../session-evolution/use-cases/evolution-access";
 
 export interface AnswerTaskNotebookSessionUseCaseRequest {
   educatorId: Uuid;
@@ -18,24 +20,25 @@ export interface AnswerTaskNotebookSessionUseCaseRequest {
 export class AnswerTaskNotebookSessionUseCase {
   constructor(
     private sessionRepository: TaskNotebookSessionRepository,
+    private studentAccess: StudentAccessService,
     private taskRepository: TaskRepository,
     private notebookRepository: TaskNotebookRepository,
     private taskGroupRepository: TaskGroupRepository
   ) {}
 
   async execute(request: AnswerTaskNotebookSessionUseCaseRequest) {
-    const sessionId = new Uuid(request.sessionId);
-    const taskId = new Uuid(request.taskId);
+    // RS-08: só quem acessa o aluno (dono ou compartilhado) responde.
+    const access = await loadAccessibleSession(
+      this.sessionRepository,
+      this.studentAccess,
+      request.sessionId,
+      request.educatorId
+    );
+    if (!access.ok) return access;
+    const { session } = access.value;
+
     const alternativeId = new Uuid(request.selectedAlternativeId);
-
-    const [session, task] = await Promise.all([
-      this.sessionRepository.getById(sessionId),
-      this.taskRepository.getById(taskId),
-    ]);
-
-    if (!session) {
-      return failure("SESSION_NOT_FOUND");
-    }
+    const task = await this.taskRepository.getById(new Uuid(request.taskId));
 
     if (session.finishedAt) {
       return failure("SESSION_ALREADY_FINISHED");

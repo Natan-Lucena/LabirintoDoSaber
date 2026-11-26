@@ -5,6 +5,11 @@ import { Plan, PlanSource, PlanStatus, PlanType } from "../../../../../domain/en
 import { Gender, Student } from "../../../../../domain/entities/student";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 
 const makeStudent = (educatorId: Uuid) =>
   Student.create({
@@ -39,6 +44,7 @@ const makePlan = (educatorId: Uuid, studentId: Uuid) => {
 describe("UpdatePlanUseCase", () => {
   let planRepository: PlanRepository;
   let studentRepository: StudentRepository;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let useCase: UpdatePlanUseCase;
 
   const educatorId = Uuid.random();
@@ -53,7 +59,8 @@ describe("UpdatePlanUseCase", () => {
     studentRepository = {
       getById: vi.fn().mockResolvedValue(student),
     } as unknown as StudentRepository;
-    useCase = new UpdatePlanUseCase(planRepository, studentRepository);
+    shareRepository = makeShareRepository();
+    useCase = new UpdatePlanUseCase(planRepository, makeStudentAccess(studentRepository, shareRepository));
   });
 
   it("should update and save the plan", async () => {
@@ -94,5 +101,38 @@ describe("UpdatePlanUseCase", () => {
     const result = await useCase.execute({ educatorId, planId: plan.id.value, title: "X" });
 
     expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
+  });
+
+  it("should let a colleague the student is shared with edit the owner plan", async () => {
+    const plan = makePlan(educatorId, student.id);
+    (planRepository.findById as any).mockResolvedValue(plan);
+    const colleagueId = Uuid.random();
+    await shareRepository.create(shareStudent(student, colleagueId));
+
+    const result = await useCase.execute({
+      educatorId: colleagueId,
+      planId: plan.id.value,
+      title: "Título do colega",
+    });
+
+    expect(result.ok).toBe(true);
+    const updated = (result as any).value as Plan;
+    expect(updated.title).toBe("Título do colega");
+    // O autor gravado continua o dono (EQ-12).
+    expect(updated.educatorId.value).toBe(educatorId.value);
+  });
+
+  it("should return UNAUTHORIZED to an educator the student is not shared with", async () => {
+    const plan = makePlan(educatorId, student.id);
+    (planRepository.findById as any).mockResolvedValue(plan);
+
+    const result = await useCase.execute({
+      educatorId: Uuid.random(),
+      planId: plan.id.value,
+      title: "X",
+    });
+
+    expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
+    expect(planRepository.save).not.toHaveBeenCalled();
   });
 });

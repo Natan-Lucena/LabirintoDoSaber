@@ -13,6 +13,11 @@ import {
 import { TaskCategory } from "../../../../../domain/entities/task";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 import { AnamneseTemplateRepository } from "../../../../../domain/repositories/anamnese-template-repository";
 import { AnamneseResponseRepository } from "../../../../../domain/repositories/anamnese-response-repository";
 import {
@@ -122,6 +127,7 @@ describe("GeneratePlanDraftUseCase", () => {
 
   let planRepository: PlanRepository;
   let studentRepository: StudentRepository;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let templateRepository: AnamneseTemplateRepository;
   let responseRepository: AnamneseResponseRepository;
   let analysisUseCase: GenerateStudentAnalysisUseCase;
@@ -171,9 +177,10 @@ describe("GeneratePlanDraftUseCase", () => {
       generateDraft: vi.fn().mockResolvedValue(validOutput()),
     } as unknown as AiPlanGeneratorService;
 
+    shareRepository = makeShareRepository();
     useCase = new GeneratePlanDraftUseCase(
       planRepository,
-      studentRepository,
+      makeStudentAccess(studentRepository, shareRepository),
       templateRepository,
       new AnamneseContextBuilder(templateRepository, responseRepository),
       analysisUseCase,
@@ -421,6 +428,36 @@ describe("GeneratePlanDraftUseCase", () => {
     });
 
     expect(result).toEqual({ ok: false, error: "TEMPLATE_NOT_FOUND" });
+    expect(aiService.generateDraft).not.toHaveBeenCalled();
+  });
+
+  it("generates the draft for a colleague the student is shared with, using the owner PDI and anamnese template (EQ-11)", async () => {
+    const colleagueId = Uuid.random();
+    await shareRepository.create(shareStudent(student, colleagueId));
+    const pdi = makePdi(educatorId, student.id);
+    (planRepository.findById as any).mockResolvedValue(pdi);
+    const template = makeTemplate(educatorId);
+    (templateRepository.findById as any).mockResolvedValue(template);
+
+    const result = await useCase.execute({
+      ...peRequest,
+      educatorId: colleagueId,
+      parentPlanId: pdi.id.value,
+      includeAnamnesisTemplateId: template.id.value,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(aiService.generateDraft).toHaveBeenCalledOnce();
+  });
+
+  it("returns UNAUTHORIZED to a colleague after the share is undone", async () => {
+    const colleagueId = Uuid.random();
+    await shareRepository.create(shareStudent(student, colleagueId));
+    await shareRepository.delete(student.id, colleagueId);
+
+    const result = await useCase.execute({ ...pdiRequest, educatorId: colleagueId });
+
+    expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
     expect(aiService.generateDraft).not.toHaveBeenCalled();
   });
 

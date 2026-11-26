@@ -4,6 +4,13 @@ import { UpdateAppointmentUseCase } from "./update-appointment-use-case";
 import { AppointmentRepository } from "../../../../../domain/repositories/appointment-repository";
 import { AppointmentSchedulerService } from "../../../../../domain/services/appointment-scheduler-service";
 import { Appointment, AppointmentStatus } from "../../../../../domain/entities/appointment";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  makeStudentRepositoryFake,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
+import { makeStudent } from "../../../session-evolution/use-cases/test-fixtures";
 
 const mockAppointmentRepository = (): AppointmentRepository =>
   ({
@@ -40,12 +47,20 @@ describe("UpdateAppointmentUseCase", () => {
   let useCase: UpdateAppointmentUseCase;
 
   const educatorId = Uuid.random();
+  let studentRepository: ReturnType<typeof makeStudentRepositoryFake>;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
 
   beforeEach(() => {
     vi.restoreAllMocks();
     appointmentRepository = mockAppointmentRepository();
     schedulerService = mockSchedulerService();
-    useCase = new UpdateAppointmentUseCase(appointmentRepository, schedulerService);
+    studentRepository = makeStudentRepositoryFake();
+    shareRepository = makeShareRepository();
+    useCase = new UpdateAppointmentUseCase(
+      appointmentRepository,
+      schedulerService,
+      makeStudentAccess(studentRepository, shareRepository)
+    );
 
     (appointmentRepository.save as any).mockResolvedValue(undefined);
     (appointmentRepository.search as any).mockResolvedValue([]);
@@ -372,6 +387,39 @@ describe("UpdateAppointmentUseCase", () => {
         error: { code: "APPOINTMENT_CONFLICT", conflictingAppointmentId: other.id.value },
       });
       expect(schedulerService.ensureScheduled).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("paciente compartilhado (EQ-11)", () => {
+    const ownerId = Uuid.random();
+    const colleagueId = Uuid.random();
+    const shared = makeStudent(ownerId);
+
+    beforeEach(async () => {
+      studentRepository.store.set(shared.id.value, shared);
+    });
+
+    it("lets the colleague update the owner's appointment of a shared student", async () => {
+      await shareRepository.create(shareStudent(shared, colleagueId));
+      const appt = makeAppointment(ownerId, { studentId: shared.id });
+      (appointmentRepository.findById as any).mockResolvedValue(appt);
+
+      const result = await useCase.execute({ id: appt.id, educatorId: colleagueId, observation: "Nota do colega" });
+
+      expect(result.ok).toBe(true);
+      expect(appointmentRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ observation: "Nota do colega", educatorId: ownerId })
+      );
+    });
+
+    it("returns NOT_FOUND for a colleague without the share", async () => {
+      const appt = makeAppointment(ownerId, { studentId: shared.id });
+      (appointmentRepository.findById as any).mockResolvedValue(appt);
+
+      const result = await useCase.execute({ id: appt.id, educatorId: colleagueId, observation: "Nota do colega" });
+
+      expect(result).toEqual(failure("NOT_FOUND"));
+      expect(appointmentRepository.save).not.toHaveBeenCalled();
     });
   });
 });

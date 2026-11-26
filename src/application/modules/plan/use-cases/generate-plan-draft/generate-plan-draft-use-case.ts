@@ -2,7 +2,7 @@ import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { Plan, PlanType } from "../../../../../domain/entities/plan";
 import { AnamneseTemplate } from "../../../../../domain/entities/anamnese-template";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { AnamneseTemplateRepository } from "../../../../../domain/repositories/anamnese-template-repository";
 import {
   AiInvalidOutputError,
@@ -13,7 +13,7 @@ import {
 import { addMonths, todayInSaoPaulo } from "../../../../../domain/utils/date-only";
 import { AnamneseContextBuilder } from "../../../../services/anamnese-context-builder";
 import { GenerateStudentAnalysisUseCase } from "../../../task-notebook-session/use-cases/generate-student-analisys/generate-student-analisys-use-case";
-import { assertStudentOwnership, loadOwnedPlan } from "../plan-access";
+import { loadAccessiblePlan } from "../plan-access";
 import { buildPlanAiContext } from "../plan-ai-context";
 
 const MIN_DRAFT_GOALS = 3;
@@ -55,7 +55,7 @@ const clip = (value: unknown, max: number): string =>
 export class GeneratePlanDraftUseCase {
   constructor(
     private planRepository: PlanRepository,
-    private studentRepository: StudentRepository,
+    private studentAccess: StudentAccessService,
     private anamneseTemplateRepository: AnamneseTemplateRepository,
     private anamneseBuilder: AnamneseContextBuilder,
     private analysisUseCase: GenerateStudentAnalysisUseCase,
@@ -63,19 +63,18 @@ export class GeneratePlanDraftUseCase {
   ) {}
 
   async execute(request: GeneratePlanDraftUseCaseRequest) {
-    const ownership = await assertStudentOwnership(
-      this.studentRepository,
+    const access = await this.studentAccess.assertStudentAccess(
       new Uuid(request.studentId),
       request.educatorId
     );
-    if (!ownership.ok) return failure(ownership.error);
-    const student = ownership.value;
+    if (!access.ok) return failure(access.error);
+    const student = access.value;
 
     let parentPlan: Plan | undefined;
     if (request.type === PlanType.PE && request.parentPlanId) {
-      const loaded = await loadOwnedPlan(
+      const loaded = await loadAccessiblePlan(
         this.planRepository,
-        this.studentRepository,
+        this.studentAccess,
         request.parentPlanId,
         request.educatorId
       );
@@ -95,7 +94,10 @@ export class GeneratePlanDraftUseCase {
       const found = await this.anamneseTemplateRepository.findById(
         new Uuid(request.includeAnamnesisTemplateId)
       );
-      if (!found || found.educatorId.value !== request.educatorId.value) {
+      // Template do educador ou do dono do aluno: o compartilhado lê a
+      // anamnese que o dono aplicou (EQ-11).
+      const templateOwners = [request.educatorId.value, student.educatorId.value];
+      if (!found || !templateOwners.includes(found.educatorId.value)) {
         return failure("TEMPLATE_NOT_FOUND");
       }
       template = found;

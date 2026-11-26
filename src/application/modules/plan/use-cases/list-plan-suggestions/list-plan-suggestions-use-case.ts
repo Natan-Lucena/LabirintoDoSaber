@@ -1,6 +1,7 @@
 import { success, Uuid } from "@wave-telecom/framework/core";
 import { SuggestionStatus } from "../../../../../domain/entities/plan-suggestion";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { PlanSuggestionRepository } from "../../../../../domain/repositories/plan-suggestion-repository";
 import { mapPlanSuggestionToResponse } from "../../../../../infraestructure/mappers/map-plan";
 
@@ -12,7 +13,8 @@ export interface ListPlanSuggestionsUseCaseRequest {
 export class ListPlanSuggestionsUseCase {
   constructor(
     private suggestionRepository: PlanSuggestionRepository,
-    private studentRepository: StudentRepository
+    private studentRepository: StudentRepository,
+    private studentAccess: StudentAccessService
   ) {}
 
   // O repositório já devolve ordenado por createdAt desc.
@@ -27,20 +29,23 @@ export class ListPlanSuggestionsUseCase {
       studentIds.map((id) => new Uuid(id))
     );
 
-    // Como nos planos: alunos que trocaram de dono somem para o educador antigo.
-    const ownedStudents = new Map(
-      students
-        .filter((student) => student.educatorId.value === request.educatorId.value)
-        .map((student) => [student.id.value, student])
+    // Como nos planos: só alunos que o educador ainda acessa (dono ou
+    // compartilhado); transferido ou descompartilhado some.
+    const accessible = await this.studentAccess.filterAccessible(
+      students,
+      request.educatorId
+    );
+    const accessibleStudents = new Map(
+      accessible.map((student) => [student.id.value, student])
     );
 
     return success(
       suggestions
-        .filter((suggestion) => ownedStudents.has(suggestion.studentId.value))
+        .filter((suggestion) => accessibleStudents.has(suggestion.studentId.value))
         .map((suggestion) =>
           mapPlanSuggestionToResponse(
             suggestion,
-            ownedStudents.get(suggestion.studentId.value)!.name
+            accessibleStudents.get(suggestion.studentId.value)!.name
           )
         )
     );

@@ -1,8 +1,8 @@
 import { success, Uuid } from "@wave-telecom/framework/core";
 import { ReportShareChannel } from "../../../../../domain/entities/report";
 import { ReportRepository } from "../../../../../domain/repositories/report-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
-import { loadOwnedReport } from "../report-access";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
+import { loadAccessibleReport } from "../report-access";
 
 export interface ShareReportUseCaseRequest {
   educatorId: Uuid;
@@ -14,13 +14,13 @@ export interface ShareReportUseCaseRequest {
 export class ShareReportUseCase {
   constructor(
     private reportRepository: ReportRepository,
-    private studentRepository: StudentRepository
+    private studentAccess: StudentAccessService
   ) {}
 
   async execute(request: ShareReportUseCaseRequest) {
-    const access = await loadOwnedReport(
+    const access = await loadAccessibleReport(
       this.reportRepository,
-      this.studentRepository,
+      this.studentAccess,
       request.reportId,
       request.educatorId
     );

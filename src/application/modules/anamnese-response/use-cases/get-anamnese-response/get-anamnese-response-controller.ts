@@ -21,6 +21,8 @@ export class GetAnamneseResponseController extends BaseController {
       switch (result.error) {
         case "RESPONSE_NOT_FOUND":
           return this.notFound(res, "RESPONSE_NOT_FOUND");
+        case "STUDENT_NOT_FOUND":
+          return this.notFound(res, "STUDENT_NOT_FOUND");
         case "UNAUTHORIZED":
           return this.forbidden(res, "UNAUTHORIZED");
         default:

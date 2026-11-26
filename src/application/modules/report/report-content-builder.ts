@@ -127,8 +127,7 @@ export class ReportContentBuilder {
   // Plano ativo fora do período também não entra.
   private async loadPlanProgress(student: Student, period: ReportPeriod) {
     const plans = await this.deps.planRepository.search({
-      educatorId: student.educatorId,
-      studentId: student.id,
+      studentIds: [student.id],
     });
 
     return plans

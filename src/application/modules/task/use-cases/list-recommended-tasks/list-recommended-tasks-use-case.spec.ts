@@ -15,6 +15,11 @@ import {
   makeTaskRepository,
   makeWordBuilderTask,
 } from "../test-fixtures";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 
 const makeStudent = (educatorId: Uuid, learningTopics: string[]) =>
   Student.create({
@@ -54,14 +59,16 @@ describe("ListRecommendedTasksUseCase (AT-08)", () => {
   let taskRepository: ReturnType<typeof makeTaskRepository>;
   let studentRepository: { getById: ReturnType<typeof vi.fn> };
   let sessionRepository: { listByStudentId: ReturnType<typeof vi.fn> };
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let useCase: ListRecommendedTasksUseCase;
 
   beforeEach(() => {
     taskRepository = makeTaskRepository();
     studentRepository = { getById: vi.fn() };
     sessionRepository = { listByStudentId: vi.fn().mockResolvedValue([]) };
+    shareRepository = makeShareRepository();
     useCase = new ListRecommendedTasksUseCase(
-      studentRepository as unknown as StudentRepository,
+      makeStudentAccess(studentRepository as unknown as StudentRepository, shareRepository),
       sessionRepository as unknown as TaskNotebookSessionRepository,
       taskRepository,
       makeSkillRepository()
@@ -90,6 +97,17 @@ describe("ListRecommendedTasksUseCase (AT-08)", () => {
       error: "UNAUTHORIZED",
     });
     expect(taskRepository.listLibrary).not.toHaveBeenCalled();
+  });
+
+  it("EQ-11: aluno compartilhado com o educador → recomenda com as tarefas dele", async () => {
+    const student = makeStudent(Uuid.random(), ["alfabetização"]);
+    shareRepository.store.push(shareStudent(student, educatorId));
+    studentRepository.getById.mockResolvedValue(student);
+
+    const result = await useCase.execute({ educatorId, studentId: student.id.value });
+
+    expect(result.ok).toBe(true);
+    expect(taskRepository.listByEducator).toHaveBeenCalledWith(educatorId);
   });
 
   it("BE-AT-04: sem sessões recomenda pelas learningTopics (sem acento/maiúscula)", async () => {

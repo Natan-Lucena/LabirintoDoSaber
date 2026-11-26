@@ -14,10 +14,10 @@ import {
 } from "../../../../../domain/services/ai-clinical-service";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
 import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 import { callClinicalAi, clipAiText } from "../../../../services/clinical-ai-call";
-import { loadOwnedSession } from "../evolution-access";
+import { loadAccessibleSession } from "../evolution-access";
 
 const RECENT_EVOLUTIONS = 3;
 const EXCERPT_LENGTH = 200;
@@ -35,16 +35,16 @@ export interface NextSessionSuggestionUseCaseRequest {
 export class NextSessionSuggestionUseCase {
   constructor(
     private sessionRepository: TaskNotebookSessionRepository,
-    private studentRepository: StudentRepository,
+    private studentAccess: StudentAccessService,
     private planRepository: PlanRepository,
     private evolutionRepository: SessionEvolutionRepository,
     private aiClinicalService: AiClinicalService
   ) {}
 
   async execute(request: NextSessionSuggestionUseCaseRequest) {
-    const access = await loadOwnedSession(
+    const access = await loadAccessibleSession(
       this.sessionRepository,
-      this.studentRepository,
+      this.studentAccess,
       request.sessionId,
       request.educatorId
     );
@@ -56,8 +56,7 @@ export class NextSessionSuggestionUseCase {
 
     const [plans, evolutions] = await Promise.all([
       this.planRepository.search({
-        educatorId: request.educatorId,
-        studentId: session.studentId,
+        studentIds: [session.studentId],
         status: PlanStatus.ACTIVE,
       }),
       // Só evoluções até a data desta sessão, e uma a mais, porque a

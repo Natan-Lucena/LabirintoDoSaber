@@ -3,9 +3,8 @@ import { ApplicationStatus } from "../../../../../domain/entities/scale-applicat
 import { Student } from "../../../../../domain/entities/student";
 import { ScaleApplicationRepository } from "../../../../../domain/repositories/scale-application-repository";
 import { ScaleTemplateRepository } from "../../../../../domain/repositories/scale-template-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { mapScaleApplicationToSummary } from "../../../../../infraestructure/mappers/map-scale";
-import { assertStudentOwnership } from "../../../plan/use-cases/plan-access";
 
 export interface ListScaleApplicationsUseCaseRequest {
   educatorId: Uuid;
@@ -18,23 +17,24 @@ export class ListScaleApplicationsUseCase {
   constructor(
     private applicationRepository: ScaleApplicationRepository,
     private templateRepository: ScaleTemplateRepository,
-    private studentRepository: StudentRepository
+    private studentAccess: StudentAccessService
   ) {}
 
-  // Filtra pelo dono atual do aluno (AV-01), não pelo autor gravado.
+  // Filtra pelos alunos que o educador acessa, dono ou compartilhado (AV-01,
+  // EQ-11), não pelo autor gravado.
   async execute(request: ListScaleApplicationsUseCaseRequest) {
     let students: Student[];
 
     if (request.studentId) {
-      const ownership = await assertStudentOwnership(
-        this.studentRepository,
+      const access = await this.studentAccess.assertStudentAccess(
         new Uuid(request.studentId),
         request.educatorId
       );
-      if (!ownership.ok) return ownership;
-      students = [ownership.value];
+      if (!access.ok) return access;
+      students = [access.value];
     } else {
-      students = await this.studentRepository.search({ educatorId: request.educatorId });
+      const accessible = await this.studentAccess.listAccessibleStudents(request.educatorId);
+      students = accessible.map(({ student }) => student);
     }
 
     const applications = await this.applicationRepository.search({

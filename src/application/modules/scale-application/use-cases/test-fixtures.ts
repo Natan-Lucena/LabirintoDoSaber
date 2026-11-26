@@ -10,6 +10,10 @@ import { ScaleApplicationRepository } from "../../../../domain/repositories/scal
 import { ScaleTemplateRepository } from "../../../../domain/repositories/scale-template-repository";
 import { StudentRepository } from "../../../../domain/repositories/student-repository";
 import { Student } from "../../../../domain/entities/student";
+import { StudentShare } from "../../../../domain/entities/student-share";
+import { makeStudentAccess } from "../../../../domain/tests/fakes/student-share-fakes";
+
+export { shareStudent } from "../../../../domain/tests/fakes/student-share-fakes";
 
 export { makeStudent } from "../../session-evolution/use-cases/test-fixtures";
 export {
@@ -83,9 +87,15 @@ export const makeStudentRepository = (students: Student[]) =>
     getById: vi.fn(
       async (id: Uuid) => students.find((student) => student.id.value === id.value) ?? null
     ),
-    getByIds: vi.fn(),
+    getByIds: vi.fn(async (ids: Uuid[]) =>
+      students.filter((student) => ids.some((id) => id.value === student.id.value))
+    ),
     search: vi.fn(async ({ educatorId }: { educatorId?: Uuid }) =>
       students.filter((student) => student.educatorId.value === educatorId?.value)
     ),
     delete: vi.fn(),
   }) satisfies StudentRepository;
+
+// Acesso real (dono ou compartilhado) sobre os alunos e compartilhamentos.
+export const makeStudentAccessFor = (students: Student[], shares: StudentShare[] = []) =>
+  makeStudentAccess(makeStudentRepository(students), shares);

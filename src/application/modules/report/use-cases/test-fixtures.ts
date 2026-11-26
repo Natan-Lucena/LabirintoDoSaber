@@ -23,6 +23,8 @@ import { AnamneseResponse } from "../../../../domain/entities/anamnese-response"
 import { Task, TaskCategory, TaskType } from "../../../../domain/entities/task";
 import { TaskNotebookSession } from "../../../../domain/entities/task-notebook-session";
 import { ReportRepository } from "../../../../domain/repositories/report-repository";
+import { Educator } from "../../../../domain/entities/educator";
+import { EducatorRepository } from "../../../../domain/repositories/educator-repository";
 import { SessionEvolutionRepository } from "../../../../domain/repositories/session-evolution-repository";
 import { PlanRepository } from "../../../../domain/repositories/plan-repository";
 import { ScaleApplicationRepository } from "../../../../domain/repositories/scale-application-repository";
@@ -35,7 +37,11 @@ import { makeAnswer, makeSession } from "../../session-evolution/use-cases/test-
 
 export { makeStudent, makePdi, makeSession } from "../../session-evolution/use-cases/test-fixtures";
 export { makeDemoTemplate, demoAnswers } from "../../../../domain/tests/entities/scale-fixtures";
-export { makeStudentRepository } from "../../scale-application/use-cases/test-fixtures";
+export {
+  makeStudentRepository,
+  makeStudentAccessFor,
+  shareStudent,
+} from "../../scale-application/use-cases/test-fixtures";
 
 export const unwrap = <T>(result: { ok: boolean; value?: T; error?: unknown }): T => {
   if (!result.ok) throw new Error(`unexpected ${JSON.stringify(result.error)}`);
@@ -172,13 +178,18 @@ export const makeAnamneseWithSummary = (
 
 export const makeReport = (
   student: Student,
-  overrides: Partial<{ type: ReportType; audience: ReportAudience; sections: ReportSection[] }> = {}
+  overrides: Partial<{
+    type: ReportType;
+    audience: ReportAudience;
+    sections: ReportSection[];
+    educatorId: Uuid;
+  }> = {}
 ) =>
   unwrap<Report>(
     Report.create({
       studentId: student.id,
       studentName: student.name,
-      educatorId: student.educatorId,
+      educatorId: overrides.educatorId ?? student.educatorId,
       type: overrides.type ?? ReportType.PROGRESS,
       audience: overrides.audience ?? ReportAudience.FAMILY,
       periodFrom: PERIOD.from,
@@ -275,11 +286,10 @@ export const makePlanRepository = (plans: Plan[]) =>
   ({
     save: vi.fn(),
     findById: vi.fn(),
-    search: vi.fn(async (params: { educatorId: Uuid; studentId?: Uuid }) =>
+    search: vi.fn(async (params: { studentIds: Uuid[] }) =>
       plans.filter(
         (plan) =>
-          plan.educatorId.value === params.educatorId.value &&
-          (!params.studentId || plan.studentId.value === params.studentId.value)
+          params.studentIds.some((id) => id.value === plan.studentId.value)
       )
     ),
     findActivePdi: vi.fn(),
@@ -331,3 +341,14 @@ export const makeAnamneseResponseRepository = (responses: AnamneseResponse[]) =>
 
 // Data (AAAA-MM-DD) de uma sessão, para conferir as evoluções no conteúdo.
 export const sessionDateOf = (session: TaskNotebookSession) => dateInSaoPaulo(session.startedAt);
+
+export const makeEducator = (name: string) =>
+  Educator.create({ name, email: `${name.toLowerCase()}@mail.com`, password: "hash-secreto" });
+
+// Só a busca em lote usada para o authorName (EQ-12).
+export const makeEducatorRepository = (educators: Educator[] = []) =>
+  ({
+    getByIds: vi.fn(async (ids: Uuid[]) =>
+      educators.filter((educator) => ids.some((id) => id.value === educator.id.value))
+    ),
+  }) as unknown as EducatorRepository & { getByIds: ReturnType<typeof vi.fn> };

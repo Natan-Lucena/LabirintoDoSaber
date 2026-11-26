@@ -10,6 +10,9 @@ import {
   setupClinic,
 } from "../test-fixtures";
 import { RemoveClinicMemberUseCase } from "./remove-clinic-member-use-case";
+import { ClinicDepartureServiceImpl } from "../../../../../infraestructure/services/clinic-departure-service-impl";
+import { shareStudent } from "../../../../../domain/tests/fakes/student-share-fakes";
+import { makeStudent, setupSharing } from "../../../student/use-cases/test-fixtures";
 
 const setup = (extra: Parameters<typeof setupClinic>[0] = []) => {
   const ctx = setupClinic(extra);
@@ -178,5 +181,69 @@ describe("RemoveClinicMemberUseCase", () => {
     });
 
     expect(result).toEqual({ ok: false, error: "NOT_IN_CLINIC" });
+  });
+
+  it("remover membro desfaz os compartilhamentos e os pacientes dele continuam com ele (BE-EQ-07)", async () => {
+    const ctx = setupSharing();
+    const { admin, owner, colleague, student, studentRepository, shareRepository } = ctx;
+    const colleagueStudent = makeStudent(colleague.id, "Bruno");
+    studentRepository.store.set(colleagueStudent.id.value, colleagueStudent);
+    // Do dono para a colega e para o ADMIN; da colega para o dono.
+    shareRepository.store.push(
+      shareStudent(student, colleague.id),
+      shareStudent(student, admin.id),
+      shareStudent(colleagueStudent, owner.id)
+    );
+    const departureService = new ClinicDepartureServiceImpl(studentRepository, shareRepository);
+    const useCase = new RemoveClinicMemberUseCase(
+      ctx.clinicRepository,
+      ctx.memberRepository,
+      makeClinicInviteRepository(),
+      departureService
+    );
+
+    const result = await useCase.execute({ educatorId: admin.id, targetEducatorId: owner.id.value });
+
+    expect(result).toEqual({ ok: true, value: undefined });
+    expect(ctx.memberRepository.store.has(owner.id.value)).toBe(false);
+    // Nenhum compartilhamento com ele ou dele sobra.
+    expect(shareRepository.store).toEqual([]);
+    // O paciente continua com o dono, e o dono perde o paciente da colega.
+    expect((await studentRepository.getById(student.id))?.educatorId.value).toBe(owner.id.value);
+    expect(await ctx.studentAccess.assertStudentAccess(student.id, owner.id)).toEqual({
+      ok: true,
+      value: student,
+    });
+    expect(await ctx.studentAccess.assertStudentAccess(student.id, colleague.id)).toEqual({
+      ok: false,
+      error: "UNAUTHORIZED",
+    });
+    expect(await ctx.studentAccess.assertStudentAccess(colleagueStudent.id, owner.id)).toEqual({
+      ok: false,
+      error: "UNAUTHORIZED",
+    });
+  });
+
+  it("sair desfaz só os compartilhamentos de quem sai", async () => {
+    const ctx = setupSharing();
+    const { admin, owner, colleague, student, studentRepository, shareRepository } = ctx;
+    const adminStudent = makeStudent(admin.id, "Caio");
+    studentRepository.store.set(adminStudent.id.value, adminStudent);
+    const kept = shareStudent(adminStudent, owner.id);
+    shareRepository.store.push(shareStudent(student, colleague.id), kept);
+    const useCase = new RemoveClinicMemberUseCase(
+      ctx.clinicRepository,
+      ctx.memberRepository,
+      makeClinicInviteRepository(),
+      new ClinicDepartureServiceImpl(studentRepository, shareRepository)
+    );
+
+    const result = await useCase.execute({
+      educatorId: colleague.id,
+      targetEducatorId: colleague.id.value,
+    });
+
+    expect(result).toEqual({ ok: true, value: undefined });
+    expect(shareRepository.store).toEqual([kept]);
   });
 });

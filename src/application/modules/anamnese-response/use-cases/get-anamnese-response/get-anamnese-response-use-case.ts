@@ -1,5 +1,7 @@
-import { failure, success, Uuid } from "@wave-telecom/framework/core";
+import { success, Uuid } from "@wave-telecom/framework/core";
 import { AnamneseResponseRepository } from "../../../../../domain/repositories/anamnese-response-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
+import { loadAccessibleResponse } from "../response-access";
 
 interface GetAnamneseResponseUseCaseRequest {
   responseId: string;
@@ -7,26 +9,20 @@ interface GetAnamneseResponseUseCaseRequest {
 }
 
 export class GetAnamneseResponseUseCase {
-  constructor(private responseRepository: AnamneseResponseRepository) {}
+  constructor(
+    private responseRepository: AnamneseResponseRepository,
+    private studentAccess: StudentAccessService
+  ) {}
 
   async execute(request: GetAnamneseResponseUseCaseRequest) {
-    // Id que não é UUID vira 404, não 500.
-    if (!Uuid.isValid(request.responseId)) {
-      return failure("RESPONSE_NOT_FOUND");
-    }
-
-    const response = await this.responseRepository.findById(
-      new Uuid(request.responseId)
+    const access = await loadAccessibleResponse(
+      this.responseRepository,
+      this.studentAccess,
+      request.responseId,
+      request.educatorId
     );
+    if (!access.ok) return access;
 
-    if (!response) {
-      return failure("RESPONSE_NOT_FOUND");
-    }
-
-    if (response.educatorId.value !== request.educatorId.value) {
-      return failure("UNAUTHORIZED");
-    }
-
-    return success(response);
+    return success(access.value.response);
   }
 }

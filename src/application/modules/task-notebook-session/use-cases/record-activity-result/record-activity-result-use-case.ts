@@ -4,12 +4,12 @@ import {
   ActivityResultAlreadyExistsError,
   ActivityResultRepository,
 } from "../../../../../domain/repositories/activity-result-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { TaskGroupRepository } from "../../../../../domain/repositories/task-group-repository";
 import { TaskNotebookRepository } from "../../../../../domain/repositories/task-notebook-repository";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
-import { loadOwnedSession } from "../../../session-evolution/use-cases/evolution-access";
+import { loadAccessibleSession } from "../../../session-evolution/use-cases/evolution-access";
 import { assertTaskAllowedInSession } from "../session-task-access";
 
 export interface RecordActivityResultUseCaseRequest {
@@ -29,7 +29,7 @@ const alreadyExists = (resultId?: string) =>
 export class RecordActivityResultUseCase {
   constructor(
     private sessionRepository: TaskNotebookSessionRepository,
-    private studentRepository: StudentRepository,
+    private studentAccess: StudentAccessService,
     private taskRepository: TaskRepository,
     private notebookRepository: TaskNotebookRepository,
     private taskGroupRepository: TaskGroupRepository,
@@ -37,10 +37,10 @@ export class RecordActivityResultUseCase {
   ) {}
 
   async execute(request: RecordActivityResultUseCaseRequest) {
-    // RS-08: acesso pelo dono atual do aluno, não pelo educador da sessão.
-    const access = await loadOwnedSession(
+    // RS-08: acesso pelo aluno (dono ou compartilhado), não pelo educador da sessão.
+    const access = await loadAccessibleSession(
       this.sessionRepository,
-      this.studentRepository,
+      this.studentAccess,
       request.sessionId,
       request.educatorId
     );

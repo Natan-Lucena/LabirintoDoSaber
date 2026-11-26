@@ -58,6 +58,9 @@ import { RateLimitRepository } from "../../domain/repositories/rate-limit-reposi
 import { RateLimitRepositoryImpl } from "../repositories/prisma/rate-limit-repository-impl";
 import { ClinicDepartureService } from "../../domain/services/clinic-departure-service";
 import { ClinicDepartureServiceImpl } from "../services/clinic-departure-service-impl";
+import { StudentShareRepository } from "../../domain/repositories/student-share-repository";
+import { StudentShareRepositoryImpl } from "../repositories/prisma/student-share-repository-impl";
+import { StudentAccessService } from "../../domain/services/student-access-service";
 
 const prismaClient = new PrismaClient();
 
@@ -205,6 +208,21 @@ export const makeRateLimitRepository = (): RateLimitRepository => {
   return new RateLimitRepositoryImpl(prismaClient);
 };
 
+export const makeStudentShareRepository = (): StudentShareRepository => {
+  return new StudentShareRepositoryImpl(prismaClient);
+};
+
+// Ponto único da regra "dono ou compartilhado" (EQ-11).
+export const makeStudentAccessService = (): StudentAccessService => {
+  return new StudentAccessService(
+    new StudentRepositoryImpl(prismaClient),
+    makeStudentShareRepository()
+  );
+};
+
 export const makeClinicDepartureService = (): ClinicDepartureService => {
-  return new ClinicDepartureServiceImpl();
+  return new ClinicDepartureServiceImpl(
+    new StudentRepositoryImpl(prismaClient),
+    makeStudentShareRepository()
+  );
 };

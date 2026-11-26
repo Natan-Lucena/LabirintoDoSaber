@@ -8,11 +8,17 @@ import {
   makeStudent,
   makeStudentRepository,
 } from "../test-fixtures";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 
 describe("UnreadCountUseCase", () => {
   const educatorId = Uuid.random();
   let students: Student[];
   let notificationRepository: ReturnType<typeof makeNotificationRepository>;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let useCase: UnreadCountUseCase;
 
   const planReview = (student: Student, educator = educatorId) =>
@@ -28,9 +34,10 @@ describe("UnreadCountUseCase", () => {
   beforeEach(() => {
     students = [];
     notificationRepository = makeNotificationRepository();
+    shareRepository = makeShareRepository();
     useCase = new UnreadCountUseCase(
       notificationRepository,
-      makeStudentRepository(() => students)
+      makeStudentAccess(makeStudentRepository(() => students), shareRepository)
     );
   });
 
@@ -51,6 +58,18 @@ describe("UnreadCountUseCase", () => {
     const result = await useCase.execute({ educatorId });
 
     expect(result).toEqual({ ok: true, value: { count: 3 } });
+  });
+
+  it("should count the notifications of a student shared with the educator (NT-03, EQ-14)", async () => {
+    const shared = makeStudent(Uuid.random(), "Bia");
+    students = [shared];
+    shareRepository.store.push(shareStudent(shared, educatorId));
+    notificationRepository.store.push(planReview(shared), planReview(shared));
+
+    expect(await useCase.execute({ educatorId })).toEqual({ ok: true, value: { count: 2 } });
+
+    await shareRepository.delete(shared.id, educatorId);
+    expect(await useCase.execute({ educatorId })).toEqual({ ok: true, value: { count: 0 } });
   });
 
   it("should return zero without querying students when nothing is unread", async () => {

@@ -5,6 +5,13 @@ import { Plan, PlanSource, PlanType } from "../../../../../domain/entities/plan"
 import { Gender, Student } from "../../../../../domain/entities/student";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
+import { Educator } from "../../../../../domain/entities/educator";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 
 const makeStudent = (educatorId: Uuid) =>
   Student.create({
@@ -39,8 +46,11 @@ const makePlan = (educatorId: Uuid, studentId: Uuid = Uuid.random()) => {
 describe("GetPlanUseCase", () => {
   let planRepository: PlanRepository;
   let studentRepository: StudentRepository;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
+  let educatorRepository: EducatorRepository;
   let useCase: GetPlanUseCase;
   const educatorId = Uuid.random();
+  const owner = Educator.create({ name: "Dona Clara", email: "clara@mail.com", password: "hash" });
   const student = makeStudent(educatorId);
 
   beforeEach(() => {
@@ -51,7 +61,15 @@ describe("GetPlanUseCase", () => {
     studentRepository = {
       getById: vi.fn().mockResolvedValue(student),
     } as unknown as StudentRepository;
-    useCase = new GetPlanUseCase(planRepository, studentRepository);
+    shareRepository = makeShareRepository();
+    educatorRepository = {
+      getByIds: vi.fn().mockResolvedValue([owner]),
+    } as unknown as EducatorRepository;
+    useCase = new GetPlanUseCase(
+      planRepository,
+      makeStudentAccess(studentRepository, shareRepository),
+      educatorRepository
+    );
   });
 
   it("should return the plan when the educator is the owner", async () => {
@@ -60,12 +78,49 @@ describe("GetPlanUseCase", () => {
 
     const result = await useCase.execute({ educatorId, planId: plan.id.value });
 
-    expect(result).toEqual({ ok: true, value: plan });
+    expect(result).toEqual({ ok: true, value: { plan, authorName: undefined } });
+    expect(educatorRepository.getByIds).not.toHaveBeenCalled();
   });
 
-  it("should return UNAUTHORIZED when the plan belongs to another educator", async () => {
+  it("should return the plan of a student shared with the educator, with the author name (EQ-11, EQ-12)", async () => {
+    const colleagueId = Uuid.random();
+    const ownedByOther = makeStudent(owner.id);
+    await shareRepository.create(shareStudent(ownedByOther, colleagueId));
+    (studentRepository.getById as any).mockResolvedValue(ownedByOther);
+    const plan = makePlan(owner.id, ownedByOther.id);
+    (planRepository.findById as any).mockResolvedValue(plan);
+
+    const result = await useCase.execute({ educatorId: colleagueId, planId: plan.id.value });
+
+    expect(result).toEqual({ ok: true, value: { plan, authorName: "Dona Clara" } });
+  });
+
+  it("should return UNAUTHORIZED after the share is undone", async () => {
+    const colleagueId = Uuid.random();
+    await shareRepository.create(shareStudent(student, colleagueId));
+    await shareRepository.delete(student.id, colleagueId);
+    const plan = makePlan(educatorId, student.id);
+    (planRepository.findById as any).mockResolvedValue(plan);
+
+    const result = await useCase.execute({ educatorId: colleagueId, planId: plan.id.value });
+
+    expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
+  });
+
+  it("should return the plan written by another educator on the owner's student", async () => {
+    // O acesso é pelo aluno, não pelo autor gravado.
+    const plan = makePlan(owner.id, student.id);
+    (planRepository.findById as any).mockResolvedValue(plan);
+
+    const result = await useCase.execute({ educatorId, planId: plan.id.value });
+
+    expect(result).toEqual({ ok: true, value: { plan, authorName: "Dona Clara" } });
+  });
+
+  it("should return UNAUTHORIZED when the plan's student is not accessible", async () => {
     const plan = makePlan(Uuid.random());
     (planRepository.findById as any).mockResolvedValue(plan);
+    (studentRepository.getById as any).mockResolvedValue(makeStudent(Uuid.random()));
 
     const result = await useCase.execute({ educatorId, planId: plan.id.value });
 

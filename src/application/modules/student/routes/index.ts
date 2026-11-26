@@ -7,20 +7,32 @@ import { ListStudentsByEducatorUseCase } from "../use-cases/list-students-by-edu
 import { ListStudentsByEducatorController } from "../use-cases/list-students-by-educator/list-students-by-educator-controller";
 import { makeAuthMiddleware } from "../../../../infraestructure/middlewares";
 import {
+  makeClinicMemberRepository,
   makeEducatorRepository,
   makeFileStorage,
+  makeStudentAccessService,
   makeStudentRepository,
+  makeStudentShareRepository,
 } from "../../../../infraestructure/factories";
 import { Multer } from "../../../../infraestructure/upload/multer-config";
 import { UpdateStudentUseCase } from "../use-cases/update-student/update-student-use-case";
 import { UpdateStudentController } from "../use-cases/update-student/update-student-controller";
 import { AddStudentDocumentUseCase } from "../use-cases/add-student-document/add-student-document-use-case";
 import { AddStudentDocumentController } from "../use-cases/add-student-document/add-student-document-controller";
+import { ShareStudentUseCase } from "../use-cases/share-student/share-student-use-case";
+import { ShareStudentController } from "../use-cases/share-student/share-student-controller";
+import { UnshareStudentUseCase } from "../use-cases/unshare-student/unshare-student-use-case";
+import { UnshareStudentController } from "../use-cases/unshare-student/unshare-student-controller";
+import { ListStudentSharesUseCase } from "../use-cases/list-student-shares/list-student-shares-use-case";
+import { ListStudentSharesController } from "../use-cases/list-student-shares/list-student-shares-controller";
 
 const studentRouter = Router();
 
 const educatorRepository = makeEducatorRepository({ isMock: false });
 const studentRepository = makeStudentRepository({ isMock: false });
+const studentAccess = makeStudentAccessService();
+const shareRepository = makeStudentShareRepository();
+const memberRepository = makeClinicMemberRepository();
 
 const fileStorage = makeFileStorage();
 
@@ -31,12 +43,36 @@ const createStudentUseCase = new CreateStudentUseCase(
 );
 
 const assignEducatorUseCase = new AssignEducatorUseCase(
+  studentAccess,
   studentRepository,
-  educatorRepository
+  educatorRepository,
+  memberRepository
 );
 
 const listStudentByEducatorUseCase = new ListStudentsByEducatorUseCase(
-  studentRepository
+  studentAccess,
+  educatorRepository
+);
+
+const shareStudentUseCase = new ShareStudentUseCase(
+  studentAccess,
+  shareRepository,
+  memberRepository,
+  educatorRepository
+);
+
+const unshareStudentUseCase = new UnshareStudentUseCase(
+  studentAccess,
+  shareRepository,
+  memberRepository,
+  educatorRepository
+);
+
+const listStudentSharesUseCase = new ListStudentSharesUseCase(
+  studentAccess,
+  shareRepository,
+  memberRepository,
+  educatorRepository
 );
 
 const updateStudentUseCase = new UpdateStudentUseCase(
@@ -84,6 +120,20 @@ studentRouter.post(
 
 studentRouter.post("/assign-educator", async (req, res) => {
   new AssignEducatorController(assignEducatorUseCase).execute(req, res);
+});
+
+// Compartilhamento (EQ-10). As rotas literais (/create, /assign-educator,
+// /update/:id) não colidem com /:id/shares.
+studentRouter.get("/:id/shares", async (req, res) => {
+  new ListStudentSharesController(listStudentSharesUseCase).execute(req, res);
+});
+
+studentRouter.post("/:id/shares", async (req, res) => {
+  new ShareStudentController(shareStudentUseCase).execute(req, res);
+});
+
+studentRouter.delete("/:id/shares/:educatorId", async (req, res) => {
+  new UnshareStudentController(unshareStudentUseCase).execute(req, res);
 });
 
 studentRouter.get("/", async (req, res) => {

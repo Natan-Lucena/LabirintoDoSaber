@@ -10,6 +10,10 @@ import {
 import { Gender, Student } from "../../../../../domain/entities/student";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
 import { PlanSuggestionRepository } from "../../../../../domain/repositories/plan-suggestion-repository";
+import {
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 
 const makeStudent = (name: string, educatorId: Uuid) =>
   Student.create({
@@ -61,7 +65,11 @@ describe("ListPlanSuggestionsUseCase", () => {
     const studentRepository = {
       getByIds: vi.fn().mockResolvedValue([ana, transferred]),
     } as unknown as StudentRepository;
-    const useCase = new ListPlanSuggestionsUseCase(suggestionRepository, studentRepository);
+    const useCase = new ListPlanSuggestionsUseCase(
+      suggestionRepository,
+      studentRepository,
+      makeStudentAccess(studentRepository)
+    );
 
     const result = await useCase.execute({ educatorId, status: SuggestionStatus.PENDING });
 
@@ -74,5 +82,30 @@ describe("ListPlanSuggestionsUseCase", () => {
     if (!result.ok) return;
     expect(result.value).toHaveLength(1);
     expect(result.value[0]).toMatchObject({ id: first.id.value, studentName: "Ana" });
+  });
+
+  it("keeps the suggestions of a student shared with the educator (EQ-11)", async () => {
+    const educatorId = Uuid.random();
+    const shared = makeStudent("Bia", Uuid.random());
+    const suggestion = makeSuggestion(educatorId, shared.id);
+
+    const suggestionRepository = {
+      listByEducatorId: vi.fn().mockResolvedValue([suggestion]),
+    } as unknown as PlanSuggestionRepository;
+    const studentRepository = {
+      getByIds: vi.fn().mockResolvedValue([shared]),
+    } as unknown as StudentRepository;
+    const useCase = new ListPlanSuggestionsUseCase(
+      suggestionRepository,
+      studentRepository,
+      makeStudentAccess(studentRepository, [shareStudent(shared, educatorId)])
+    );
+
+    const result = await useCase.execute({ educatorId });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toHaveLength(1);
+    expect(result.value[0]).toMatchObject({ id: suggestion.id.value, studentName: "Bia" });
   });
 });

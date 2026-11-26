@@ -1,9 +1,9 @@
 import { success, Uuid } from "@wave-telecom/framework/core";
 import { PlanStatus } from "../../../../../domain/entities/plan";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { PlanSuggestionRepository } from "../../../../../domain/repositories/plan-suggestion-repository";
-import { loadOwnedPlan } from "../plan-access";
+import { loadAccessiblePlan } from "../plan-access";
 
 export interface ClosePlanUseCaseRequest {
   educatorId: Uuid;
@@ -14,14 +14,14 @@ export interface ClosePlanUseCaseRequest {
 export class ClosePlanUseCase {
   constructor(
     private planRepository: PlanRepository,
-    private studentRepository: StudentRepository,
+    private studentAccess: StudentAccessService,
     private suggestionRepository: PlanSuggestionRepository
   ) {}
 
   async execute(request: ClosePlanUseCaseRequest) {
-    const planResult = await loadOwnedPlan(
+    const planResult = await loadAccessiblePlan(
       this.planRepository,
-      this.studentRepository,
+      this.studentAccess,
       request.planId,
       request.educatorId
     );

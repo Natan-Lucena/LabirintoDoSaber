@@ -44,6 +44,8 @@ export interface CreatePlanSuggestionProps {
   goalId?: string;
   text: string;
   proposedChange?: Omit<PlanSuggestionChange, "status"> & { status?: string };
+  // Quem gerou a sugestão (ela é pessoal). Sem ele, o autor do plano.
+  educatorId?: Uuid;
 }
 
 export type PlanSuggestionError = "INVALID_SUGGESTION" | "SUGGESTION_ALREADY_RESOLVED";
@@ -131,7 +133,7 @@ export class PlanSuggestion {
       new PlanSuggestion({
         id: Uuid.random(),
         planId: plan.id,
-        educatorId: plan.educatorId,
+        educatorId: input.educatorId ?? plan.educatorId,
         studentId: plan.studentId,
         goalId: goal?.id,
         kind: input.kind,

@@ -3,6 +3,7 @@ import { PlanStatus } from "../../../../../domain/entities/plan";
 import { PlanSuggestion } from "../../../../../domain/entities/plan-suggestion";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { PlanSuggestionRepository } from "../../../../../domain/repositories/plan-suggestion-repository";
 import {
   AiInvalidOutputError,
@@ -13,7 +14,7 @@ import { todayInSaoPaulo } from "../../../../../domain/utils/date-only";
 import { mapPlanSuggestionToResponse } from "../../../../../infraestructure/mappers/map-plan";
 import { AnamneseContextBuilder } from "../../../../services/anamnese-context-builder";
 import { GenerateStudentAnalysisUseCase } from "../../../task-notebook-session/use-cases/generate-student-analisys/generate-student-analisys-use-case";
-import { loadOwnedPlan } from "../plan-access";
+import { loadAccessiblePlan } from "../plan-access";
 import { buildPlanAiContext } from "../plan-ai-context";
 
 export const MAX_PENDING_SUGGESTIONS = 3;
@@ -27,6 +28,7 @@ export class GeneratePlanSuggestionsUseCase {
   constructor(
     private planRepository: PlanRepository,
     private studentRepository: StudentRepository,
+    private studentAccess: StudentAccessService,
     private suggestionRepository: PlanSuggestionRepository,
     private anamneseBuilder: AnamneseContextBuilder,
     private analysisUseCase: GenerateStudentAnalysisUseCase,
@@ -34,9 +36,9 @@ export class GeneratePlanSuggestionsUseCase {
   ) {}
 
   async execute(request: GeneratePlanSuggestionsUseCaseRequest) {
-    const planResult = await loadOwnedPlan(
+    const planResult = await loadAccessiblePlan(
       this.planRepository,
-      this.studentRepository,
+      this.studentAccess,
       request.planId,
       request.educatorId
     );
@@ -49,7 +51,7 @@ export class GeneratePlanSuggestionsUseCase {
     if (pending >= MAX_PENDING_SUGGESTIONS) return success([]);
     const max = MAX_PENDING_SUGGESTIONS - pending;
 
-    // loadOwnedPlan já conferiu que o aluno existe e é do educador.
+    // loadAccessiblePlan já conferiu que o aluno existe e é acessível.
     const student = (await this.studentRepository.getById(plan.studentId))!;
 
     const contextResult = await buildPlanAiContext({
@@ -107,6 +109,8 @@ export class GeneratePlanSuggestionsUseCase {
         goalId: item?.goalId,
         text: item?.text,
         proposedChange: item?.proposedChange,
+        // Pessoal: de quem pediu, mesmo no plano do dono (EQ-11).
+        educatorId: request.educatorId,
       });
       if (created.ok) suggestions.push(created.value);
     }

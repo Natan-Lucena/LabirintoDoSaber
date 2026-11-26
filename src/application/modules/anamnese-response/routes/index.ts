@@ -3,7 +3,7 @@ import { makeAuthMiddleware } from "../../../../infraestructure/middlewares";
 import {
   makeAnamneseTemplateRepository,
   makeAnamneseResponseRepository,
-  makeStudentRepository,
+  makeStudentAccessService,
   makeEducatorRepository,
   makeFileStorage,
   makeAiClinicalService,
@@ -26,7 +26,7 @@ import { AnamneseContextBuilder } from "../../../services/anamnese-context-build
 const anamneseResponseRouter = Router();
 
 const educatorRepository = makeEducatorRepository({ isMock: false });
-const studentRepository = makeStudentRepository({ isMock: false });
+const studentAccess = makeStudentAccessService();
 const templateRepository = makeAnamneseTemplateRepository();
 const responseRepository = makeAnamneseResponseRepository();
 const authMiddleware = makeAuthMiddleware(educatorRepository);
@@ -34,20 +34,24 @@ const authMiddleware = makeAuthMiddleware(educatorRepository);
 const submitUseCase = new SubmitAnamneseResponseUseCase(
   templateRepository,
   responseRepository,
-  studentRepository
+  studentAccess
 );
 
-const listByStudentUseCase = new ListAnamneseResponsesByStudentUseCase(responseRepository);
-const getUseCase = new GetAnamneseResponseUseCase(responseRepository);
+const listByStudentUseCase = new ListAnamneseResponsesByStudentUseCase(
+  responseRepository,
+  studentAccess
+);
+const getUseCase = new GetAnamneseResponseUseCase(responseRepository, studentAccess);
 const uploadFileUseCase = new UploadAnamneseFileUseCase(makeFileStorage());
 const updateUseCase = new UpdateAnamneseResponseUseCase(
   templateRepository,
-  responseRepository
+  responseRepository,
+  studentAccess
 );
 const generateSummaryUseCase = new GenerateAnamneseSummaryUseCase(
   responseRepository,
   templateRepository,
-  studentRepository,
+  studentAccess,
   new AnamneseContextBuilder(templateRepository, responseRepository),
   makeAiClinicalService()
 );

@@ -25,7 +25,7 @@ import { ListRecommendedTasksController } from "../use-cases/list-recommended-ta
 import {
   makeEducatorRepository,
   makeFileStorage,
-  makeStudentRepository,
+  makeStudentAccessService,
   makeTaskGroupRepository,
   makeTaskNotebookSessionRepository,
   makeTaskRepository,
@@ -58,7 +58,7 @@ const listTaskSkillsUseCase = new ListTaskSkillsUseCase(taskSkillRepository);
 const listTaskCatalogUseCase = new ListTaskCatalogUseCase(taskRepository, taskSkillRepository);
 
 const listRecommendedTasksUseCase = new ListRecommendedTasksUseCase(
-  makeStudentRepository({ isMock: false }),
+  makeStudentAccessService(),
   makeTaskNotebookSessionRepository(),
   taskRepository,
   taskSkillRepository

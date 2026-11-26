@@ -7,6 +7,13 @@ import { TaskNotebookSession } from "../../../../../domain/entities/task-noteboo
 import { StartTaskNotebookSessionUseCase } from "./start-task-session-use-case";
 import { AppointmentRepository } from "../../../../../domain/repositories/appointment-repository";
 import { Appointment } from "../../../../../domain/entities/appointment";
+import { Student } from "../../../../../domain/entities/student";
+import { makeStudent } from "../../../session-evolution/use-cases/test-fixtures";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 
 const mockNotebookRepository = (): TaskNotebookRepository =>
   ({
@@ -34,6 +41,7 @@ describe("StartTaskNotebookSessionUseCase", () => {
   let sessionRepo: TaskNotebookSessionRepository;
   let studentRepo: StudentRepository;
   let appointmentRepo: AppointmentRepository;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let useCase: StartTaskNotebookSessionUseCase;
 
   beforeEach(() => {
@@ -42,10 +50,11 @@ describe("StartTaskNotebookSessionUseCase", () => {
     sessionRepo = mockSessionRepository();
     studentRepo = mockStudentRepository();
     appointmentRepo = mockAppointmentRepository();
+    shareRepository = makeShareRepository();
     useCase = new StartTaskNotebookSessionUseCase(
       notebookRepo,
       sessionRepo,
-      studentRepo,
+      makeStudentAccess(studentRepo, shareRepository),
       appointmentRepo
     );
   });
@@ -65,7 +74,9 @@ describe("StartTaskNotebookSessionUseCase", () => {
   });
 
   it("should fail if session creation fails internally", async () => {
-    (studentRepo.getById as any).mockResolvedValue({ id: Uuid.random() });
+    const educatorId = Uuid.random();
+    const student = makeStudent(educatorId);
+    (studentRepo.getById as any).mockResolvedValue(student);
     (notebookRepo.getById as any).mockResolvedValue({ id: Uuid.random() });
 
     const spy = vi
@@ -73,9 +84,9 @@ describe("StartTaskNotebookSessionUseCase", () => {
       .mockReturnValue(failure("ANY") as any);
 
     const result = await useCase.execute({
-      studentId: Uuid.random().value,
+      studentId: student.id.value,
       name: Uuid.random().value,
-      educatorId: Uuid.random(),
+      educatorId,
     });
 
     spy.mockRestore();
@@ -85,16 +96,18 @@ describe("StartTaskNotebookSessionUseCase", () => {
   });
 
   it("should start a new session successfully", async () => {
-    const studentId = Uuid.random();
+    const educatorId = Uuid.random();
+    const student = makeStudent(educatorId);
+    const studentId = student.id;
     const notebookId = Uuid.random();
 
-    (studentRepo.getById as any).mockResolvedValue({ id: studentId });
+    (studentRepo.getById as any).mockResolvedValue(student);
     (notebookRepo.getById as any).mockResolvedValue({ id: notebookId });
 
     const executeResult = await useCase.execute({
       studentId: studentId.value,
       name: notebookId.value,
-      educatorId: Uuid.random(),
+      educatorId,
     });
 
     expect(executeResult.ok).toBe(true);
@@ -109,9 +122,69 @@ describe("StartTaskNotebookSessionUseCase", () => {
     expect(savedSession.startedAt).toBeInstanceOf(Date);
   });
 
+  describe("access to the student (EQ-11)", () => {
+    const ownerId = Uuid.random();
+    let student: Student;
+
+    beforeEach(() => {
+      student = makeStudent(ownerId);
+      (studentRepo.getById as any).mockResolvedValue(student);
+    });
+
+    it("should let an educator the student is shared with start a session", async () => {
+      const colleagueId = Uuid.random();
+      shareRepository.store.push(shareStudent(student, colleagueId));
+
+      const result = await useCase.execute({
+        studentId: student.id.value,
+        name: "sessao",
+        educatorId: colleagueId,
+      });
+
+      expect(result.ok).toBe(true);
+      const saved = (sessionRepo.save as any).mock.calls[0][0] as TaskNotebookSession;
+      // EQ-12: a sessão guarda quem conduziu.
+      expect(saved.educatorId.value).toBe(colleagueId.value);
+    });
+
+    it("should return UNAUTHORIZED for an educator without access", async () => {
+      const result = await useCase.execute({
+        studentId: student.id.value,
+        name: "sessao",
+        educatorId: Uuid.random(),
+      });
+
+      expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
+      expect(sessionRepo.save).not.toHaveBeenCalled();
+    });
+
+    it("should accept the owner's appointment of the student for a shared educator", async () => {
+      const colleagueId = Uuid.random();
+      shareRepository.store.push(shareStudent(student, colleagueId));
+      const appointment = Appointment.create({
+        educatorId: ownerId,
+        studentId: student.id,
+        scheduledAt: new Date(Date.now() + 60 * 60 * 1000),
+      });
+      (appointmentRepo.findById as any).mockResolvedValue(appointment);
+
+      const result = await useCase.execute({
+        studentId: student.id.value,
+        name: "sessao",
+        educatorId: colleagueId,
+        appointmentId: appointment.id.value,
+      });
+
+      expect(result.ok).toBe(true);
+      const saved = (sessionRepo.save as any).mock.calls[0][0] as TaskNotebookSession;
+      expect(saved.appointmentId?.value).toBe(appointment.id.value);
+    });
+  });
+
   describe("with notebook and appointment", () => {
     const educatorId = Uuid.random();
-    const studentId = Uuid.random();
+    const student = makeStudent(educatorId);
+    const studentId = student.id;
 
     const makeAppointment = (overrides: Partial<{ educatorId: Uuid; studentId: Uuid }> = {}) =>
       Appointment.create({
@@ -121,7 +194,7 @@ describe("StartTaskNotebookSessionUseCase", () => {
       });
 
     beforeEach(() => {
-      (studentRepo.getById as any).mockResolvedValue({ id: studentId });
+      (studentRepo.getById as any).mockResolvedValue(student);
     });
 
     it("should return NOTEBOOK_NOT_FOUND when the notebook does not exist", async () => {
@@ -171,21 +244,6 @@ describe("StartTaskNotebookSessionUseCase", () => {
 
     it("should return APPOINTMENT_NOT_FOUND when the appointment belongs to another student", async () => {
       const appointment = makeAppointment({ studentId: Uuid.random() });
-      (appointmentRepo.findById as any).mockResolvedValue(appointment);
-
-      const result = await useCase.execute({
-        studentId: studentId.value,
-        name: "sessao",
-        educatorId,
-        appointmentId: appointment.id.value,
-      });
-
-      expect(result).toEqual({ ok: false, error: "APPOINTMENT_NOT_FOUND" });
-      expect(sessionRepo.save).not.toHaveBeenCalled();
-    });
-
-    it("should return APPOINTMENT_NOT_FOUND when the appointment belongs to another educator", async () => {
-      const appointment = makeAppointment({ educatorId: Uuid.random() });
       (appointmentRepo.findById as any).mockResolvedValue(appointment);
 
       const result = await useCase.execute({

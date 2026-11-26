@@ -7,7 +7,8 @@ import {
   makeApplicationRepository,
   makeDemoTemplate,
   makeStudent,
-  makeStudentRepository,
+  makeStudentAccessFor,
+  shareStudent,
   startApplication,
   unwrap,
 } from "../test-fixtures";
@@ -26,7 +27,7 @@ describe("DeleteScaleApplicationUseCase", () => {
     applicationRepository = makeApplicationRepository([draft]);
     useCase = new DeleteScaleApplicationUseCase(
       applicationRepository,
-      makeStudentRepository([student])
+      makeStudentAccessFor([student])
     );
   });
 
@@ -69,5 +70,34 @@ describe("DeleteScaleApplicationUseCase", () => {
     expect(
       await useCase.execute({ educatorId, applicationId: Uuid.random().value })
     ).toEqual({ ok: false, error: "APPLICATION_NOT_FOUND" });
+  });
+
+  describe("paciente compartilhado (EQ-11)", () => {
+    const colleagueId = Uuid.random();
+
+    it("lets the colleague delete a draft of a shared student", async () => {
+      useCase = new DeleteScaleApplicationUseCase(
+        applicationRepository,
+        makeStudentAccessFor([student], [shareStudent(student, colleagueId)])
+      );
+
+      const result = await useCase.execute({
+        educatorId: colleagueId,
+        applicationId: draft.id.value,
+      });
+
+      expect(result).toEqual({ ok: true, value: undefined });
+      expect(applicationRepository.delete).toHaveBeenCalledWith(draft.id);
+    });
+
+    it("returns UNAUTHORIZED for a colleague without the share", async () => {
+      const result = await useCase.execute({
+        educatorId: colleagueId,
+        applicationId: draft.id.value,
+      });
+
+      expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
+      expect(applicationRepository.delete).not.toHaveBeenCalled();
+    });
   });
 });

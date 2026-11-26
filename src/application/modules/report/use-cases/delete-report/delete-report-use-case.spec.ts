@@ -6,7 +6,8 @@ import {
   makeReport,
   makeReportRepository,
   makeStudent,
-  makeStudentRepository,
+  makeStudentAccessFor,
+  shareStudent,
 } from "../test-fixtures";
 
 describe("DeleteReportUseCase (RP-07)", () => {
@@ -20,7 +21,7 @@ describe("DeleteReportUseCase (RP-07)", () => {
   beforeEach(() => {
     report = makeReport(student);
     reportRepository = makeReportRepository([report]);
-    useCase = new DeleteReportUseCase(reportRepository, makeStudentRepository([student]));
+    useCase = new DeleteReportUseCase(reportRepository, makeStudentAccessFor([student]));
   });
 
   it("should delete the report of the owner", async () => {
@@ -51,5 +52,18 @@ describe("DeleteReportUseCase (RP-07)", () => {
       error: "REPORT_NOT_FOUND",
     });
     expect(reportRepository.delete).not.toHaveBeenCalled();
+  });
+
+  it("lets a colleague with the shared student delete the report (EQ-11)", async () => {
+    const colleagueId = Uuid.random();
+    useCase = new DeleteReportUseCase(
+      reportRepository,
+      makeStudentAccessFor([student], [shareStudent(student, colleagueId)])
+    );
+
+    const result = await useCase.execute({ educatorId: colleagueId, reportId: report.id.value });
+
+    expect(result).toEqual({ ok: true, value: undefined });
+    expect(reportRepository.delete).toHaveBeenCalledWith(report.id);
   });
 });

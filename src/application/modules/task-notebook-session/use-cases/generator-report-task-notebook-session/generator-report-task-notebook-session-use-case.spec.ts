@@ -8,6 +8,19 @@ import { SessionEvolutionRepository } from "../../../../../domain/repositories/s
 import { ActivityResultRepository } from "../../../../../domain/repositories/activity-result-repository";
 import { ActivityResult } from "../../../../../domain/entities/activity-result";
 import { makeWordBuilderTask } from "../../../task/use-cases/test-fixtures";
+import { Educator } from "../../../../../domain/entities/educator";
+import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
+import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { makeStudent } from "../../../session-evolution/use-cases/test-fixtures";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
+
+const EDUCATOR_ID = Uuid.random();
+const STUDENT = makeStudent(EDUCATOR_ID);
+const COLLEAGUE = Educator.create({ name: "Bia", email: "bia@mail.com", password: "hash" });
 
 // --- Factories e Mocks ---
 
@@ -28,9 +41,12 @@ const makeSession = ({
   answers = [makeAnswer(), makeAnswer({ isCorrect: false, timeToAnswer: 5 })],
   finishedAt = new Date(new Date().getTime() + 60000), // 60 segundos após startedAt
   startedAt = new Date(),
+  educatorId = EDUCATOR_ID,
 } = {}) => {
   const session = {
     id: new Uuid(id),
+    studentId: STUDENT.id,
+    educatorId,
     answers,
     startedAt,
     finishedAt,
@@ -89,6 +105,8 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
   let taskRepository: TaskRepository;
   let evolutionRepository: SessionEvolutionRepository;
   let activityResultRepository: ActivityResultRepository;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
+  let educatorRepository: EducatorRepository;
   let useCase: GeneratorReportTaskNotebookSessionUseCase;
 
   beforeEach(() => {
@@ -100,11 +118,22 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
     activityResultRepository = {
       listBySessionId: vi.fn().mockResolvedValue([]),
     } as unknown as ActivityResultRepository;
+    shareRepository = makeShareRepository();
+    educatorRepository = {
+      getByIds: vi.fn(async (ids: Uuid[]) =>
+        ids.some((id) => id.value === COLLEAGUE.id.value) ? [COLLEAGUE] : []
+      ),
+    } as unknown as EducatorRepository;
+    const studentRepository = {
+      getById: vi.fn().mockResolvedValue(STUDENT),
+    } as unknown as StudentRepository;
     useCase = new GeneratorReportTaskNotebookSessionUseCase(
       sessionRepository,
+      makeStudentAccess(studentRepository, shareRepository),
       taskRepository,
       evolutionRepository,
       activityResultRepository,
+      educatorRepository,
     );
   });
 
@@ -114,7 +143,7 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
     const evolutionId = Uuid.random();
     (evolutionRepository.findBySessionId as any).mockResolvedValue({ id: evolutionId });
 
-    const result = await useCase.execute({ sessionId: session.id.value });
+    const result = await useCase.execute({ sessionId: session.id.value, educatorId: EDUCATOR_ID });
 
     expect(result.ok).toBe(true);
     expect((result as any).value.evolutionId).toBe(evolutionId.value);
@@ -124,7 +153,7 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
   it("should leave evolutionId absent when the session has no evolution", async () => {
     (sessionRepository.getById as any).mockResolvedValue(makeSession({ answers: [] }));
 
-    const result = await useCase.execute({ sessionId: Uuid.random().value });
+    const result = await useCase.execute({ sessionId: Uuid.random().value, educatorId: EDUCATOR_ID });
 
     expect(result.ok).toBe(true);
     expect((result as any).value.evolutionId).toBeUndefined();
@@ -164,7 +193,7 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
       ];
       (activityResultRepository.listBySessionId as any).mockResolvedValue(results);
 
-      const result = await useCase.execute({ sessionId: session.id.value });
+      const result = await useCase.execute({ sessionId: session.id.value, educatorId: EDUCATOR_ID });
 
       expect(activityResultRepository.listBySessionId).toHaveBeenCalledWith(session.id);
       const report = (result as any).value;
@@ -205,7 +234,7 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
     if (!created.ok) throw new Error(String(created.error));
     (activityResultRepository.listBySessionId as any).mockResolvedValue([created.value]);
 
-    const report = ((await useCase.execute({ sessionId: session.id.value })) as any).value;
+    const report = ((await useCase.execute({ sessionId: session.id.value, educatorId: EDUCATOR_ID })) as any).value;
 
     expect(report.totalQuestions).toBe(0);
     expect(report.averageTimePerQuestion).toBeNull();
@@ -215,10 +244,60 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
     expect(report.activitySummary).toEqual({ total: 1, completed: 1, correct: 1 });
   });
 
+  describe("access and authorship (RS-08, EQ-11, EQ-12)", () => {
+    it("should return UNAUTHORIZED for an educator without access to the student", async () => {
+      (sessionRepository.getById as any).mockResolvedValue(makeSession({ answers: [] }));
+
+      const result = await useCase.execute({
+        sessionId: Uuid.random().value,
+        educatorId: Uuid.random(),
+      });
+
+      expect(result).toEqual(failure("UNAUTHORIZED"));
+      expect(evolutionRepository.findBySessionId).not.toHaveBeenCalled();
+    });
+
+    it("should return SESSION_NOT_FOUND for an id that is not a UUID", async () => {
+      const result = await useCase.execute({ sessionId: "abc", educatorId: EDUCATOR_ID });
+
+      expect(result).toEqual(failure("SESSION_NOT_FOUND"));
+    });
+
+    it("should give the report to a shared educator, with the author's name", async () => {
+      shareRepository.store.push(shareStudent(STUDENT, COLLEAGUE.id));
+      (sessionRepository.getById as any).mockResolvedValue(makeSession({ answers: [] }));
+      const ownerName = "Ana Dona";
+      (educatorRepository.getByIds as any).mockResolvedValue([
+        Educator.create({ name: ownerName, email: "ana@mail.com", password: "hash", id: EDUCATOR_ID }),
+      ]);
+
+      const result = await useCase.execute({
+        sessionId: Uuid.random().value,
+        educatorId: COLLEAGUE.id,
+      });
+
+      expect(result.ok).toBe(true);
+      expect((result as any).value.authorName).toBe(ownerName);
+    });
+
+    it("should leave authorName absent when the reader conducted the session", async () => {
+      (sessionRepository.getById as any).mockResolvedValue(makeSession({ answers: [] }));
+
+      const result = await useCase.execute({
+        sessionId: Uuid.random().value,
+        educatorId: EDUCATOR_ID,
+      });
+
+      expect(result.ok).toBe(true);
+      expect((result as any).value.authorName).toBeUndefined();
+      expect(JSON.parse(JSON.stringify((result as any).value))).not.toHaveProperty("authorName");
+    });
+  });
+
   it("should fail if session does not exist", async () => {
     (sessionRepository.getById as any).mockResolvedValue(null);
 
-    const result = await useCase.execute({ sessionId: Uuid.random().value });
+    const result = await useCase.execute({ sessionId: Uuid.random().value, educatorId: EDUCATOR_ID });
 
     expect(result).toEqual(failure("SESSION_NOT_FOUND"));
     expect(taskRepository.getByIds).not.toHaveBeenCalled();
@@ -259,7 +338,7 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
       [taskId2.value]: task2,
     });
 
-    const result = await useCase.execute({ sessionId: Uuid.random().value });
+    const result = await useCase.execute({ sessionId: Uuid.random().value, educatorId: EDUCATOR_ID });
 
     const expectedTotalTimeSession = 100;
     const expectedTotalQuestions = 3;
@@ -305,7 +384,7 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
     });
     (sessionRepository.getById as any).mockResolvedValue(session);
 
-    const result = await useCase.execute({ sessionId: Uuid.random().value });
+    const result = await useCase.execute({ sessionId: Uuid.random().value, educatorId: EDUCATOR_ID });
 
     const expectedTotalTimeSession = 50;
     const expectedTotalQuestions = 0;
@@ -357,7 +436,7 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
       [taskId1.value]: task1,
     });
 
-    const result = await useCase.execute({ sessionId: Uuid.random().value });
+    const result = await useCase.execute({ sessionId: Uuid.random().value, educatorId: EDUCATOR_ID });
 
     const expectedTotalQuestions = 2;
     const expectedAverageTimePerQuestion = 15;
@@ -414,7 +493,7 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
         [taskId2.value]: makeTask({ id: taskId2 }),
       });
 
-      await useCase.execute({ sessionId: Uuid.random().value });
+      await useCase.execute({ sessionId: Uuid.random().value, educatorId: EDUCATOR_ID });
 
       expect(taskRepository.getByIds).toHaveBeenCalledTimes(1);
       expect(taskRepository.getById).not.toHaveBeenCalled();
@@ -435,7 +514,7 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
         [taskId1.value]: makeTask({ id: taskId1 }),
       });
 
-      await useCase.execute({ sessionId: Uuid.random().value });
+      await useCase.execute({ sessionId: Uuid.random().value, educatorId: EDUCATOR_ID });
 
       const calledWith = (taskRepository.getByIds as any).mock
         .calls[0][0] as Uuid[];

@@ -6,9 +6,19 @@ import {
   AppointmentRepository,
   SearchAppointmentParams,
 } from "../../../../../domain/repositories/appointment-repository";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  makeStudentRepositoryFake,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
+import { makeStudent } from "../../../session-evolution/use-cases/test-fixtures";
 
 describe("ListAppointmentsUseCase", () => {
   const educatorId = Uuid.random();
+  const student = makeStudent(educatorId);
+  const otherStudent = makeStudent(Uuid.random());
+  const notShared = makeStudent(Uuid.random());
   const at = (iso: string) =>
     Appointment.create({ educatorId, studentId: Uuid.random(), scheduledAt: new Date(iso) });
 
@@ -33,7 +43,12 @@ describe("ListAppointmentsUseCase", () => {
         )
       ),
     } as unknown as AppointmentRepository;
-    useCase = new ListAppointmentsUseCase(repository);
+    useCase = new ListAppointmentsUseCase(
+      repository,
+      makeStudentAccess(makeStudentRepositoryFake([student, otherStudent, notShared]), [
+        shareStudent(otherStudent, educatorId),
+      ])
+    );
   });
 
   const ids = (result: any) => result.value.map((a: any) => a.id);
@@ -82,5 +97,40 @@ describe("ListAppointmentsUseCase", () => {
 
     expect(result).toEqual({ ok: false, error: "INVALID_PERIOD" });
     expect(repository.search).not.toHaveBeenCalled();
+  });
+
+  describe("por aluno (EQ-11)", () => {
+    it("lists the appointments of an owned student from any educator", async () => {
+      const result = await useCase.execute({ educatorId, studentId: student.id });
+
+      expect(result.ok).toBe(true);
+      expect(repository.search).toHaveBeenCalledWith({
+        educatorId: undefined,
+        studentId: student.id,
+        scheduledAfter: undefined,
+        scheduledBefore: undefined,
+      });
+    });
+
+    it("lists the appointments of a student shared with the educator", async () => {
+      const result = await useCase.execute({ educatorId, studentId: otherStudent.id });
+
+      expect(result.ok).toBe(true);
+      expect(repository.search).toHaveBeenCalledWith(
+        expect.objectContaining({ educatorId: undefined, studentId: otherStudent.id })
+      );
+    });
+
+    it("returns UNAUTHORIZED for a student not shared and STUDENT_NOT_FOUND for a missing one", async () => {
+      const missing = Uuid.random();
+      const notSharedResult = await useCase.execute({ educatorId, studentId: notShared.id });
+
+      expect(notSharedResult).toEqual({ ok: false, error: "UNAUTHORIZED" });
+      expect(await useCase.execute({ educatorId, studentId: missing })).toEqual({
+        ok: false,
+        error: "STUDENT_NOT_FOUND",
+      });
+      expect(repository.search).not.toHaveBeenCalled();
+    });
   });
 });

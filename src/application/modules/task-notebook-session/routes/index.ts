@@ -14,6 +14,7 @@ import {
   makeTaskGroupRepository,
   makeSessionEvolutionRepository,
   makeActivityResultRepository,
+  makeStudentAccessService,
 } from "../../../../infraestructure/factories";
 import { makeAuthMiddleware } from "../../../../infraestructure/middlewares";
 import { StartTaskNotebookSessionUseCase } from "../use-cases/start-task-notebook-session/start-task-session-use-case";
@@ -55,17 +56,20 @@ const schedulerService = makeAppointmentSchedulerService(appointmentRepository);
 const taskGroupRepository = makeTaskGroupRepository();
 const sessionEvolutionRepository = makeSessionEvolutionRepository();
 const activityResultRepository = makeActivityResultRepository();
+// Ponto único da regra "dono ou compartilhado" (EQ-11).
+const studentAccess = makeStudentAccessService();
 const authMiddleware = makeAuthMiddleware(educatorRepository);
 
 const startTaskNotebookSessionUseCase = new StartTaskNotebookSessionUseCase(
   taskNotebookRepository,
   taskSessionRepository,
-  studentRepository,
+  studentAccess,
   appointmentRepository
 );
 
 const answerTaskNotebookSessionUseCase = new AnswerTaskNotebookSessionUseCase(
   taskSessionRepository,
+  studentAccess,
   taskRepository,
   taskNotebookRepository,
   taskGroupRepository
@@ -73,7 +77,7 @@ const answerTaskNotebookSessionUseCase = new AnswerTaskNotebookSessionUseCase(
 
 const recordActivityResultUseCase = new RecordActivityResultUseCase(
   taskSessionRepository,
-  studentRepository,
+  studentAccess,
   taskRepository,
   taskNotebookRepository,
   taskGroupRepository,
@@ -82,6 +86,7 @@ const recordActivityResultUseCase = new RecordActivityResultUseCase(
 
 const finishTaskNotebookSessionUseCase = new FinishTaskNotebookSessionUseCase(
   taskSessionRepository,
+  studentAccess,
   appointmentRepository,
   schedulerService
 );
@@ -89,22 +94,27 @@ const finishTaskNotebookSessionUseCase = new FinishTaskNotebookSessionUseCase(
 const listTaskNotebookSessionByStudentIdUseCase =
   new ListTaskNotebookSessionByStudentIdUseCase(
     taskSessionRepository,
+    studentAccess,
     sessionEvolutionRepository,
-    activityResultRepository
+    activityResultRepository,
+    educatorRepository
   );
 
 const generateReportTaskNotebookSessionUseCase =
   new GeneratorReportTaskNotebookSessionUseCase(
     taskSessionRepository,
+    studentAccess,
     taskRepository,
     sessionEvolutionRepository,
-    activityResultRepository
+    activityResultRepository,
+    educatorRepository
   );
 
 const generateStudentAnalysisUseCase = new GenerateStudentAnalysisUseCase(
   studentRepository,
   taskSessionRepository,
   taskRepository,
+  studentAccess,
 );
 
 const saveStudentAnalysisSnapshotUseCase = new SaveStudentAnalysisSnapshotUseCase(
@@ -113,14 +123,16 @@ const saveStudentAnalysisSnapshotUseCase = new SaveStudentAnalysisSnapshotUseCas
 );
 
 const addObservationTaskNotebookSessionUseCase =
-  new AddObservationTaskNotebookSessionUseCase(taskSessionRepository);
+  new AddObservationTaskNotebookSessionUseCase(taskSessionRepository, studentAccess);
 
 const listStudentAnalysisHistoryUseCase = new ListStudentAnalysisHistoryUseCase(
-  studentAnalysisReportRepository
+  studentAnalysisReportRepository,
+  studentAccess
 );
 
 const generateStudentAiAnalysisUseCase = new GenerateStudentAiAnalysisUseCase(
   generateStudentAnalysisUseCase,
+  studentAccess,
   anamneseTemplateRepository,
   anamneseResponseRepository,
   aiStudentAnalysisService

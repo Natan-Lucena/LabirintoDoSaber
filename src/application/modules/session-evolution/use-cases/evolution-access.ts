@@ -5,15 +5,14 @@ import {
   EvolutionGoalUpdate,
 } from "../../../../domain/entities/session-evolution";
 import { SessionEvolutionRepository } from "../../../../domain/repositories/session-evolution-repository";
-import { StudentRepository } from "../../../../domain/repositories/student-repository";
 import { TaskNotebookSessionRepository } from "../../../../domain/repositories/task-notebook-session-repository";
-import { assertStudentOwnership } from "../../plan/use-cases/plan-access";
+import { StudentAccessService } from "../../../../domain/services/student-access-service";
 
-// O acesso é pelo dono atual do aluno (EV-01), não pelo educatorId gravado na
-// sessão ou na evolução.
-export async function loadOwnedSession(
+// O acesso é pelo aluno, dono atual ou compartilhado (EV-01, EQ-11), não pelo
+// educatorId gravado na sessão ou na evolução.
+export async function loadAccessibleSession(
   sessionRepository: TaskNotebookSessionRepository,
-  studentRepository: StudentRepository,
+  studentAccess: StudentAccessService,
   sessionId: string,
   educatorId: Uuid
 ) {
@@ -22,19 +21,15 @@ export async function loadOwnedSession(
   const session = await sessionRepository.getById(new Uuid(sessionId));
   if (!session) return failure("SESSION_NOT_FOUND");
 
-  const ownership = await assertStudentOwnership(
-    studentRepository,
-    session.studentId,
-    educatorId
-  );
-  if (!ownership.ok) return ownership;
+  const access = await studentAccess.assertStudentAccess(session.studentId, educatorId);
+  if (!access.ok) return access;
 
-  return success({ session, student: ownership.value });
+  return success({ session, student: access.value });
 }
 
-export async function loadOwnedEvolution(
+export async function loadAccessibleEvolution(
   evolutionRepository: SessionEvolutionRepository,
-  studentRepository: StudentRepository,
+  studentAccess: StudentAccessService,
   evolutionId: string,
   educatorId: Uuid
 ) {
@@ -43,12 +38,8 @@ export async function loadOwnedEvolution(
   const evolution = await evolutionRepository.findById(new Uuid(evolutionId));
   if (!evolution) return failure("EVOLUTION_NOT_FOUND");
 
-  const ownership = await assertStudentOwnership(
-    studentRepository,
-    evolution.studentId,
-    educatorId
-  );
-  if (!ownership.ok) return ownership;
+  const access = await studentAccess.assertStudentAccess(evolution.studentId, educatorId);
+  if (!access.ok) return access;
 
   return success(evolution);
 }

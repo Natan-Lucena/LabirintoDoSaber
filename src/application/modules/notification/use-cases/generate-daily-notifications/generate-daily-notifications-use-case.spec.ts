@@ -34,6 +34,10 @@ import {
   makeStudent,
   makeStudentRepository,
 } from "../test-fixtures";
+import {
+  makeShareRepository,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -45,6 +49,8 @@ const ago = (ms: number) => new Date(NOW.getTime() - ms);
 describe("GenerateDailyNotificationsUseCase", () => {
   const educatorA = Uuid.random();
   const educatorB = Uuid.random();
+  // Colega com quem o educador A compartilha pacientes.
+  const educatorC = Uuid.random();
 
   let students: Student[];
   let appointments: Appointment[];
@@ -60,6 +66,7 @@ describe("GenerateDailyNotificationsUseCase", () => {
   let scaleApplicationRepository: ScaleApplicationRepository;
   let studentRepository: StudentRepository;
   let notificationRepository: ReturnType<typeof makeNotificationRepository>;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let useCase: GenerateDailyNotificationsUseCase;
 
   const ana = makeStudent(educatorA, "Ana Clara Souza");
@@ -97,7 +104,8 @@ describe("GenerateDailyNotificationsUseCase", () => {
   const application = (
     studentId: Uuid,
     updatedAt: Date,
-    status = ApplicationStatus.DRAFT
+    status = ApplicationStatus.DRAFT,
+    educatorId = educatorA
   ) =>
     ScaleApplication.fromPersistence({
       id: Uuid.random(),
@@ -106,7 +114,7 @@ describe("GenerateDailyNotificationsUseCase", () => {
       templateVersion: 1,
       templateName: "SNAP-IV",
       studentId,
-      educatorId: educatorA,
+      educatorId,
       status,
       answers: [],
       startedAt: updatedAt,
@@ -185,6 +193,7 @@ describe("GenerateDailyNotificationsUseCase", () => {
 
     studentRepository = makeStudentRepository(() => students);
     notificationRepository = makeNotificationRepository();
+    shareRepository = makeShareRepository();
 
     useCase = new GenerateDailyNotificationsUseCase(
       appointmentRepository,
@@ -193,7 +202,8 @@ describe("GenerateDailyNotificationsUseCase", () => {
       planRepository,
       scaleApplicationRepository,
       studentRepository,
-      notificationRepository
+      notificationRepository,
+      shareRepository
     );
   });
 
@@ -324,6 +334,35 @@ describe("GenerateDailyNotificationsUseCase", () => {
 
       expect(ofKind(NotificationKind.EVOLUTION_PENDING)).toEqual([]);
     });
+
+    it("should notify who conducted the session when the student is shared with them (EQ-14)", async () => {
+      shareRepository.store.push(shareStudent(ana, educatorC));
+      sessions = [session(ana.id, educatorC, ago(25 * HOUR))];
+
+      await useCase.execute();
+
+      const notifications = ofKind(NotificationKind.EVOLUTION_PENDING);
+      expect(notifications.map((n) => n.educatorId.value)).toEqual([educatorC.value]);
+    });
+
+    it("should skip the session of a colleague who lost the access (EQ-14)", async () => {
+      sessions = [session(ana.id, educatorC, ago(25 * HOUR))];
+
+      await useCase.execute();
+
+      expect(ofKind(NotificationKind.EVOLUTION_PENDING)).toEqual([]);
+    });
+
+    it("should load the shares in a single batch", async () => {
+      sessions = [
+        session(ana.id, educatorC, ago(25 * HOUR)),
+        session(bruno.id, educatorC, ago(26 * HOUR)),
+      ];
+
+      await useCase.execute();
+
+      expect(shareRepository.listByStudentIds).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("PLAN_REVIEW_DUE", () => {
@@ -348,6 +387,16 @@ describe("GenerateDailyNotificationsUseCase", () => {
       expect(notifications[0].dedupeKey).toBe(
         `${educatorA.value}:PLAN_REVIEW_DUE:${dueIn2Days.id.value}:${TODAY}`
       );
+    });
+
+    it("should notify the owner, not the colleague who wrote the plan (EQ-14)", async () => {
+      shareRepository.store.push(shareStudent(ana, educatorC));
+      plans = [plan(ana.id, educatorC, "2026-11-12")];
+
+      await useCase.execute();
+
+      const [notification] = ofKind(NotificationKind.PLAN_REVIEW_DUE);
+      expect(notification.educatorId.value).toBe(educatorA.value);
     });
 
     it("should notify the current owner of the student", async () => {
@@ -386,6 +435,30 @@ describe("GenerateDailyNotificationsUseCase", () => {
       expect(notifications[0].dedupeKey).toBe(
         `${educatorA.value}:SCALE_DRAFT_STALE:${stale.id.value}:${TODAY}`
       );
+    });
+  });
+
+  describe("SCALE_DRAFT_STALE recipient (EQ-14)", () => {
+    it("should notify the colleague who started the draft while they keep the access", async () => {
+      shareRepository.store.push(shareStudent(ana, educatorC));
+      applications = [application(ana.id, ago(8 * DAY), ApplicationStatus.DRAFT, educatorC)];
+
+      await useCase.execute();
+
+      const notifications = ofKind(NotificationKind.SCALE_DRAFT_STALE);
+      expect(notifications.map((n) => n.educatorId.value)).toEqual([educatorC.value]);
+    });
+
+    it("should skip the draft whose author lost the access", async () => {
+      applications = [
+        application(ana.id, ago(8 * DAY), ApplicationStatus.DRAFT, educatorC),
+        // Carla foi transferida para o B; o rascunho é do A.
+        application(carla.id, ago(8 * DAY)),
+      ];
+
+      await useCase.execute();
+
+      expect(ofKind(NotificationKind.SCALE_DRAFT_STALE)).toEqual([]);
     });
   });
 

@@ -1,20 +1,13 @@
 import { Uuid } from "@wave-telecom/framework/core";
-import { StudentRepository } from "../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../domain/services/student-access-service";
 
-// Ids, entre os informados, dos alunos que ainda são do educador. Notificação
-// de aluno transferido ou excluído some da lista e do contador (NT-03).
-export async function loadOwnedStudentIds(
-  studentRepository: StudentRepository,
+// Ids, entre os informados, dos alunos que o educador ainda acessa (dono ou
+// compartilhado). Notificação de aluno transferido, descompartilhado ou
+// excluído some da lista e do contador (NT-03, EQ-14).
+export async function loadAccessibleStudentIds(
+  studentAccess: StudentAccessService,
   studentIds: Uuid[],
   educatorId: Uuid
 ): Promise<Set<string>> {
-  const unique = [...new Set(studentIds.map((id) => id.value))];
-  if (unique.length === 0) return new Set();
-
-  const students = await studentRepository.getByIds(unique.map((id) => new Uuid(id)));
-  return new Set(
-    students
-      .filter((student) => student.educatorId.value === educatorId.value)
-      .map((student) => student.id.value)
-  );
+  return studentAccess.accessibleIdsAmong(studentIds, educatorId);
 }

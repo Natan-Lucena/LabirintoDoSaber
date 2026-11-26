@@ -8,6 +8,7 @@ import {
   makeStudent,
   makeStudentRepository,
 } from "../test-fixtures";
+import { makeStudentAccess } from "../../../../../domain/tests/fakes/student-share-fakes";
 
 describe("MarkNotificationReadUseCase", () => {
   const educatorId = Uuid.random();
@@ -31,7 +32,7 @@ describe("MarkNotificationReadUseCase", () => {
     useCase = new MarkNotificationReadUseCase(notificationRepository);
     unreadCount = new UnreadCountUseCase(
       notificationRepository,
-      makeStudentRepository(() => [ana])
+      makeStudentAccess(makeStudentRepository(() => [ana]))
     );
   });
 
