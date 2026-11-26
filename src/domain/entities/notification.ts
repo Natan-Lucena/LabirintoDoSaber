@@ -35,6 +35,8 @@ export interface NotificationProps {
   studentId?: Uuid;
   // Uma por kind + alvo + dia (NT-02).
   dedupeKey: string;
+  // Quantidade do APPOINTMENTS_TODAY, para o texto do push.
+  count?: number;
   createdAt: Date;
   readAt?: Date;
 }
@@ -71,6 +73,7 @@ export class Notification {
       body: string;
       target: NotificationTarget;
       studentId?: Uuid;
+      count?: number;
     }
   ): Notification {
     return new Notification({
@@ -81,6 +84,7 @@ export class Notification {
       body: clip(props.body, NOTIFICATION_BODY_MAX),
       target: props.target,
       studentId: props.studentId,
+      count: props.count,
       dedupeKey:
         props.kind === NotificationKind.APPOINTMENTS_TODAY
           ? `${props.educatorId.value}:${props.kind}:${props.date}`
@@ -97,6 +101,7 @@ export class Notification {
       title: `${props.count} ${noun} hoje`,
       body: `Você tem ${props.count} ${noun} marcado${props.count === 1 ? "" : "s"} para hoje.`,
       target: { type: NotificationTargetType.AGENDA_DAY, id: props.date },
+      count: props.count,
     });
   }
 
@@ -170,6 +175,10 @@ export class Notification {
 
   get dedupeKey(): string {
     return this.props.dedupeKey;
+  }
+
+  get count(): number | undefined {
+    return this.props.count;
   }
 
   get createdAt(): Date {

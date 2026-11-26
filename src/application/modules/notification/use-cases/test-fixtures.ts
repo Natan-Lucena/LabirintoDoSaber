@@ -91,6 +91,11 @@ export const makeNotificationRepository = () => {
         count,
       }));
     }),
+    listUnreadCreatedSince: vi.fn(async (since: Date) =>
+      store
+        .filter((n) => n.createdAt >= since && !n.isRead)
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+    ),
     markAllRead: vi.fn(async (educatorId: Uuid, readAt: Date) => {
       let updated = 0;
       store.forEach((n, index) => {

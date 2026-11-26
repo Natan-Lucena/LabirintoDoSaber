@@ -63,6 +63,18 @@ import { ClinicDepartureServiceImpl } from "../services/clinic-departure-service
 import { StudentShareRepository } from "../../domain/repositories/student-share-repository";
 import { StudentShareRepositoryImpl } from "../repositories/prisma/student-share-repository-impl";
 import { StudentAccessService } from "../../domain/services/student-access-service";
+import { PushTokenRepository } from "../../domain/repositories/push-token-repository";
+import { PushTokenRepositoryImpl } from "../repositories/prisma/push-token-repository-impl";
+import { NotificationPreferencesRepository } from "../../domain/repositories/notification-preferences-repository";
+import { NotificationPreferencesRepositoryImpl } from "../repositories/prisma/notification-preferences-repository-impl";
+import { PushDispatchRepository } from "../../domain/repositories/push-dispatch-repository";
+import { PushDispatchRepositoryImpl } from "../repositories/prisma/push-dispatch-repository-impl";
+import { PushReceiptRepository } from "../../domain/repositories/push-receipt-repository";
+import { PushReceiptRepositoryImpl } from "../repositories/prisma/push-receipt-repository-impl";
+import { PushSender } from "../../domain/services/push-sender";
+import { ExpoPushSenderImpl } from "../services/expo-push-sender-impl";
+import { HelpTutorialRepository } from "../../domain/repositories/help-tutorial-repository";
+import { HelpTutorialRepositoryImpl } from "../repositories/prisma/help-tutorial-repository-impl";
 
 const prismaClient = new PrismaClient();
 
@@ -231,4 +243,28 @@ export const makeClinicDepartureService = (): ClinicDepartureService => {
     new StudentRepositoryImpl(prismaClient),
     makeStudentShareRepository()
   );
+};
+
+export const makePushTokenRepository = (): PushTokenRepository => {
+  return new PushTokenRepositoryImpl(prismaClient);
+};
+
+export const makeNotificationPreferencesRepository = (): NotificationPreferencesRepository => {
+  return new NotificationPreferencesRepositoryImpl(prismaClient);
+};
+
+export const makePushDispatchRepository = (): PushDispatchRepository => {
+  return new PushDispatchRepositoryImpl(prismaClient);
+};
+
+export const makePushReceiptRepository = (): PushReceiptRepository => {
+  return new PushReceiptRepositoryImpl(prismaClient);
+};
+
+export const makePushSender = (): PushSender => {
+  return new ExpoPushSenderImpl();
+};
+
+export const makeHelpTutorialRepository = (): HelpTutorialRepository => {
+  return new HelpTutorialRepositoryImpl(prismaClient);
 };
