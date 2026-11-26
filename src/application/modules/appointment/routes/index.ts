@@ -4,6 +4,7 @@ import { requireJobApiKey } from "../../../../infraestructure/middlewares";
 import {
   makeAppointmentRepository,
   makeAppointmentSchedulerService,
+  makeAppointmentSeriesRepository,
   makeEducatorRepository,
   makeStudentAccessService,
 } from "../../../../infraestructure/factories";
@@ -16,6 +17,10 @@ import { ListAppointmentsUseCase } from "../use-cases/list-appointments/list-app
 import { GetAppointmentUseCase } from "../use-cases/get-appointment/get-appointment-use-case";
 import { NotifyAppointmentsUseCase } from "../use-cases/notify-appointments/notify-appointments-use-case";
 import { WatchdogAppointmentsUseCase } from "../use-cases/watchdog-appointments/watchdog-appointments-use-case";
+import { CreateAppointmentSeriesUseCase } from "../use-cases/create-appointment-series/create-appointment-series-use-case";
+import { GetAppointmentSeriesUseCase } from "../use-cases/get-appointment-series/get-appointment-series-use-case";
+import { UpdateAppointmentSeriesUseCase } from "../use-cases/update-appointment-series/update-appointment-series-use-case";
+import { CancelAppointmentSeriesUseCase } from "../use-cases/cancel-appointment-series/cancel-appointment-series-use-case";
 
 import { CreateAppointmentController } from "../controllers/create-appointment-controller";
 import { UpdateAppointmentController } from "../controllers/update-appointment-controller";
@@ -24,11 +29,16 @@ import { ListAppointmentsController } from "../controllers/list-appointments-con
 import { GetAppointmentController } from "../controllers/get-appointment-controller";
 import { NotifyAppointmentsController } from "../controllers/notify-appointments-controller";
 import { WatchdogAppointmentsController } from "../controllers/watchdog-appointments-controller";
+import { CreateAppointmentSeriesController } from "../controllers/create-appointment-series-controller";
+import { GetAppointmentSeriesController } from "../controllers/get-appointment-series-controller";
+import { UpdateAppointmentSeriesController } from "../controllers/update-appointment-series-controller";
+import { CancelAppointmentSeriesController } from "../controllers/cancel-appointment-series-controller";
 
 const appointmentRouter = Router();
 
 const educatorRepository = makeEducatorRepository({ isMock: false });
 const appointmentRepository = makeAppointmentRepository();
+const seriesRepository = makeAppointmentSeriesRepository();
 const schedulerService = makeAppointmentSchedulerService(appointmentRepository);
 const studentAccess = makeStudentAccessService();
 const mailService = new NodemailerMailService();
@@ -40,6 +50,10 @@ const listAppointmentsUseCase = new ListAppointmentsUseCase(appointmentRepositor
 const getAppointmentUseCase = new GetAppointmentUseCase(appointmentRepository, studentAccess);
 const notifyAppointmentsUseCase = new NotifyAppointmentsUseCase(appointmentRepository, educatorRepository, schedulerService, mailService);
 const watchdogAppointmentsUseCase = new WatchdogAppointmentsUseCase(appointmentRepository, schedulerService);
+const createSeriesUseCase = new CreateAppointmentSeriesUseCase(appointmentRepository, seriesRepository, schedulerService, studentAccess);
+const getSeriesUseCase = new GetAppointmentSeriesUseCase(appointmentRepository, seriesRepository, studentAccess);
+const updateSeriesUseCase = new UpdateAppointmentSeriesUseCase(appointmentRepository, seriesRepository, schedulerService, studentAccess);
+const cancelSeriesUseCase = new CancelAppointmentSeriesUseCase(appointmentRepository, seriesRepository, schedulerService, studentAccess);
 
 const authMiddleware = makeAuthMiddleware(educatorRepository);
 
@@ -61,6 +75,23 @@ appointmentRouter.post("/", async (req, res) => {
 
 appointmentRouter.get("/", async (req, res) => {
   new ListAppointmentsController(listAppointmentsUseCase).execute(req, res);
+});
+
+// Séries (rotas literais antes de /:id).
+appointmentRouter.post("/series", async (req, res) => {
+  new CreateAppointmentSeriesController(createSeriesUseCase).execute(req, res);
+});
+
+appointmentRouter.get("/series/:id", async (req, res) => {
+  new GetAppointmentSeriesController(getSeriesUseCase).execute(req, res);
+});
+
+appointmentRouter.put("/series/:id", async (req, res) => {
+  new UpdateAppointmentSeriesController(updateSeriesUseCase).execute(req, res);
+});
+
+appointmentRouter.post("/series/:id/cancel", async (req, res) => {
+  new CancelAppointmentSeriesController(cancelSeriesUseCase).execute(req, res);
 });
 
 appointmentRouter.get("/:id", async (req, res) => {

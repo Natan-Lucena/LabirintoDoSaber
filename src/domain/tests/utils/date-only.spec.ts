@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   addDays,
   addMonths,
+  atTimeInSaoPaulo,
   isValidDateOnly,
+  timeInSaoPaulo,
   todayInSaoPaulo,
 } from "../../utils/date-only";
 
@@ -52,6 +54,25 @@ describe("date-only", () => {
       expect(addDays("2026-11-12", 2)).toBe("2026-11-14");
       expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
       expect(addDays("2026-03-01", -1)).toBe("2026-02-28");
+    });
+  });
+
+  describe("timeInSaoPaulo", () => {
+    it("should return the local time of the instant in São Paulo", () => {
+      expect(timeInSaoPaulo(new Date("2026-11-26T17:00:00.000Z"))).toBe("14:00:00.000");
+      expect(timeInSaoPaulo(new Date("2026-11-27T01:30:00.000Z"))).toBe("22:30:00.000");
+      expect(timeInSaoPaulo(new Date("2026-11-26T03:00:00.000Z"))).toBe("00:00:00.000");
+    });
+  });
+
+  describe("atTimeInSaoPaulo", () => {
+    it("should build the instant of a São Paulo date and local time", () => {
+      expect(atTimeInSaoPaulo("2026-11-26", "14:00:00.000").toISOString()).toBe(
+        "2026-11-26T17:00:00.000Z"
+      );
+      expect(atTimeInSaoPaulo("2026-11-26", "22:30:00.000").toISOString()).toBe(
+        "2026-11-27T01:30:00.000Z"
+      );
     });
   });
 });

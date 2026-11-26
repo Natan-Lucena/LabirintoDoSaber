@@ -21,6 +21,8 @@ export interface CreateAppointmentProps {
   id?: Uuid;
   educatorId: Uuid;
   studentId: Uuid;
+  // Ocorrência de uma série (AppointmentSeries); ausente no atendimento avulso.
+  seriesId?: Uuid;
   scheduledAt: Date;
   observation?: string;
   type?: string;
@@ -39,8 +41,9 @@ export interface UpdateAppointmentProps {
 }
 
 type AppointmentState = Required<
-  Omit<CreateAppointmentProps, "observation" | "type" | "durationMinutes" | "notifiedAt">
+  Omit<CreateAppointmentProps, "seriesId" | "observation" | "type" | "durationMinutes" | "notifiedAt">
 > & {
+  seriesId?: Uuid;
   observation?: string;
   type?: string;
   durationMinutes?: number;
@@ -51,6 +54,7 @@ export class Appointment {
   readonly id: Uuid;
   readonly educatorId: Uuid;
   readonly studentId: Uuid;
+  readonly seriesId: Uuid | undefined;
   readonly createdAt: Date;
 
   private _scheduledAt: Date;
@@ -65,6 +69,7 @@ export class Appointment {
     this.id = props.id;
     this.educatorId = props.educatorId;
     this.studentId = props.studentId;
+    this.seriesId = props.seriesId;
     this._scheduledAt = props.scheduledAt;
     this._observation = props.observation;
     this._type = props.type;
@@ -80,6 +85,7 @@ export class Appointment {
       id: props.id ?? Uuid.random(),
       educatorId: props.educatorId,
       studentId: props.studentId,
+      seriesId: props.seriesId,
       scheduledAt: props.scheduledAt,
       observation: props.observation,
       type: props.type,
@@ -182,6 +188,7 @@ export class Appointment {
       id: this.id,
       educatorId: this.educatorId,
       studentId: this.studentId,
+      seriesId: this.seriesId,
       scheduledAt: this._scheduledAt,
       observation: this._observation,
       type: this._type,

@@ -18,6 +18,8 @@ import { AwsS3FileStorage } from "../services/file-storage-impl";
 import { AnamneseTemplateRepositoryImpl } from "../repositories/prisma/anamnese-template-repository-impl";
 import { AnamneseResponseRepositoryImpl } from "../repositories/prisma/anamnese-response-repository-impl";
 import { AppointmentRepositoryImpl } from "../repositories/prisma/appointment-repository-impl";
+import { AppointmentSeriesRepositoryImpl } from "../repositories/prisma/appointment-series-repository-impl";
+import { AppointmentSeriesRepository } from "../../domain/repositories/appointment-series-repository";
 import { QStashAppointmentSchedulerImpl } from "../services/qstash-appointment-scheduler-impl";
 import { AppointmentRepository } from "../../domain/repositories/appointment-repository";
 import { AiTaskGeneratorService } from "../../domain/services/ai-task-generator-service";
@@ -130,6 +132,10 @@ export const makeAnamneseResponseRepository = () => {
 
 export const makeAppointmentRepository = (): AppointmentRepository => {
   return new AppointmentRepositoryImpl(prismaClient);
+};
+
+export const makeAppointmentSeriesRepository = (): AppointmentSeriesRepository => {
+  return new AppointmentSeriesRepositoryImpl(prismaClient);
 };
 
 export const makeAppointmentSchedulerService = (repo: AppointmentRepository) => {

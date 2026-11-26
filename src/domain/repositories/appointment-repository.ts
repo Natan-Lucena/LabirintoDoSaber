@@ -6,6 +6,7 @@ export interface SearchAppointmentParams {
   studentId?: Uuid;
   // Atendimentos de qualquer um destes alunos (consulta em lote).
   studentIds?: Uuid[];
+  seriesId?: Uuid;
   status?: AppointmentStatus;
   scheduledBefore?: Date;
   scheduledAfter?: Date;
