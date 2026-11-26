@@ -102,9 +102,16 @@ describe("GeneratePlanSuggestionsUseCase", () => {
       getById: vi.fn().mockResolvedValue(student),
     } as unknown as StudentRepository;
     suggestionRepository = {
-      countPendingByPlanId: vi.fn(
-        async () => saved.filter((s) => s.status === SuggestionStatus.PENDING).length
-      ),
+      // Último estado de cada sugestão (save grava de novo ao descartar).
+      countPendingByPlanIdAndEducator: vi.fn(async (planId: Uuid, educator: Uuid) => {
+        const latest = new Map(saved.map((s) => [s.id.value, s]));
+        return [...latest.values()].filter(
+          (s) =>
+            s.status === SuggestionStatus.PENDING &&
+            s.planId.value === planId.value &&
+            s.educatorId.value === educator.value
+        ).length;
+      }),
       save: vi.fn(async (suggestion: PlanSuggestion) => {
         saved.push(suggestion);
       }),
@@ -205,7 +212,7 @@ describe("GeneratePlanSuggestionsUseCase", () => {
 
   it("dismisses the excess it created when a concurrent call passed the limit", async () => {
     // 0 pendentes antes; depois de salvar, outra chamada já tinha gravado 1.
-    (suggestionRepository.countPendingByPlanId as any)
+    (suggestionRepository.countPendingByPlanIdAndEducator as any)
       .mockResolvedValueOnce(0)
       .mockResolvedValueOnce(4);
 
@@ -223,7 +230,7 @@ describe("GeneratePlanSuggestionsUseCase", () => {
   });
 
   it("dismisses at most what this call created", async () => {
-    (suggestionRepository.countPendingByPlanId as any)
+    (suggestionRepository.countPendingByPlanIdAndEducator as any)
       .mockResolvedValueOnce(0)
       .mockResolvedValueOnce(7);
 
@@ -297,6 +304,26 @@ describe("GeneratePlanSuggestionsUseCase", () => {
     expect(saved).toHaveLength(3);
     // Sugestões são pessoais: de quem pediu, não do autor do plano.
     expect(saved.every((s) => s.educatorId.value === colleagueId.value)).toBe(true);
+  });
+
+  it("counts the limit of 3 pending per educator on the same plan", async () => {
+    const colleagueId = Uuid.random();
+    await shareRepository.create(shareStudent(student, colleagueId));
+    pendingOf(3); // do dono
+
+    const byColleague = await useCase.execute({ educatorId: colleagueId, planId: plan.id.value });
+    const byOwner = await execute();
+
+    expect(byColleague.ok).toBe(true);
+    if (!byColleague.ok) return;
+    expect(byColleague.value).toHaveLength(3);
+    expect((aiService.generateSuggestions as any).mock.calls[0][0].max).toBe(3);
+    expect(suggestionRepository.countPendingByPlanIdAndEducator).toHaveBeenCalledWith(
+      plan.id,
+      colleagueId
+    );
+    expect(byOwner).toEqual({ ok: true, value: [] });
+    expect(aiService.generateSuggestions).toHaveBeenCalledTimes(1);
   });
 
   it("returns UNAUTHORIZED to a colleague after the share is undone", async () => {

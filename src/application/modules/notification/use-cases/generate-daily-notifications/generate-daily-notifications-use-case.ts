@@ -80,6 +80,7 @@ export class GenerateDailyNotificationsUseCase {
     );
 
     const studentIds = new Set([
+      ...appointments.map((a) => a.studentId.value),
       ...pendingSessions.map((s) => s.studentId.value),
       ...plans.map((p) => p.studentId.value),
       ...staleDrafts.map((a) => a.studentId.value),
@@ -105,8 +106,11 @@ export class GenerateDailyNotificationsUseCase {
 
     const notifications: Notification[] = [];
 
+    // Só conta atendimento de aluno que o educador ainda acessa (EQ-11).
     const countByEducator = new Map<string, number>();
     for (const appointment of appointments) {
+      const student = studentById.get(appointment.studentId.value);
+      if (!student || !hasAccess(student, appointment.educatorId)) continue;
       const key = appointment.educatorId.value;
       countByEducator.set(key, (countByEducator.get(key) ?? 0) + 1);
     }

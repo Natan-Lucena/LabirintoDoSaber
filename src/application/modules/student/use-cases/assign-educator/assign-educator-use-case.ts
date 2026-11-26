@@ -2,6 +2,7 @@ import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { ClinicMemberRepository } from "../../../../../domain/repositories/clinic-member-repository";
 import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentShareRepository } from "../../../../../domain/repositories/student-share-repository";
 import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { mapStudentToResponse } from "../../../../../infraestructure/mappers/map-student";
 
@@ -16,7 +17,8 @@ export class AssignEducatorUseCase {
     private studentAccess: StudentAccessService,
     private studentRepository: StudentRepository,
     private educatorRepository: EducatorRepository,
-    private memberRepository: ClinicMemberRepository
+    private memberRepository: ClinicMemberRepository,
+    private shareRepository: StudentShareRepository
   ) {}
 
   async execute(props: AssignEducatorUseCaseRequest) {
@@ -51,9 +53,19 @@ export class AssignEducatorUseCase {
       }
     }
 
+    // Transferir para o próprio dono não muda nada.
+    if (newEducator.id.value === student.educatorId.value) {
+      return success(mapStudentToResponse(student));
+    }
+
+    // O novo educador vira o dono. Os compartilhamentos do aluno são
+    // desfeitos: o novo dono recompartilha se quiser. Em sequência, sem
+    // transação: primeiro o aluno, depois os compartilhamentos.
     student.assignEducator(newEducator);
+    student.transferTo(newEducator.id);
 
     await this.studentRepository.save(student);
+    await this.shareRepository.deleteByStudentId(student.id);
     return success(mapStudentToResponse(student));
   }
 }

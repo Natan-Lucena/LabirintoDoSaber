@@ -46,7 +46,8 @@ const assignEducatorUseCase = new AssignEducatorUseCase(
   studentAccess,
   studentRepository,
   educatorRepository,
-  memberRepository
+  memberRepository,
+  shareRepository
 );
 
 const listStudentByEducatorUseCase = new ListStudentsByEducatorUseCase(

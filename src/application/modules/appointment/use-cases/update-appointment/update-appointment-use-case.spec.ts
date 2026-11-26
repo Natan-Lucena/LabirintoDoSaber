@@ -11,6 +11,7 @@ import {
   shareStudent,
 } from "../../../../../domain/tests/fakes/student-share-fakes";
 import { makeStudent } from "../../../session-evolution/use-cases/test-fixtures";
+import { Student } from "../../../../../domain/entities/student";
 
 const mockAppointmentRepository = (): AppointmentRepository =>
   ({
@@ -27,13 +28,22 @@ const mockSchedulerService = (): AppointmentSchedulerService =>
     scheduleNext: vi.fn(),
   } as unknown as AppointmentSchedulerService);
 
+// Alunos do repositório em memória do teste atual: o atendimento padrão é de
+// um aluno do próprio educador, que ele acessa.
+let students = new Map<string, Student>();
+const ownStudentOf = (educatorId: Uuid) => {
+  const student = makeStudent(educatorId);
+  students.set(student.id.value, student);
+  return student.id;
+};
+
 const makeAppointment = (
   educatorId: Uuid,
   overrides: Partial<Parameters<typeof Appointment.create>[0]> = {}
 ) =>
   Appointment.create({
     educatorId,
-    studentId: Uuid.random(),
+    studentId: overrides.studentId ?? ownStudentOf(educatorId),
     scheduledAt: new Date("2026-08-01T10:00:00Z"),
     observation: "Initial note",
     ...overrides,
@@ -55,6 +65,7 @@ describe("UpdateAppointmentUseCase", () => {
     appointmentRepository = mockAppointmentRepository();
     schedulerService = mockSchedulerService();
     studentRepository = makeStudentRepositoryFake();
+    students = studentRepository.store;
     shareRepository = makeShareRepository();
     useCase = new UpdateAppointmentUseCase(
       appointmentRepository,

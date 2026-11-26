@@ -28,7 +28,7 @@ const setup = (extra: Parameters<typeof setupClinic>[0] = []) => {
 };
 
 describe("RemoveClinicMemberUseCase", () => {
-  it("ADMIN remove um membro e os compartilhamentos dele são desfeitos antes (EQ-09)", async () => {
+  it("ADMIN remove um membro e os compartilhamentos dele são desfeitos depois de tirar o vínculo (EQ-09)", async () => {
     const pro = makeEducator("Paula");
     const { admin, clinic, memberRepository, departureService, useCase } = setup([
       { educator: pro, role: "PROFESSIONAL" },
@@ -47,7 +47,7 @@ describe("RemoveClinicMemberUseCase", () => {
     expect(result).toEqual({ ok: true, value: undefined });
     expect(memberRepository.store.has(pro.id.value)).toBe(false);
     expect(departureService.undoSharesOf).toHaveBeenCalledWith(clinic.id, pro.id);
-    expect(order).toEqual(["undoShares", "delete"]);
+    expect(order).toEqual(["delete", "undoShares"]);
   });
 
   it("PROFESSIONAL pode sair (o próprio id)", async () => {

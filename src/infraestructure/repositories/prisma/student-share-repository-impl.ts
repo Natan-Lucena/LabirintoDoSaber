@@ -81,6 +81,12 @@ export class StudentShareRepositoryImpl implements StudentShareRepository {
     });
   }
 
+  async deleteByStudentId(studentId: Uuid): Promise<void> {
+    await this.prismaService.studentShare.deleteMany({
+      where: { studentId: studentId.value },
+    });
+  }
+
   async deleteForEducatorDeparture(educatorId: Uuid, ownedStudentIds: Uuid[]): Promise<number> {
     const { count } = await this.prismaService.studentShare.deleteMany({
       where: {

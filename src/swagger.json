@@ -1715,7 +1715,7 @@
         "tags": [
           "Student"
         ],
-        "summary": "Transfere o aluno para outro educador.",
+        "summary": "Transfere o paciente para outro educador (só o dono).",
         "requestBody": {
           "required": true,
           "content": {
@@ -1838,7 +1838,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Só o dono (o compartilhado recebe `STUDENT_NOT_ASSIGNED_TO_CURRENT_EDUCATOR`). Quando o dono está numa clínica, o novo educador precisa ser membro dela (EQ-15)."
+        "description": "O novo educador passa a ser o dono (`educatorId` da resposta) e entra na lista `educators`. Todos os compartilhamentos do paciente são desfeitos; o novo dono recompartilha se quiser. O antigo dono perde o acesso, salvo se o novo dono compartilhar com ele. Só o dono transfere (o compartilhado recebe `STUDENT_NOT_ASSIGNED_TO_CURRENT_EDUCATOR`). Quando o dono está numa clínica, o novo educador precisa ser membro dela (EQ-15). Transferir para o próprio dono não muda nada."
       }
     },
     "/student": {
@@ -7427,7 +7427,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Sem `from` e `to`, devolve todos os atendimentos. Os dois são dias de São Paulo e inclusivos (um atendimento às 23:59 de `to` entra).\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).",
+        "description": "Sem `from` e `to`, devolve todos os atendimentos. Os dois são dias de São Paulo e inclusivos (um atendimento às 23:59 de `to` entra).\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\nSem `studentId`: a agenda do educador, só com atendimentos de alunos que ele ainda acessa (dono ou compartilhado). Com `studentId`: os atendimentos do aluno, de qualquer educador.",
         "parameters": [
           {
             "name": "from",
@@ -7468,7 +7468,7 @@
           "Appointment"
         ],
         "summary": "Detalha um atendimento.",
-        "description": "Id que não é UUID lança no controller e vira 500 `An unexpected error occurred`.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\nVale para o educador do atendimento ou quem acessa o aluno; fora disso, `NOT_FOUND`.",
+        "description": "Id que não é UUID lança no controller e vira 500 `An unexpected error occurred`.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\nVale para quem acessa o aluno do atendimento (dono ou compartilhado), inclusive para quem o criou: quem perdeu o acesso ao aluno recebe `NOT_FOUND`.",
         "parameters": [
           {
             "name": "id",
@@ -7566,7 +7566,7 @@
           "Appointment"
         ],
         "summary": "Atualiza, reagenda ou muda o status de um atendimento.",
-        "description": "Id que não é UUID lança no controller e vira 500 `An unexpected error occurred`.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\nVale para o educador do atendimento ou quem acessa o aluno; fora disso, `NOT_FOUND`.",
+        "description": "Id que não é UUID lança no controller e vira 500 `An unexpected error occurred`.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\nVale para quem acessa o aluno do atendimento (dono ou compartilhado), inclusive para quem o criou: quem perdeu o acesso ao aluno recebe `NOT_FOUND`.",
         "parameters": [
           {
             "name": "id",
@@ -7727,7 +7727,7 @@
           "Appointment"
         ],
         "summary": "Exclui um atendimento.",
-        "description": "Id que não é UUID lança no controller e vira 500 `An unexpected error occurred`.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\nVale para o educador do atendimento ou quem acessa o aluno; fora disso, `NOT_FOUND`.",
+        "description": "Id que não é UUID lança no controller e vira 500 `An unexpected error occurred`.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\nVale para quem acessa o aluno do atendimento (dono ou compartilhado), inclusive para quem o criou: quem perdeu o acesso ao aluno recebe `NOT_FOUND`.",
         "parameters": [
           {
             "name": "id",
@@ -10822,8 +10822,8 @@
         "tags": [
           "Plan - Suggestions"
         ],
-        "summary": "Gera sugestões de ajuste por IA (até 3 pendentes por plano).",
-        "description": "201 com as sugestões criadas; 200 com `[]` quando nada foi gerado (limite de pendentes atingido ou tudo descartado).\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).",
+        "summary": "Gera sugestões de ajuste por IA (até 3 pendentes por plano e educador).",
+        "description": "201 com as sugestões criadas; 200 com `[]` quando nada foi gerado (limite de pendentes atingido ou tudo descartado).\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\nO limite de 3 sugestões pendentes conta por plano e educador: as de um colega não bloqueiam as suas.",
         "parameters": [
           {
             "name": "id",

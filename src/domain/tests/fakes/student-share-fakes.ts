@@ -54,6 +54,11 @@ export const makeShareRepository = (initial: StudentShare[] = []) => {
       const index = store.findIndex((item) => matches(item, studentId, educatorId));
       if (index >= 0) store.splice(index, 1);
     }),
+    deleteByStudentId: vi.fn(async (studentId: Uuid) => {
+      for (let i = store.length - 1; i >= 0; i--) {
+        if (store[i].studentId.value === studentId.value) store.splice(i, 1);
+      }
+    }),
     deleteForEducatorDeparture: vi.fn(async (educatorId: Uuid, ownedStudentIds: Uuid[]) => {
       const owned = new Set(ownedStudentIds.map((id) => id.value));
       const before = store.length;

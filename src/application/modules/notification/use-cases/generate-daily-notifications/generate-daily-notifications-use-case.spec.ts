@@ -121,10 +121,16 @@ describe("GenerateDailyNotificationsUseCase", () => {
       updatedAt,
     });
 
-  const appointment = (scheduledAt: string, status = AppointmentStatus.PENDING, educatorId = educatorA) =>
+  // Por padrão, um aluno do próprio educador (Ana é do A, Carla é do B).
+  const appointment = (
+    scheduledAt: string,
+    status = AppointmentStatus.PENDING,
+    educatorId = educatorA,
+    studentId = educatorId.value === educatorB.value ? carla.id : ana.id
+  ) =>
     Appointment.create({
       educatorId,
-      studentId: ana.id,
+      studentId,
       scheduledAt: new Date(scheduledAt),
       status,
     });
@@ -265,6 +271,31 @@ describe("GenerateDailyNotificationsUseCase", () => {
           [educatorB.value, "1 atendimento hoje"],
         ].sort()
       );
+    });
+
+    it("should count only appointments of students the educator still accesses", async () => {
+      appointments = [
+        // Colega C atende a Ana enquanto ela está compartilhada com ele.
+        appointment("2026-11-12T13:00:00.000Z", AppointmentStatus.PENDING, educatorC, ana.id),
+        appointment("2026-11-12T14:00:00.000Z", AppointmentStatus.PENDING, educatorC, bruno.id),
+      ];
+      shareRepository.store.push(shareStudent(ana, educatorC));
+
+      await useCase.execute();
+
+      const [notification] = ofKind(NotificationKind.APPOINTMENTS_TODAY);
+      expect(notification.educatorId.value).toBe(educatorC.value);
+      expect(notification.title).toBe("1 atendimento hoje");
+    });
+
+    it("should not notify an educator who lost the access to every student of the day", async () => {
+      appointments = [
+        appointment("2026-11-12T13:00:00.000Z", AppointmentStatus.PENDING, educatorC, ana.id),
+      ];
+
+      await useCase.execute();
+
+      expect(ofKind(NotificationKind.APPOINTMENTS_TODAY)).toEqual([]);
     });
 
     it("should not notify when the day has no PENDING appointment", async () => {

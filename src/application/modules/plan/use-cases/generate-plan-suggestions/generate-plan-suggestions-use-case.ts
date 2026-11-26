@@ -47,7 +47,11 @@ export class GeneratePlanSuggestionsUseCase {
 
     if (plan.status !== PlanStatus.ACTIVE) return failure("PLAN_NOT_EDITABLE");
 
-    const pending = await this.suggestionRepository.countPendingByPlanId(plan.id);
+    // O limite é por (plano, educador): as sugestões são de quem as gerou.
+    const pending = await this.suggestionRepository.countPendingByPlanIdAndEducator(
+      plan.id,
+      request.educatorId
+    );
     if (pending >= MAX_PENDING_SUGGESTIONS) return success([]);
     const max = MAX_PENDING_SUGGESTIONS - pending;
 
@@ -122,7 +126,10 @@ export class GeneratePlanSuggestionsUseCase {
 
     // Sem transação: duas gerações simultâneas podem passar do limite. Reconta
     // e descarta o excedente entre as que esta chamada acabou de criar.
-    const pendingAfter = await this.suggestionRepository.countPendingByPlanId(plan.id);
+    const pendingAfter = await this.suggestionRepository.countPendingByPlanIdAndEducator(
+      plan.id,
+      request.educatorId
+    );
     const excess = Math.min(
       Math.max(pendingAfter - MAX_PENDING_SUGGESTIONS, 0),
       kept.length

@@ -35,7 +35,8 @@ const setup = () => {
     ctx.studentAccess,
     ctx.studentRepository,
     ctx.educatorRepository,
-    ctx.memberRepository
+    ctx.memberRepository,
+    ctx.shareRepository
   );
   return { ...ctx, student, newEducator, useCase };
 };
@@ -117,6 +118,41 @@ describe("AssignEducatorUseCase", () => {
     expect(result).toEqual(failure("NOT_IN_SAME_CLINIC"));
   });
 
+  it("transfere: o colega vira dono, o antigo dono perde o acesso e os compartilhamentos somem", async () => {
+    const { owner, colleague, admin, student, studentRepository, shareRepository, studentAccess, useCase } =
+      setup();
+    shareRepository.store.push(shareStudent(student, colleague.id), shareStudent(student, admin.id));
+
+    const result = await useCase.execute({
+      educatorId: owner.id,
+      studentId: student.id,
+      newEducatorEmail: colleague.email,
+    });
+
+    expect(result.ok).toBe(true);
+    expect((result as any).value.educatorId).toBe(colleague.id.value);
+    const saved = await studentRepository.getById(student.id);
+    expect(saved?.educatorId.value).toBe(colleague.id.value);
+    expect(shareRepository.store).toEqual([]);
+    expect(await studentAccess.assertStudentAccess(student.id, owner.id)).toEqual({
+      ok: false,
+      error: "UNAUTHORIZED",
+    });
+    expect(await studentAccess.assertStudentAccess(student.id, admin.id)).toEqual({
+      ok: false,
+      error: "UNAUTHORIZED",
+    });
+    expect((await studentAccess.assertStudentAccess(student.id, colleague.id)).ok).toBe(true);
+
+    // O novo dono transfere; o antigo não transfere mais.
+    const byOldOwner = await useCase.execute({
+      educatorId: owner.id,
+      studentId: student.id,
+      newEducatorEmail: admin.email,
+    });
+    expect(byOldOwner).toEqual(failure("STUDENT_NOT_ASSIGNED_TO_CURRENT_EDUCATOR"));
+  });
+
   it("dono numa clínica: colega da mesma clínica é aceito", async () => {
     const { owner, colleague, student, useCase } = setup();
 
@@ -148,6 +184,7 @@ describe("AssignEducatorUseCase", () => {
     };
     expect(updatedStudent.educators.map((e) => e.id)).toContain(owner.id.value);
     expect(updatedStudent.educators.map((e) => e.id)).toContain(newEducator.id.value);
+    expect((result as any).value.educatorId).toBe(newEducator.id.value);
 
     const savedStudent = await studentRepository.getById(student.id);
     expect(savedStudent?.educators.map((e) => e.email)).toContain(newEducator.email);

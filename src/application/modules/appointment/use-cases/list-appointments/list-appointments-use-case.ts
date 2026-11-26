@@ -26,7 +26,8 @@ export class ListAppointmentsUseCase {
       return failure("INVALID_PERIOD");
     }
 
-    // Sem aluno: a agenda do educador. Com aluno: os atendimentos dele de
+    // Sem aluno: a agenda do educador, só com os alunos que ele ainda acessa.
+    // Com aluno: os atendimentos dele de
     // qualquer educador, para quem acessa o aluno (EQ-11).
     if (request.studentId) {
       const access = await this.studentAccess.assertStudentAccess(
@@ -43,6 +44,17 @@ export class ListAppointmentsUseCase {
       scheduledBefore: request.to ? endOfDayInSaoPaulo(request.to) : undefined,
     });
 
-    return success(appointments.map(mapAppointmentToResponse));
+    if (request.studentId) return success(appointments.map(mapAppointmentToResponse));
+
+    // Agenda: só os atendimentos de alunos que o educador ainda acessa.
+    const accessible = await this.studentAccess.accessibleIdsAmong(
+      appointments.map((appointment) => appointment.studentId),
+      request.educatorId
+    );
+    return success(
+      appointments
+        .filter((appointment) => accessible.has(appointment.studentId.value))
+        .map(mapAppointmentToResponse)
+    );
   }
 }

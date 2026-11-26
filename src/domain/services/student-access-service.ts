@@ -91,10 +91,7 @@ export class StudentAccessService {
 
     return [
       ...owned.map((student) => ({ student, access: "OWNER" as const })),
-      // O aluno pode ter mudado de dono para o próprio compartilhado.
-      ...shared
-        .filter((student) => student.educatorId.value !== educatorId.value)
-        .map((student) => ({ student, access: "SHARED" as const })),
+      ...shared.map((student) => ({ student, access: "SHARED" as const })),
     ];
   }
 }

@@ -20,7 +20,7 @@ describe("ListAppointmentsUseCase", () => {
   const otherStudent = makeStudent(Uuid.random());
   const notShared = makeStudent(Uuid.random());
   const at = (iso: string) =>
-    Appointment.create({ educatorId, studentId: Uuid.random(), scheduledAt: new Date(iso) });
+    Appointment.create({ educatorId, studentId: student.id, scheduledAt: new Date(iso) });
 
   // 10/11 23:30 em SP; 11/11 00:00 e 23:59 em SP; 12/11 00:00 em SP.
   const beforeRange = at("2026-11-11T02:30:00.000Z");
