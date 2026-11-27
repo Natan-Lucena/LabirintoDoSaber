@@ -8,6 +8,11 @@ import { PlanRepository } from "../../../../../domain/repositories/plan-reposito
 import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 import { makeAnswer, makePdi, makePe, makeSession, makeStudent } from "../test-fixtures";
 import { ActivityResult } from "../../../../../domain/entities/activity-result";
 import { Task } from "../../../../../domain/entities/task";
@@ -25,6 +30,7 @@ describe("GetEvolutionContextUseCase", () => {
   let session: TaskNotebookSession;
   let sessionRepository: TaskNotebookSessionRepository;
   let studentRepository: StudentRepository;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let planRepository: PlanRepository;
   let evolutionRepository: SessionEvolutionRepository;
   let activityResultRepository: ActivityResultRepository;
@@ -60,9 +66,10 @@ describe("GetEvolutionContextUseCase", () => {
     } as unknown as ActivityResultRepository;
     taskRepository = makeTaskRepository();
 
+    shareRepository = makeShareRepository();
     useCase = new GetEvolutionContextUseCase(
       sessionRepository,
-      studentRepository,
+      makeStudentAccess(studentRepository, shareRepository),
       planRepository,
       evolutionRepository,
       activityResultRepository,
@@ -174,8 +181,7 @@ describe("GetEvolutionContextUseCase", () => {
     await execute();
 
     expect(planRepository.search).toHaveBeenCalledWith({
-      educatorId,
-      studentId: student.id,
+      studentIds: [student.id],
       status: PlanStatus.ACTIVE,
     });
   });
@@ -262,6 +268,22 @@ describe("GetEvolutionContextUseCase", () => {
 
     (sessionRepository.getById as any).mockResolvedValue(null);
     expect(await execute()).toEqual({ ok: false, error: "SESSION_NOT_FOUND" });
+  });
+
+  it("should give the context to a colleague the student is shared with (EQ-11)", async () => {
+    const colleagueId = Uuid.random();
+    await shareRepository.create(shareStudent(student, colleagueId));
+
+    const result = await execute({ educatorId: colleagueId });
+
+    expect(result.ok).toBe(true);
+    expect((result as any).value.session.studentName).toBe("Ana");
+
+    await shareRepository.delete(student.id, colleagueId);
+    expect(await execute({ educatorId: colleagueId })).toEqual({
+      ok: false,
+      error: "UNAUTHORIZED",
+    });
   });
 
   it("should return UNAUTHORIZED for another educator", async () => {

@@ -1,7 +1,7 @@
 import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { TaskNotebookRepository } from "../../../../../domain/repositories/task-notebook-repository";
 import { TaskNotebookSession } from "../../../../../domain/entities/task-notebook-session";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 import { AppointmentRepository } from "../../../../../domain/repositories/appointment-repository";
 
@@ -17,18 +17,18 @@ export class StartTaskNotebookSessionUseCase {
   constructor(
     private notebookRepository: TaskNotebookRepository,
     private sessionRepository: TaskNotebookSessionRepository,
-    private studentRepository: StudentRepository,
+    private studentAccess: StudentAccessService,
     private appointmentRepository: AppointmentRepository
   ) {}
 
   async execute(request: StartTaskNotebookSessionUseCaseRequest) {
-    const student = await this.studentRepository.getById(
-      new Uuid(request.studentId)
+    // Dono ou compartilhado (EQ-11); a sessão guarda quem conduziu (EQ-12).
+    const access = await this.studentAccess.assertStudentAccess(
+      new Uuid(request.studentId),
+      request.educatorId
     );
-
-    if (!student) {
-      return failure("STUDENT_NOT_FOUND");
-    }
+    if (!access.ok) return access;
+    const student = access.value;
 
     let taskNotebookId: Uuid | undefined;
     if (request.taskNotebookId) {
@@ -46,11 +46,9 @@ export class StartTaskNotebookSessionUseCase {
       const appointment = await this.appointmentRepository.findById(
         new Uuid(request.appointmentId)
       );
-      if (
-        !appointment ||
-        appointment.educatorId.value !== request.educatorId.value ||
-        appointment.studentId.value !== student.id.value
-      ) {
+      // O atendimento é dado clínico do aluno: vale o de qualquer educador
+      // com acesso a ele, inclusive o do dono para o compartilhado.
+      if (!appointment || appointment.studentId.value !== student.id.value) {
         return failure("APPOINTMENT_NOT_FOUND");
       }
       appointmentId = appointment.id;

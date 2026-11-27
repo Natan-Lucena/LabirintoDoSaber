@@ -36,8 +36,8 @@ export class RemoveClinicMemberUseCase {
 
     // Único membro: sai e a clínica acaba, com os convites ativos revogados.
     if (members.length === 1) {
-      await this.departureService.undoSharesOf(clinicId, educatorId);
       await this.memberRepository.deleteByEducatorId(educatorId);
+      await this.departureService.undoSharesOf(clinicId, educatorId);
       await this.inviteRepository.revokeActive({ clinicId }, now);
       await this.clinicRepository.delete(clinicId);
       return success(undefined);
@@ -46,10 +46,11 @@ export class RemoveClinicMemberUseCase {
     // EQ-08: com outros membros, o último ADMIN não sai nem é removido.
     if (isLastAdmin(target, members)) return failure("LAST_ADMIN" as const);
 
-    // EQ-09: desfaz os compartilhamentos antes de tirar o vínculo; os
-    // pacientes dos quais ele é dono continuam com ele.
-    await this.departureService.undoSharesOf(clinicId, educatorId);
+    // EQ-09: tira o vínculo primeiro, para ele não compartilhar de novo no
+    // meio da saída (compartilhar exige a mesma clínica); depois desfaz os
+    // compartilhamentos. Os pacientes dos quais ele é dono continuam com ele.
     await this.memberRepository.deleteByEducatorId(educatorId);
+    await this.departureService.undoSharesOf(clinicId, educatorId);
     // Os convites ativos que um ADMIN criou deixam de valer quando ele sai.
     if (target.isAdmin) {
       await this.inviteRepository.revokeActive({ clinicId, createdBy: educatorId }, now);

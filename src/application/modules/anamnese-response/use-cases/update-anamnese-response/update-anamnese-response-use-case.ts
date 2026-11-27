@@ -2,6 +2,8 @@ import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { AnamneseTemplateRepository } from "../../../../../domain/repositories/anamnese-template-repository";
 import { AnamneseResponseRepository } from "../../../../../domain/repositories/anamnese-response-repository";
 import { AnamneseAnswerInput } from "../../../../../domain/entities/anamnese-response";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
+import { loadAccessibleResponse } from "../response-access";
 
 interface UpdateAnamneseResponseUseCaseRequest {
   responseId: string;
@@ -12,24 +14,19 @@ interface UpdateAnamneseResponseUseCaseRequest {
 export class UpdateAnamneseResponseUseCase {
   constructor(
     private templateRepository: AnamneseTemplateRepository,
-    private responseRepository: AnamneseResponseRepository
+    private responseRepository: AnamneseResponseRepository,
+    private studentAccess: StudentAccessService
   ) {}
 
   async execute(request: UpdateAnamneseResponseUseCaseRequest) {
-    if (!Uuid.isValid(request.responseId)) {
-      return failure("RESPONSE_NOT_FOUND");
-    }
-
-    const response = await this.responseRepository.findById(
-      new Uuid(request.responseId)
+    const access = await loadAccessibleResponse(
+      this.responseRepository,
+      this.studentAccess,
+      request.responseId,
+      request.educatorId
     );
-    if (!response) {
-      return failure("RESPONSE_NOT_FOUND");
-    }
-
-    if (response.educatorId.value !== request.educatorId.value) {
-      return failure("UNAUTHORIZED");
-    }
+    if (!access.ok) return access;
+    const { response } = access.value;
 
     const template = await this.templateRepository.findById(response.templateId);
     if (!template) {

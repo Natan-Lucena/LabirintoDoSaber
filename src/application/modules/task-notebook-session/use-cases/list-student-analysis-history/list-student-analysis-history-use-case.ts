@@ -1,21 +1,28 @@
-import { Uuid } from "@wave-telecom/framework/core";
+import { success, Uuid } from "@wave-telecom/framework/core";
 import { StudentAnalysisReportRepository } from "../../../../../domain/repositories/student-analysis-report-repository";
-import { StudentAnalysisReport } from "../../../../../domain/entities/student-analysis-report";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 
 export interface ListStudentAnalysisHistoryRequest {
   studentId: string;
+  educatorId: Uuid;
 }
 
 export class ListStudentAnalysisHistoryUseCase {
   constructor(
-    private studentAnalysisReportRepository: StudentAnalysisReportRepository
+    private studentAnalysisReportRepository: StudentAnalysisReportRepository,
+    private studentAccess: StudentAccessService
   ) {}
 
-  async execute(
-    request: ListStudentAnalysisHistoryRequest
-  ): Promise<StudentAnalysisReport[]> {
-    return this.studentAnalysisReportRepository.listByStudentId(
-      new Uuid(request.studentId)
+  async execute(request: ListStudentAnalysisHistoryRequest) {
+    // EQ-11: dono ou compartilhado.
+    const access = await this.studentAccess.assertStudentAccess(
+      new Uuid(request.studentId),
+      request.educatorId
+    );
+    if (!access.ok) return access;
+
+    return success(
+      await this.studentAnalysisReportRepository.listByStudentId(access.value.id)
     );
   }
 }

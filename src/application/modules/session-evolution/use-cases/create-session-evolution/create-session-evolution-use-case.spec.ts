@@ -17,6 +17,11 @@ import {
 } from "../../../../../domain/repositories/session-evolution-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 import { closePlan, makePdi, makeSession, makeStudent } from "../test-fixtures";
 
 describe("CreateSessionEvolutionUseCase", () => {
@@ -27,6 +32,7 @@ describe("CreateSessionEvolutionUseCase", () => {
   let plan: Plan;
   let sessionRepository: TaskNotebookSessionRepository;
   let studentRepository: StudentRepository;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let planRepository: PlanRepository;
   let evolutionRepository: SessionEvolutionRepository;
   let useCase: CreateSessionEvolutionUseCase;
@@ -74,9 +80,10 @@ describe("CreateSessionEvolutionUseCase", () => {
       save: vi.fn().mockResolvedValue(undefined),
     } as unknown as SessionEvolutionRepository;
 
+    shareRepository = makeShareRepository();
     useCase = new CreateSessionEvolutionUseCase(
       sessionRepository,
-      studentRepository,
+      makeStudentAccess(studentRepository, shareRepository),
       planRepository,
       evolutionRepository
     );
@@ -270,20 +277,44 @@ describe("CreateSessionEvolutionUseCase", () => {
     expect(result).toEqual({ ok: false, error: "INVALID_ATTEMPTS" });
     expectNothingSaved();
   });
-  it("should return INVALID_PLAN for a plan of another educator", async () => {
-    (planRepository.findById as any).mockResolvedValue(
-      makePdi(Uuid.random(), student.id)
-    );
+  describe("shared student (EQ-11)", () => {
+    const colleagueId = Uuid.random();
 
-    const result = await useCase.execute(
-      request({
-        planId: plan.id.value,
-        goalUpdates: [{ goalId: plan.goals[0].id.value, status: GoalStatus.ACHIEVED }],
-      })
-    );
+    it("should let the colleague create the evolution using the owner's plan and record the colleague as author", async () => {
+      await shareRepository.create(shareStudent(student, colleagueId));
+      const goalId = plan.goals[0].id.value;
 
-    expect(result).toEqual({ ok: false, error: "INVALID_PLAN" });
-    expectNothingSaved();
+      const result = await useCase.execute(
+        request({
+          educatorId: colleagueId,
+          planId: plan.id.value,
+          goalUpdates: [{ goalId, status: GoalStatus.ACHIEVED }],
+        })
+      );
+
+      expect(result.ok).toBe(true);
+      const evolution = (result as any).value as SessionEvolution;
+      expect(evolution.educatorId.value).toBe(colleagueId.value);
+      expect(evolution.planId?.value).toBe(plan.id.value);
+      const savedPlan = (planRepository.save as any).mock.calls[0][0] as Plan;
+      expect(savedPlan.goals[0].status).toBe(GoalStatus.ACHIEVED);
+    });
+
+    it("should return UNAUTHORIZED for a colleague without share and after the share is undone", async () => {
+      expect(await useCase.execute(request({ educatorId: colleagueId }))).toEqual({
+        ok: false,
+        error: "UNAUTHORIZED",
+      });
+
+      await shareRepository.create(shareStudent(student, colleagueId));
+      await shareRepository.delete(student.id, colleagueId);
+
+      expect(await useCase.execute(request({ educatorId: colleagueId }))).toEqual({
+        ok: false,
+        error: "UNAUTHORIZED",
+      });
+      expectNothingSaved();
+    });
   });
 
   it("should return 409 with the winner id when a parallel creation hits the unique sessionId", async () => {

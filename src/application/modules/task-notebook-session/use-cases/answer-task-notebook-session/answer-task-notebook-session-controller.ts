@@ -32,7 +32,8 @@ export class AnswerTaskNotebookSessionController extends BaseController {
     if (!result.ok) {
       switch (result.error) {
         case "SESSION_NOT_FOUND":
-          return this.notFound(res, "SESSION_NOT_FOUND");
+        case "STUDENT_NOT_FOUND":
+          return this.notFound(res, result.error);
         case "SESSION_ALREADY_FINISHED":
           return this.clientError(res, "SESSION_ALREADY_FINISHED");
         case "TASK_NOT_FOUND":

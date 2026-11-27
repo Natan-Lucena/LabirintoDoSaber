@@ -1,7 +1,7 @@
 import { success, Uuid } from "@wave-telecom/framework/core";
 import { ReportRepository } from "../../../../../domain/repositories/report-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
-import { loadOwnedReport } from "../report-access";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
+import { loadAccessibleReport } from "../report-access";
 
 export interface DeleteReportUseCaseRequest {
   educatorId: Uuid;
@@ -12,13 +12,13 @@ export interface DeleteReportUseCaseRequest {
 export class DeleteReportUseCase {
   constructor(
     private reportRepository: ReportRepository,
-    private studentRepository: StudentRepository
+    private studentAccess: StudentAccessService
   ) {}
 
   async execute(request: DeleteReportUseCaseRequest) {
-    const access = await loadOwnedReport(
+    const access = await loadAccessibleReport(
       this.reportRepository,
-      this.studentRepository,
+      this.studentAccess,
       request.reportId,
       request.educatorId
     );

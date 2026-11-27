@@ -6,7 +6,9 @@ import {
   makePlanRepository,
   makeScaleApplicationRepository,
   makeSessionEvolutionRepository,
+  makeStudentAccessService,
   makeStudentRepository,
+  makeStudentShareRepository,
   makeTaskNotebookSessionRepository,
 } from "../../../../infraestructure/factories";
 import {
@@ -29,6 +31,7 @@ const notificationRouter = Router();
 const educatorRepository = makeEducatorRepository({ isMock: false });
 const studentRepository = makeStudentRepository({ isMock: false });
 const notificationRepository = makeNotificationRepository();
+const studentAccess = makeStudentAccessService();
 
 const generateDailyNotificationsUseCase = new GenerateDailyNotificationsUseCase(
   makeAppointmentRepository(),
@@ -37,15 +40,16 @@ const generateDailyNotificationsUseCase = new GenerateDailyNotificationsUseCase(
   makePlanRepository(),
   makeScaleApplicationRepository(),
   studentRepository,
-  notificationRepository
+  notificationRepository,
+  makeStudentShareRepository()
 );
 const listNotificationsUseCase = new ListNotificationsUseCase(
   notificationRepository,
-  studentRepository
+  studentAccess
 );
 const unreadCountUseCase = new UnreadCountUseCase(
   notificationRepository,
-  studentRepository
+  studentAccess
 );
 const markNotificationReadUseCase = new MarkNotificationReadUseCase(notificationRepository);
 const markAllNotificationsReadUseCase = new MarkAllNotificationsReadUseCase(

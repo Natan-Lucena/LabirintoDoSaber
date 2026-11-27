@@ -6,6 +6,7 @@ export interface PlanSuggestionRepository {
   findById(id: Uuid): Promise<PlanSuggestion | null>;
   // Ordenado por createdAt desc.
   listByEducatorId(educatorId: Uuid, status?: SuggestionStatus): Promise<PlanSuggestion[]>;
-  countPendingByPlanId(planId: Uuid): Promise<number>;
+  // Pendentes do educador no plano (limite de 3 por plano e educador).
+  countPendingByPlanIdAndEducator(planId: Uuid, educatorId: Uuid): Promise<number>;
   dismissPendingByPlanId(planId: Uuid): Promise<void>;
 }

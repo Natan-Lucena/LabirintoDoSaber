@@ -7,11 +7,17 @@ import { Gender, Student } from "../../../../../domain/entities/student";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
 import { PlanReviewRepository } from "../../../../../domain/repositories/plan-review-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 
 describe("CreatePlanReviewUseCase", () => {
   let planRepository: PlanRepository;
   let planReviewRepository: PlanReviewRepository;
   let studentRepository: StudentRepository;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let useCase: CreatePlanReviewUseCase;
   let plan: Plan;
 
@@ -57,7 +63,8 @@ describe("CreatePlanReviewUseCase", () => {
     studentRepository = {
       getById: vi.fn().mockResolvedValue(student),
     } as unknown as StudentRepository;
-    useCase = new CreatePlanReviewUseCase(planRepository, planReviewRepository, studentRepository);
+    shareRepository = makeShareRepository();
+    useCase = new CreatePlanReviewUseCase(planRepository, planReviewRepository, makeStudentAccess(studentRepository, shareRepository));
   });
 
   it("should save the review and update the plan nextReviewDate", async () => {
@@ -90,5 +97,35 @@ describe("CreatePlanReviewUseCase", () => {
     expect(result).toEqual({ ok: false, error: "INVALID_DATES" });
     expect(planRepository.save).not.toHaveBeenCalled();
     expect(planReviewRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("should let a colleague the student is shared with review the owner plan", async () => {
+    // Plano criado pelo dono; o colega com quem o aluno foi compartilhado
+    // escreve nele como o dono (EQ-11).
+    const colleagueId = Uuid.random();
+    await shareRepository.create(shareStudent(student, colleagueId));
+
+    const result = await useCase.execute({
+      educatorId: colleagueId,
+      planId: plan.id.value,
+      note: "Revisão do colega",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(planReviewRepository.save).toHaveBeenCalledOnce();
+  });
+
+  it("should return UNAUTHORIZED to a colleague after the share is undone", async () => {
+    const colleagueId = Uuid.random();
+    await shareRepository.create(shareStudent(student, colleagueId));
+    await shareRepository.delete(student.id, colleagueId);
+
+    const result = await useCase.execute({
+      educatorId: colleagueId,
+      planId: plan.id.value,
+      note: "Revisão do colega",
+    });
+
+    expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
   });
 });

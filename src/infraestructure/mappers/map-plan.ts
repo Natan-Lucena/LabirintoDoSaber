@@ -2,9 +2,11 @@ import { Plan } from "../../domain/entities/plan";
 import { PlanReview } from "../../domain/entities/plan-review";
 import { PlanSuggestion } from "../../domain/entities/plan-suggestion";
 
-export function mapPlanToResponse(plan: Plan) {
+// authorName (EQ-12): só quando o autor do plano não é quem lê.
+export function mapPlanToResponse(plan: Plan, authorName?: string) {
   return {
     ...mapPlanFields(plan),
+    authorName,
     goals: plan.goals.map((goal) => ({
       id: goal.id.value,
       order: goal.order,
@@ -17,10 +19,11 @@ export function mapPlanToResponse(plan: Plan) {
   };
 }
 
-export function mapPlanToSummary(plan: Plan, studentName: string) {
+export function mapPlanToSummary(plan: Plan, studentName: string, authorName?: string) {
   return {
     ...mapPlanFields(plan),
     studentName,
+    authorName,
   };
 }
 

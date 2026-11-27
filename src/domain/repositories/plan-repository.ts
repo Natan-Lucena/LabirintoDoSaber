@@ -2,8 +2,9 @@ import { Uuid } from "@wave-telecom/framework/core";
 import { Plan, PlanStatus, PlanType } from "../entities/plan";
 
 export interface SearchPlanParams {
-  educatorId: Uuid;
-  studentId?: Uuid;
+  // Alunos que o educador acessa (dono ou compartilhado); o autor gravado no
+  // plano não entra (EQ-11).
+  studentIds: Uuid[];
   status?: PlanStatus;
   type?: PlanType;
 }

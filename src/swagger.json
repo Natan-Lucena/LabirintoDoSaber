@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Maze of Knowledge API",
-    "description": "API REST do Labirinto do Saber.\n\n- Rotas autenticadas exigem `Authorization: Bearer <JWT>` (obtido em `POST /educator/sign-in`).\n- Erros seguem `{ message }`; falhas de validação Zod devolvem `{ message: \"Bad Request\", errors: [{ message, field }] }`; erros 500 de `fail()` trazem `{ message, error }`.\n- Uploads usam multipart/form-data. Arquivo acima do limite do Multer cai no handler padrão do Express (500).",
+    "description": "API REST do Labirinto do Saber.\n\n- Rotas autenticadas exigem `Authorization: Bearer <JWT>` (obtido em `POST /educator/sign-in`).\n- Erros seguem `{ message }`; falhas de validação Zod devolvem `{ message: \"Bad Request\", errors: [{ message, field }] }`; erros 500 de `fail()` trazem `{ message, error }`.\n- Uploads usam multipart/form-data. Arquivo acima do limite do Multer cai no handler padrão do Express (500).\n- Acesso clínico (sessões, análises, evolução, planos, escalas, anamnese, relatórios, atendimentos): dono do paciente ou educador com quem ele foi compartilhado (`/student/{id}/shares`). Fora do alcance: `403 { message: \"UNAUTHORIZED\" }`. Cadastro, documentos, compartilhar e transferir são só do dono.",
     "version": "1.0.0"
   },
   "servers": [
@@ -1715,7 +1715,7 @@
         "tags": [
           "Student"
         ],
-        "summary": "Transfere o aluno para outro educador.",
+        "summary": "Transfere o paciente para outro educador (só o dono).",
         "requestBody": {
           "required": true,
           "content": {
@@ -1738,7 +1738,7 @@
             }
           },
           "400": {
-            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `STUDENT_NOT_FOUND`, `STUDENT_NOT_ASSIGNED_TO_CURRENT_EDUCATOR`, `NEW_EDUCATOR_NOT_FOUND`.",
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `STUDENT_NOT_FOUND`, `STUDENT_NOT_ASSIGNED_TO_CURRENT_EDUCATOR`, `NEW_EDUCATOR_NOT_FOUND`, `NOT_IN_SAME_CLINIC`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1776,6 +1776,11 @@
                   "NEW_EDUCATOR_NOT_FOUND": {
                     "value": {
                       "message": "NEW_EDUCATOR_NOT_FOUND"
+                    }
+                  },
+                  "NOT_IN_SAME_CLINIC": {
+                    "value": {
+                      "message": "NOT_IN_SAME_CLINIC"
                     }
                   }
                 }
@@ -1832,7 +1837,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "O novo educador passa a ser o dono (`educatorId` da resposta) e entra na lista `educators`. Todos os compartilhamentos do paciente são desfeitos; o novo dono recompartilha se quiser. O antigo dono perde o acesso, salvo se o novo dono compartilhar com ele. Só o dono transfere (o compartilhado recebe `STUDENT_NOT_ASSIGNED_TO_CURRENT_EDUCATOR`). Quando o dono está numa clínica, o novo educador precisa ser membro dela (EQ-15). Transferir para o próprio dono não muda nada."
       }
     },
     "/student": {
@@ -1840,7 +1846,7 @@
         "tags": [
           "Student"
         ],
-        "summary": "Lista os alunos do educador autenticado.",
+        "summary": "Lista os pacientes do educador e os compartilhados com ele.",
         "responses": {
           "200": {
             "description": "Sucesso.",
@@ -1849,7 +1855,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Student"
+                    "$ref": "#/components/schemas/StudentListItem"
                   }
                 }
               }
@@ -1876,6 +1882,421 @@
                   "Educator not found": {
                     "value": {
                       "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Traz os pacientes dos quais o educador é dono (`access: OWNER`) e os compartilhados com ele (`access: SHARED`, com `ownerName`). Pertencer à clínica não dá acesso: o ADMIN só vê o que foi compartilhado com ele (EQ-13)."
+      }
+    },
+    "/student/{id}/shares": {
+      "get": {
+        "tags": [
+          "Student"
+        ],
+        "summary": "Lista com quem o paciente foi compartilhado.",
+        "description": "Lê quem acessa o paciente (dono ou compartilhado).",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Compartilhamentos do paciente, em ordem de criação.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StudentShare"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Paciente fora do alcance do educador (nem dono nem compartilhado).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Paciente inexistente ou id que não é UUID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Student"
+        ],
+        "summary": "Compartilha o paciente com um colega da clínica (só o dono).",
+        "description": "O colega passa a ler e escrever os dados clínicos como o dono (EQ-11); não compartilha, transfere nem edita o cadastro. Repetir é idempotente. Compartilhar com o próprio dono não cria nada.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudentShareBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Compartilhamentos do paciente, em ordem de criação.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StudentShare"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod, ou o educador não é membro da clínica do dono (inclui dono sem clínica e educador inexistente).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "educatorId"
+                        }
+                      ]
+                    }
+                  },
+                  "NOT_IN_SAME_CLINIC": {
+                    "value": {
+                      "message": "NOT_IN_SAME_CLINIC"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Só o dono compartilha.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Paciente inexistente ou id que não é UUID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/student/{id}/shares/{educatorId}": {
+      "delete": {
+        "tags": [
+          "Student"
+        ],
+        "summary": "Desfaz o compartilhamento (só o dono).",
+        "description": "O colega perde o acesso na hora; os registros que ele criou continuam no paciente.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "educatorId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Compartilhamentos do paciente, em ordem de criação.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StudentShare"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Só o dono desfaz.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Paciente inexistente, ou o paciente não está compartilhado com esse educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  },
+                  "SHARE_NOT_FOUND": {
+                    "value": {
+                      "message": "SHARE_NOT_FOUND"
                     }
                   }
                 }
@@ -3121,7 +3542,7 @@
           "Task"
         ],
         "summary": "Até 6 atividades recomendadas para o aluno (regra, sem IA).",
-        "description": "Pontua biblioteca + tarefas do educador pelas habilidades ligadas às `learningTopics` do aluno e pela categoria de menor acerto nas últimas 5 sessões; tira as respondidas nas 3 últimas sessões. Só o dono atual do aluno.",
+        "description": "Pontua biblioteca + tarefas do educador pelas habilidades ligadas às `learningTopics` do aluno e pela categoria de menor acerto nas últimas 5 sessões; tira as respondidas nas 3 últimas sessões.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).",
         "parameters": [
           {
             "name": "studentId",
@@ -4900,6 +5321,23 @@
               }
             }
           },
+          "403": {
+            "description": "Paciente fora do alcance do educador (nem dono nem compartilhado).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "404": {
             "description": "`STUDENT_NOT_FOUND`, `NOTEBOOK_NOT_FOUND`, `APPOINTMENT_NOT_FOUND`",
             "content": {
@@ -4956,7 +5394,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\n`appointmentId` vale para atendimento do mesmo aluno, de qualquer educador. O caderno continua tendo de ser do educador."
       }
     },
     "/task-notebook-session/answer": {
@@ -5069,7 +5508,7 @@
             }
           },
           "403": {
-            "description": "`UNAUTHORIZED`: em sessão sem caderno, atividade que o educador não pode usar (de outro educador, ou antiga de cadernos/grupos de outros educadores).",
+            "description": "`UNAUTHORIZED`: em sessão sem caderno, atividade que o educador não pode usar (de outro educador, ou antiga de cadernos/grupos de outros educadores). Paciente fora do alcance do educador (nem dono nem compartilhado).",
             "content": {
               "application/json": {
                 "schema": {
@@ -5086,7 +5525,7 @@
             }
           },
           "404": {
-            "description": "`SESSION_NOT_FOUND`, `TASK_NOT_FOUND`, `NOTEBOOK_NOT_FOUND`",
+            "description": "`SESSION_NOT_FOUND`, `TASK_NOT_FOUND`, `NOTEBOOK_NOT_FOUND` Aluno da sessão inexistente.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5106,6 +5545,11 @@
                   "NOTEBOOK_NOT_FOUND": {
                     "value": {
                       "message": "NOTEBOOK_NOT_FOUND"
+                    }
+                  },
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
                     }
                   }
                 }
@@ -5135,7 +5579,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/task-notebook-session/activity-result": {
@@ -5144,7 +5589,7 @@
           "Task Notebook Session"
         ],
         "summary": "Registra o resultado de um jogo (tipo jogável novo) na sessão.",
-        "description": "Um resultado por atividade e sessão. Só em sessão ativa e para quem pode ler o aluno. Os resultados não entram no accuracy das análises; aparecem em `activitySummary`/`activityResults` do relatório, na lista de sessões do aluno e no contexto da evolução.",
+        "description": "Um resultado por atividade e sessão. Só em sessão ativa e para quem pode ler o aluno. Os resultados não entram no accuracy das análises; aparecem em `activitySummary`/`activityResults` do relatório, na lista de sessões do aluno e no contexto da evolução.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).",
         "requestBody": {
           "required": true,
           "content": {
@@ -5432,8 +5877,25 @@
               }
             }
           },
+          "403": {
+            "description": "Paciente fora do alcance do educador (nem dono nem compartilhado).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "404": {
-            "description": "`SESSION_NOT_FOUND`",
+            "description": "`SESSION_NOT_FOUND` Sessão ou aluno inexistente; id que não é UUID também vira 404.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5443,6 +5905,11 @@
                   "SESSION_NOT_FOUND": {
                     "value": {
                       "message": "SESSION_NOT_FOUND"
+                    }
+                  },
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
                     }
                   }
                 }
@@ -5478,7 +5945,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/task-notebook-session/observation": {
@@ -5570,8 +6038,25 @@
               }
             }
           },
+          "403": {
+            "description": "Paciente fora do alcance do educador (nem dono nem compartilhado).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "404": {
-            "description": "`SESSION_NOT_FOUND`",
+            "description": "`SESSION_NOT_FOUND` Sessão ou aluno inexistente; id que não é UUID também vira 404.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5581,6 +6066,11 @@
                   "SESSION_NOT_FOUND": {
                     "value": {
                       "message": "SESSION_NOT_FOUND"
+                    }
+                  },
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
                     }
                   }
                 }
@@ -5610,7 +6100,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/task-notebook-session/student/{studentId}": {
@@ -5695,6 +6186,40 @@
               }
             }
           },
+          "403": {
+            "description": "Paciente fora do alcance do educador (nem dono nem compartilhado).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Aluno inexistente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "500": {
             "description": "Exceção não tratada (`An unexpected error occurred`).",
             "content": {
@@ -5718,7 +6243,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/task-notebook-session/report/{sessionId}": {
@@ -5800,8 +6326,25 @@
               }
             }
           },
+          "403": {
+            "description": "Paciente fora do alcance do educador (nem dono nem compartilhado).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "404": {
-            "description": "`SESSION_NOT_FOUND`",
+            "description": "`SESSION_NOT_FOUND` Aluno da sessão inexistente.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5811,6 +6354,11 @@
                   "SESSION_NOT_FOUND": {
                     "value": {
                       "message": "SESSION_NOT_FOUND"
+                    }
+                  },
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
                     }
                   }
                 }
@@ -5840,7 +6388,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/task-notebook-session/analysis/student/{studentId}": {
@@ -5952,6 +6501,23 @@
               }
             }
           },
+          "403": {
+            "description": "Paciente fora do alcance do educador (nem dono nem compartilhado).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "404": {
             "description": "`STUDENT_NOT_FOUND`",
             "content": {
@@ -5992,7 +6558,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/task-notebook-session/analysis/student/{studentId}/snapshot": {
@@ -6104,6 +6671,23 @@
               }
             }
           },
+          "403": {
+            "description": "Paciente fora do alcance do educador (nem dono nem compartilhado).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "404": {
             "description": "`STUDENT_NOT_FOUND`",
             "content": {
@@ -6144,7 +6728,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/task-notebook-session/analysis/student/{studentId}/history": {
@@ -6229,6 +6814,40 @@
               }
             }
           },
+          "403": {
+            "description": "Paciente fora do alcance do educador (nem dono nem compartilhado).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Aluno inexistente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "500": {
             "description": "Exceção não tratada (`An unexpected error occurred`).",
             "content": {
@@ -6252,7 +6871,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/task-notebook-session/analysis/student/{studentId}/ai": {
@@ -6374,6 +6994,23 @@
               }
             }
           },
+          "403": {
+            "description": "Paciente fora do alcance do educador (nem dono nem compartilhado).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "404": {
             "description": "`STUDENT_NOT_FOUND`",
             "content": {
@@ -6414,7 +7051,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/appointment/notify": {
@@ -6580,6 +7218,40 @@
               }
             }
           },
+          "403": {
+            "description": "Paciente fora do alcance do educador (nem dono nem compartilhado).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Aluno inexistente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "409": {
             "description": "`APPOINTMENT_CONFLICT`: o horário colide com outro atendimento do educador.",
             "content": {
@@ -6613,7 +7285,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\nO atendimento entra na agenda de quem o cria; o conflito de horário é checado nessa agenda."
       },
       "get": {
         "tags": [
@@ -6696,6 +7369,40 @@
               }
             }
           },
+          "403": {
+            "description": "Paciente fora do alcance do educador (nem dono nem compartilhado).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Aluno inexistente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "500": {
             "description": "Exceção não tratada (`An unexpected error occurred`).",
             "content": {
@@ -6720,7 +7427,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Sem `from` e `to`, devolve todos os atendimentos. Os dois são dias de São Paulo e inclusivos (um atendimento às 23:59 de `to` entra).",
+        "description": "Sem `from` e `to`, devolve todos os atendimentos. Os dois são dias de São Paulo e inclusivos (um atendimento às 23:59 de `to` entra).\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\nSem `studentId`: a agenda do educador, só com atendimentos de alunos que ele ainda acessa (dono ou compartilhado). Com `studentId`: os atendimentos do aluno, de qualquer educador.",
         "parameters": [
           {
             "name": "from",
@@ -6741,6 +7448,16 @@
               "type": "string",
               "format": "date"
             }
+          },
+          {
+            "name": "studentId",
+            "in": "query",
+            "required": false,
+            "description": "Atendimentos do aluno, de qualquer educador (exige acesso ao aluno). Sem ele, a agenda do educador.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ]
       }
@@ -6751,7 +7468,7 @@
           "Appointment"
         ],
         "summary": "Detalha um atendimento.",
-        "description": "Id que não é UUID lança no controller e vira 500 `An unexpected error occurred`.",
+        "description": "Id que não é UUID lança no controller e vira 500 `An unexpected error occurred`.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\nVale para quem acessa o aluno do atendimento (dono ou compartilhado), inclusive para quem o criou: quem perdeu o acesso ao aluno recebe `NOT_FOUND`.",
         "parameters": [
           {
             "name": "id",
@@ -6849,7 +7566,7 @@
           "Appointment"
         ],
         "summary": "Atualiza, reagenda ou muda o status de um atendimento.",
-        "description": "Id que não é UUID lança no controller e vira 500 `An unexpected error occurred`.",
+        "description": "Id que não é UUID lança no controller e vira 500 `An unexpected error occurred`.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\nVale para quem acessa o aluno do atendimento (dono ou compartilhado), inclusive para quem o criou: quem perdeu o acesso ao aluno recebe `NOT_FOUND`.",
         "parameters": [
           {
             "name": "id",
@@ -7010,7 +7727,7 @@
           "Appointment"
         ],
         "summary": "Exclui um atendimento.",
-        "description": "Id que não é UUID lança no controller e vira 500 `An unexpected error occurred`.",
+        "description": "Id que não é UUID lança no controller e vira 500 `An unexpected error occurred`.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\nVale para quem acessa o aluno do atendimento (dono ou compartilhado), inclusive para quem o criou: quem perdeu o acesso ao aluno recebe `NOT_FOUND`.",
         "parameters": [
           {
             "name": "id",
@@ -7912,6 +8629,23 @@
               }
             }
           },
+          "403": {
+            "description": "Paciente fora do alcance do educador (nem dono nem compartilhado).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "404": {
             "description": "`TEMPLATE_NOT_FOUND`, `STUDENT_NOT_FOUND`",
             "content": {
@@ -7957,7 +8691,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/anamnese/responses/student/{studentId}": {
@@ -8019,6 +8754,40 @@
               }
             }
           },
+          "403": {
+            "description": "Paciente fora do alcance do educador (nem dono nem compartilhado).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Aluno inexistente ou id que não é UUID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "500": {
             "description": "Exceção não tratada (`An unexpected error occurred`).",
             "content": {
@@ -8042,7 +8811,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/anamnese/responses/{responseId}": {
@@ -8119,7 +8889,7 @@
             }
           },
           "404": {
-            "description": "`RESPONSE_NOT_FOUND` (também para id que não é UUID)",
+            "description": "`RESPONSE_NOT_FOUND` (também para id que não é UUID) Aluno da resposta inexistente.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8129,6 +8899,11 @@
                   "RESPONSE_NOT_FOUND": {
                     "value": {
                       "message": "RESPONSE_NOT_FOUND"
+                    }
+                  },
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
                     }
                   }
                 }
@@ -8158,7 +8933,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       },
       "put": {
         "tags": [
@@ -8308,7 +9084,7 @@
             }
           },
           "404": {
-            "description": "`RESPONSE_NOT_FOUND`, `TEMPLATE_NOT_FOUND`",
+            "description": "`RESPONSE_NOT_FOUND`, `TEMPLATE_NOT_FOUND` Aluno da resposta inexistente.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8323,6 +9099,11 @@
                   "TEMPLATE_NOT_FOUND": {
                     "value": {
                       "message": "TEMPLATE_NOT_FOUND"
+                    }
+                  },
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
                     }
                   }
                 }
@@ -8352,7 +9133,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/anamnese/responses/{responseId}/summary": {
@@ -8361,7 +9143,7 @@
           "Anamnese - Responses"
         ],
         "summary": "Gera (ou gera de novo) a síntese por IA da resposta de anamnese.",
-        "description": "Grava `summary = { text, generatedAt }`, até 1500 caracteres em tópicos (histórico, queixa, desenvolvimento, escola, pontos de atenção). Respostas do tipo arquivo não vão ao provedor; do aluno vão só idade e gênero.",
+        "description": "Grava `summary = { text, generatedAt }`, até 1500 caracteres em tópicos (histórico, queixa, desenvolvimento, escola, pontos de atenção). Respostas do tipo arquivo não vão ao provedor; do aluno vão só idade e gênero.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).",
         "parameters": [
           {
             "name": "responseId",
@@ -8511,7 +9293,7 @@
           "Plan"
         ],
         "summary": "Cria um PDI ou PE.",
-        "description": "PDI: `startDate` e `endDate` obrigatórios; um PDI ativo por aluno. PE: `sessionDate` obrigatório; `parentPlanId`/`appointmentId` opcionais e só no PE.",
+        "description": "PDI: `startDate` e `endDate` obrigatórios; um PDI ativo por aluno. PE: `sessionDate` obrigatório; `parentPlanId`/`appointmentId` opcionais e só no PE.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\n`appointmentId` (PE) vale para atendimento do mesmo aluno, de qualquer educador.",
         "requestBody": {
           "required": true,
           "content": {
@@ -8859,7 +9641,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\nCom `studentId`, traz os planos do aluno de todos os autores; sem ele, os dos pacientes do educador e dos compartilhados com ele."
       }
     },
     "/plan/generate": {
@@ -9024,7 +9807,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/plan/{id}": {
@@ -9140,7 +9924,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       },
       "put": {
         "tags": [
@@ -9341,7 +10126,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/plan/{id}/goals/{goalId}": {
@@ -9536,7 +10322,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/plan/{id}/status": {
@@ -9714,7 +10501,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/plan/{id}/reviews": {
@@ -9907,7 +10695,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       },
       "get": {
         "tags": [
@@ -10024,7 +10813,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/plan/{id}/suggestions/generate": {
@@ -10032,8 +10822,8 @@
         "tags": [
           "Plan - Suggestions"
         ],
-        "summary": "Gera sugestões de ajuste por IA (até 3 pendentes por plano).",
-        "description": "201 com as sugestões criadas; 200 com `[]` quando nada foi gerado (limite de pendentes atingido ou tudo descartado).",
+        "summary": "Gera sugestões de ajuste por IA (até 3 pendentes por plano e educador).",
+        "description": "201 com as sugestões criadas; 200 com `[]` quando nada foi gerado (limite de pendentes atingido ou tudo descartado).\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\nO limite de 3 sugestões pendentes conta por plano e educador: as de um colega não bloqueiam as suas.",
         "parameters": [
           {
             "name": "id",
@@ -10297,7 +11087,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\nAs sugestões são de quem as gerou; somem quando o educador perde o acesso ao aluno."
       }
     },
     "/plan/suggestions/{id}/accept": {
@@ -10306,7 +11097,7 @@
           "Plan - Suggestions"
         ],
         "summary": "Aceita uma sugestão pendente e aplica a mudança no plano.",
-        "description": "Se a mudança não puder mais ser aplicada, a sugestão é descartada e a rota devolve 409 `SUGGESTION_NOT_APPLICABLE`.",
+        "description": "Se a mudança não puder mais ser aplicada, a sugestão é descartada e a rota devolve 409 `SUGGESTION_NOT_APPLICABLE`.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).",
         "parameters": [
           {
             "name": "id",
@@ -10579,7 +11370,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/session-evolution": {
@@ -10588,7 +11380,7 @@
           "Session Evolution"
         ],
         "summary": "Registra a evolução de uma sessão finalizada.",
-        "description": "Uma evolução por sessão. Os `goalUpdates` mudam o status das metas do plano e o `descriptiveRecord` também vai para a `observation` da sessão. Tudo é validado antes de gravar: se algo falha, nada é gravado.",
+        "description": "Uma evolução por sessão. Os `goalUpdates` mudam o status das metas do plano e o `descriptiveRecord` também vai para a `observation` da sessão. Tudo é validado antes de gravar: se algo falha, nada é gravado.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\n`planId` vale para plano do mesmo aluno, de qualquer autor; a evolução grava quem a criou.",
         "requestBody": {
           "required": true,
           "content": {
@@ -10786,7 +11578,7 @@
           "Session Evolution"
         ],
         "summary": "Lista as evoluções do educador (recente primeiro).",
-        "description": "Ordenadas por `sessionDate` e depois `createdAt`, decrescente. Sem `studentId`, traz as evoluções de todos os alunos do educador.",
+        "description": "Ordenadas por `sessionDate` e depois `createdAt`, decrescente. Sem `studentId`, traz as evoluções de todos os alunos do educador.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).",
         "parameters": [
           {
             "name": "studentId",
@@ -11088,7 +11880,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/session-evolution/next-session-suggestion": {
@@ -11097,7 +11890,7 @@
           "Session Evolution"
         ],
         "summary": "Sugere por IA o que trabalhar na próxima sessão (não persiste).",
-        "description": "Usa idade e gênero do aluno, metas do plano da sessão (o mesmo de `GET /session-evolution/context/{sessionId}`), os critérios e o registro enviados, o acerto da sessão e as 3 últimas evoluções. Não envia nome, endereço, telefone, documentos nem dados do responsável.",
+        "description": "Usa idade e gênero do aluno, metas do plano da sessão (o mesmo de `GET /session-evolution/context/{sessionId}`), os critérios e o registro enviados, o acerto da sessão e as 3 últimas evoluções. Não envia nome, endereço, telefone, documentos nem dados do responsável.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).",
         "requestBody": {
           "required": true,
           "content": {
@@ -11263,7 +12056,7 @@
           "Session Evolution"
         ],
         "summary": "Sessões finalizadas sem evolução nos últimos `days` dias.",
-        "description": "Ordenadas por `finishedAt`, mais recente primeiro. Sem paginação.",
+        "description": "Ordenadas por `finishedAt`, mais recente primeiro. Sem paginação.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\nA pendência é de quem conduziu a sessão, enquanto ainda acessa o aluno (EQ-14).",
         "parameters": [
           {
             "name": "days",
@@ -11485,14 +12278,15 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       },
       "put": {
         "tags": [
           "Session Evolution"
         ],
         "summary": "Edita uma evolução (não há exclusão).",
-        "description": "Usa o plano gravado na evolução. `descriptiveRecord` alterado também atualiza a `observation` da sessão. Tudo é validado antes de gravar.",
+        "description": "Usa o plano gravado na evolução. `descriptiveRecord` alterado também atualiza a `observation` da sessão. Tudo é validado antes de gravar.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).",
         "parameters": [
           {
             "name": "id",
@@ -11860,7 +12654,7 @@
           "Scale Application"
         ],
         "summary": "Inicia uma aplicação de escala (rascunho).",
-        "description": "Grava a versão da escala; a aplicação é sempre lida e pontuada com ela. Há um rascunho por aluno e escala.",
+        "description": "Grava a versão da escala; a aplicação é sempre lida e pontuada com ela. Há um rascunho por aluno e escala.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).\n\n`appointmentId` vale para atendimento do mesmo aluno, de qualquer educador.",
         "requestBody": {
           "required": true,
           "content": {
@@ -12198,7 +12992,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/scale-application/{id}": {
@@ -12324,7 +13119,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       },
       "delete": {
         "tags": [
@@ -12453,7 +13249,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/scale-application/{id}/answers": {
@@ -12462,7 +13259,7 @@
           "Scale Application"
         ],
         "summary": "Grava respostas (parcial e idempotente, upsert por `itemId`).",
-        "description": "O escore da resposta é recalculado com todas as respostas gravadas.",
+        "description": "O escore da resposta é recalculado com todas as respostas gravadas.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).",
         "parameters": [
           {
             "name": "id",
@@ -12811,7 +13608,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/scale-application/{id}/insight": {
@@ -12820,7 +13618,7 @@
           "Scale Application"
         ],
         "summary": "Gera (ou gera de novo) o insight por IA da aplicação.",
-        "description": "Sob demanda, em DRAFT (`preliminary: true`) ou COMPLETED (`preliminary: false`). Gerar de novo substitui o anterior. Não muda o status. Exige ao menos uma resposta. Envia ao provedor só o nome e as faixas da escala, o escore e as subescalas, idade e gênero; nunca as respostas item a item.",
+        "description": "Sob demanda, em DRAFT (`preliminary: true`) ou COMPLETED (`preliminary: false`). Gerar de novo substitui o anterior. Não muda o status. Exige ao menos uma resposta. Envia ao provedor só o nome e as faixas da escala, o escore e as subescalas, idade e gênero; nunca as respostas item a item.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11).",
         "parameters": [
           {
             "name": "id",
@@ -13190,7 +13988,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       },
       "get": {
         "tags": [
@@ -13327,7 +14126,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/report/{id}": {
@@ -13448,7 +14248,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       },
       "delete": {
         "tags": [
@@ -13560,7 +14361,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/report/{id}/share": {
@@ -13701,7 +14503,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado (EQ-11)."
       }
     },
     "/notification": {
@@ -15263,7 +16066,7 @@
           "Clinic"
         ],
         "summary": "Remove um membro (só ADMIN) ou sai da clínica (o próprio id, qualquer papel).",
-        "description": "Quem sai ou é removido leva os pacientes dos quais é dono. Um ADMIN que sai ou é removido tem os convites ativos criados por ele revogados. O último ADMIN não sai nem é removido enquanto houver outros membros. Se quem sai é o único membro, a saída é permitida: os convites ativos são revogados e a clínica é apagada.",
+        "description": "Quem sai ou é removido leva os pacientes dos quais é dono; os compartilhamentos com ele e os dos pacientes dele são desfeitos. Um ADMIN que sai ou é removido tem os convites ativos criados por ele revogados. O último ADMIN não sai nem é removido enquanto houver outros membros. Se quem sai é o único membro, a saída é permitida: os convites ativos são revogados e a clínica é apagada.",
         "parameters": [
           {
             "name": "educatorId",
@@ -16714,6 +17517,10 @@
             "items": {
               "$ref": "#/components/schemas/ActivityResult"
             }
+          },
+          "authorName": {
+            "type": "string",
+            "description": "Nome de quem criou o registro. Presente só quando o autor não é quem lê (EQ-12)."
           }
         }
       },
@@ -17503,6 +18310,10 @@
             "items": {
               "$ref": "#/components/schemas/PlanGoal"
             }
+          },
+          "authorName": {
+            "type": "string",
+            "description": "Nome de quem criou o registro. Presente só quando o autor não é quem lê (EQ-12)."
           }
         },
         "required": [
@@ -17630,6 +18441,10 @@
           },
           "studentName": {
             "type": "string"
+          },
+          "authorName": {
+            "type": "string",
+            "description": "Nome de quem criou o registro. Presente só quando o autor não é quem lê (EQ-12)."
           }
         },
         "required": [
@@ -18459,6 +19274,10 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "authorName": {
+            "type": "string",
+            "description": "Nome de quem criou o registro. Presente só quando o autor não é quem lê (EQ-12)."
           }
         },
         "required": [
@@ -18513,6 +19332,10 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "authorName": {
+            "type": "string",
+            "description": "Nome de quem criou o registro. Presente só quando o autor não é quem lê (EQ-12)."
           }
         },
         "required": [
@@ -18802,6 +19625,10 @@
                 "items": {
                   "$ref": "#/components/schemas/ActivityResult"
                 }
+              },
+              "authorName": {
+                "type": "string",
+                "description": "Nome de quem conduziu a sessão. Presente só quando não é quem lê (EQ-12)."
               }
             }
           }
@@ -19943,6 +20770,10 @@
             "items": {
               "$ref": "#/components/schemas/ReportShare"
             }
+          },
+          "authorName": {
+            "type": "string",
+            "description": "Nome de quem criou o registro. Presente só quando o autor não é quem lê (EQ-12)."
           }
         },
         "required": [
@@ -20039,6 +20870,10 @@
           },
           "lastShare": {
             "$ref": "#/components/schemas/ReportShare"
+          },
+          "authorName": {
+            "type": "string",
+            "description": "Nome de quem criou o registro. Presente só quando o autor não é quem lê (EQ-12)."
           }
         },
         "required": [
@@ -21047,6 +21882,71 @@
           "id",
           "name",
           "role"
+        ]
+      },
+      "StudentShare": {
+        "type": "object",
+        "description": "Educador com quem o paciente foi compartilhado.",
+        "properties": {
+          "educatorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/TeamRole"
+          },
+          "sharedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "educatorId",
+          "name",
+          "sharedAt"
+        ]
+      },
+      "StudentShareBody": {
+        "type": "object",
+        "properties": {
+          "educatorId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Membro da mesma clínica do dono."
+          }
+        },
+        "required": [
+          "educatorId"
+        ]
+      },
+      "StudentListItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Student"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "access": {
+                "type": "string",
+                "enum": [
+                  "OWNER",
+                  "SHARED"
+                ],
+                "description": "OWNER: o educador é o dono. SHARED: compartilhado com ele."
+              },
+              "ownerName": {
+                "type": "string",
+                "description": "Nome do dono. Presente só em `access: SHARED`."
+              }
+            },
+            "required": [
+              "access"
+            ]
+          }
         ]
       }
     }

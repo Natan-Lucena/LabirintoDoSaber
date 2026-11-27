@@ -1,6 +1,7 @@
 import { success, Uuid } from "@wave-telecom/framework/core";
 import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -14,8 +15,12 @@ export class ListPendingEvolutionsUseCase {
   constructor(
     private sessionRepository: TaskNotebookSessionRepository,
     private evolutionRepository: SessionEvolutionRepository,
-    private studentRepository: StudentRepository
+    private studentRepository: StudentRepository,
+    private studentAccess: StudentAccessService
   ) {}
+
+  // EQ-14: a pendência é de quem conduziu a sessão (session.educatorId),
+  // dono ou não, enquanto ainda acessar o aluno (dono ou compartilhado).
 
   async execute(request: ListPendingEvolutionsUseCaseRequest) {
     const sessions = await this.sessionRepository.listFinishedByEducatorSince({
@@ -32,23 +37,25 @@ export class ListPendingEvolutionsUseCase {
     const students = await this.studentRepository.getByIds(
       studentIds.map((id) => new Uuid(id))
     );
-    const ownedStudents = new Map(
-      students
-        .filter((student) => student.educatorId.value === request.educatorId.value)
-        .map((student) => [student.id.value, student])
+    const accessible = await this.studentAccess.filterAccessible(
+      students,
+      request.educatorId
+    );
+    const accessibleStudents = new Map(
+      accessible.map((student) => [student.id.value, student])
     );
 
     const pending = sessions
       .filter(
         (session) =>
           !evolutionIds.has(session.id.value) &&
-          ownedStudents.has(session.studentId.value)
+          accessibleStudents.has(session.studentId.value)
       )
       .sort((a, b) => b.finishedAt!.getTime() - a.finishedAt!.getTime())
       .map((session) => ({
         sessionId: session.id.value,
         studentId: session.studentId.value,
-        studentName: ownedStudents.get(session.studentId.value)!.name,
+        studentName: accessibleStudents.get(session.studentId.value)!.name,
         sessionName: session.name,
         finishedAt: session.finishedAt!,
         appointmentId: session.appointmentId?.value,

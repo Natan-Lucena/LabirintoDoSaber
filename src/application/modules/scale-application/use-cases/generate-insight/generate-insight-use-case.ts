@@ -6,9 +6,9 @@ import {
 } from "../../../../../domain/services/ai-clinical-service";
 import { ScaleApplicationRepository } from "../../../../../domain/repositories/scale-application-repository";
 import { ScaleTemplateRepository } from "../../../../../domain/repositories/scale-template-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { callClinicalAi, clipAiText } from "../../../../services/clinical-ai-call";
-import { loadOwnedApplication, ScaleApplicationView } from "../application-access";
+import { loadAccessibleApplication, ScaleApplicationView } from "../application-access";
 
 const INSIGHT_MAX = 800;
 
@@ -23,14 +23,14 @@ export class GenerateInsightUseCase {
   constructor(
     private applicationRepository: ScaleApplicationRepository,
     private templateRepository: ScaleTemplateRepository,
-    private studentRepository: StudentRepository,
+    private studentAccess: StudentAccessService,
     private aiClinicalService: AiClinicalService
   ) {}
 
   async execute(request: GenerateInsightUseCaseRequest) {
-    const access = await loadOwnedApplication(
+    const access = await loadAccessibleApplication(
       this.applicationRepository,
-      this.studentRepository,
+      this.studentAccess,
       request.applicationId,
       request.educatorId
     );

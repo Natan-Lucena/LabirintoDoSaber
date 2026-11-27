@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { Uuid } from "@wave-telecom/framework/core";
 import { Educator } from "../../entities/educator";
 import { Gender, Student } from "../../entities/student";
 
@@ -38,5 +39,16 @@ describe("Student.update", () => {
 
     expect(student.name).toBe("Outro Nome");
     expect(student.learningTopics).toEqual(["leitura", "escrita"]);
+  });
+});
+
+describe("Student.transferTo", () => {
+  it("troca o dono do paciente", () => {
+    const student = makeStudent();
+    const newOwner = Uuid.random();
+
+    student.transferTo(newOwner);
+
+    expect(student.educatorId.value).toBe(newOwner.value);
   });
 });

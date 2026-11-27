@@ -16,8 +16,16 @@ import {
   makePrintableTask,
   makeWordBuilderTask,
 } from "../../../task/use-cases/test-fixtures";
+import { makeStudent } from "../../../session-evolution/use-cases/test-fixtures";
+import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 
 const EDUCATOR_ID = Uuid.random();
+const STUDENT = makeStudent(EDUCATOR_ID);
 
 const ID = {
   session: Uuid.random().value,
@@ -35,6 +43,7 @@ const makeSession = (
 ) => {
   const session = {
     id: new Uuid(sessionId),
+    studentId: STUDENT.id,
     notebookId: new Uuid(notebookId),
     finishedAt: finished ? new Date() : undefined,
     answers,
@@ -90,6 +99,7 @@ describe("AnswerTaskNotebookSessionUseCase", () => {
   let taskRepo: TaskRepository;
   let notebookRepo: TaskNotebookRepository;
   let taskGroupRepo: TaskGroupRepository;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let useCase: AnswerTaskNotebookSessionUseCase;
 
   beforeEach(() => {
@@ -97,9 +107,14 @@ describe("AnswerTaskNotebookSessionUseCase", () => {
     taskRepo = mockTaskRepository();
     notebookRepo = mockNotebookRepository();
     taskGroupRepo = mockTaskGroupRepository();
+    shareRepository = makeShareRepository();
+    const studentRepo = {
+      getById: vi.fn().mockResolvedValue(STUDENT),
+    } as unknown as StudentRepository;
 
     useCase = new AnswerTaskNotebookSessionUseCase(
       sessionRepo,
+      makeStudentAccess(studentRepo, shareRepository),
       taskRepo,
       notebookRepo,
       taskGroupRepo
@@ -118,6 +133,60 @@ describe("AnswerTaskNotebookSessionUseCase", () => {
     });
 
     expect(result).toEqual(failure("SESSION_NOT_FOUND"));
+  });
+
+  it("should return SESSION_NOT_FOUND for an id that is not a UUID", async () => {
+    const result = await useCase.execute({
+      educatorId: EDUCATOR_ID,
+      sessionId: "abc",
+      taskId: ID.task,
+      selectedAlternativeId: ID.altCorrect,
+      timeToAnswer: 10,
+    });
+
+    expect(result).toEqual(failure("SESSION_NOT_FOUND"));
+  });
+
+  describe("access to the student (RS-08, EQ-11)", () => {
+    const answerAs = (educatorId: Uuid) =>
+      useCase.execute({
+        educatorId,
+        sessionId: ID.session,
+        taskId: ID.task,
+        selectedAlternativeId: ID.altCorrect,
+        timeToAnswer: 10,
+      });
+
+    beforeEach(() => {
+      // Sessão sem caderno: a atividade só precisa ser utilizável pelo educador.
+      (sessionRepo.getById as any).mockResolvedValue(makeSession(ID.session, ID.notebook));
+    });
+
+    it("should return UNAUTHORIZED for an educator without access to the student", async () => {
+      const result = await answerAs(Uuid.random());
+
+      expect(result).toEqual(failure("UNAUTHORIZED"));
+      expect(taskRepo.getById).not.toHaveBeenCalled();
+      expect(sessionRepo.save).not.toHaveBeenCalled();
+    });
+
+    it("should let an educator the student is shared with answer", async () => {
+      const colleagueId = Uuid.random();
+      shareRepository.store.push(shareStudent(STUDENT, colleagueId));
+      const task = makeMultipleChoiceTask({ educatorId: colleagueId });
+      (taskRepo.getById as any).mockResolvedValue(task);
+
+      const result = await useCase.execute({
+        educatorId: colleagueId,
+        sessionId: ID.session,
+        taskId: task.id.value,
+        selectedAlternativeId: task.alternatives[0].id!.value,
+        timeToAnswer: 10,
+      });
+
+      expect(result.ok).toBe(true);
+      expect(sessionRepo.save).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("should fail if session is already finished", async () => {

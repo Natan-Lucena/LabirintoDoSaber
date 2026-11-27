@@ -12,7 +12,8 @@ import {
   demoAnswers,
   makeApplicationRepository,
   makeDemoTemplate,
-  makeStudentRepository,
+  makeStudentAccessFor,
+  shareStudent,
   makeTemplateRepository,
   startApplication,
   unwrap,
@@ -60,7 +61,7 @@ describe("GenerateInsightUseCase", () => {
     useCase = new GenerateInsightUseCase(
       applicationRepository,
       makeTemplateRepository([template]),
-      makeStudentRepository([student]),
+      makeStudentAccessFor([student]),
       aiService
     );
   });
@@ -257,6 +258,23 @@ describe("GenerateInsightUseCase", () => {
     expect(await generate("nao-e-uuid")).toEqual({
       ok: false,
       error: "APPLICATION_NOT_FOUND",
+    });
+  });
+
+  describe("paciente compartilhado (EQ-11)", () => {
+    it("lets the colleague generate the insight of a shared student", async () => {
+      const colleagueId = Uuid.random();
+      useCase = new GenerateInsightUseCase(
+        applicationRepository,
+        makeTemplateRepository([template]),
+        makeStudentAccessFor([student], [shareStudent(student, colleagueId)]),
+        aiService
+      );
+
+      const result = await generate(completed.id.value, colleagueId);
+
+      expect(result.ok).toBe(true);
+      expect(applicationRepository.saveInsight).toHaveBeenCalled();
     });
   });
 });

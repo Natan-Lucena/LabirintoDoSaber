@@ -11,6 +11,7 @@ import { PlanRepository } from "../../../../../domain/repositories/plan-reposito
 import { ScaleApplicationRepository } from "../../../../../domain/repositories/scale-application-repository";
 import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentShareRepository } from "../../../../../domain/repositories/student-share-repository";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 import {
   addDays,
@@ -38,7 +39,8 @@ export class GenerateDailyNotificationsUseCase {
     private planRepository: PlanRepository,
     private scaleApplicationRepository: ScaleApplicationRepository,
     private studentRepository: StudentRepository,
-    private notificationRepository: NotificationRepository
+    private notificationRepository: NotificationRepository,
+    private shareRepository: StudentShareRepository
   ) {}
 
   async execute() {
@@ -78,6 +80,7 @@ export class GenerateDailyNotificationsUseCase {
     );
 
     const studentIds = new Set([
+      ...appointments.map((a) => a.studentId.value),
       ...pendingSessions.map((s) => s.studentId.value),
       ...plans.map((p) => p.studentId.value),
       ...staleDrafts.map((a) => a.studentId.value),
@@ -89,10 +92,25 @@ export class GenerateDailyNotificationsUseCase {
       students.map((student) => [student.id.value, student])
     );
 
+    // EQ-14: quem não é dono só recebe enquanto o aluno está compartilhado com
+    // ele. Os compartilhamentos dos alunos envolvidos, numa consulta só.
+    const shares = studentIds.size
+      ? await this.shareRepository.listByStudentIds([...studentIds].map((id) => new Uuid(id)))
+      : [];
+    const sharedPairs = new Set(
+      shares.map((share) => `${share.studentId.value}:${share.educatorId.value}`)
+    );
+    const hasAccess = (student: Student, educatorId: Uuid) =>
+      student.educatorId.value === educatorId.value ||
+      sharedPairs.has(`${student.id.value}:${educatorId.value}`);
+
     const notifications: Notification[] = [];
 
+    // Só conta atendimento de aluno que o educador ainda acessa (EQ-11).
     const countByEducator = new Map<string, number>();
     for (const appointment of appointments) {
+      const student = studentById.get(appointment.studentId.value);
+      if (!student || !hasAccess(student, appointment.educatorId)) continue;
       const key = appointment.educatorId.value;
       countByEducator.set(key, (countByEducator.get(key) ?? 0) + 1);
     }
@@ -107,13 +125,14 @@ export class GenerateDailyNotificationsUseCase {
       );
     }
 
-    // Mesma regra do pending: a sessão é do educador e o aluno ainda é dele.
+    // EQ-14: a evolução pendente é de quem conduziu a sessão, enquanto ele
+    // ainda acessa o aluno (mesma regra da lista de pendentes).
     for (const session of pendingSessions) {
       const student = studentById.get(session.studentId.value);
-      if (!student || student.educatorId.value !== session.educatorId.value) continue;
+      if (!student || !hasAccess(student, session.educatorId)) continue;
       notifications.push(
         Notification.evolutionPending({
-          educatorId: student.educatorId,
+          educatorId: session.educatorId,
           date: today,
           studentId: student.id,
           firstName: student.firstName,
@@ -123,7 +142,7 @@ export class GenerateDailyNotificationsUseCase {
       );
     }
 
-    // Plano e escala vão para o dono atual do aluno.
+    // Revisão de plano vai para o dono atual do aluno (EQ-14).
     for (const plan of plans) {
       const student = studentById.get(plan.studentId.value);
       if (!student) continue;
@@ -140,12 +159,14 @@ export class GenerateDailyNotificationsUseCase {
       );
     }
 
+    // Rascunho de escala vai para quem começou a aplicação, enquanto ele ainda
+    // acessa o aluno (EQ-14).
     for (const application of staleDrafts) {
       const student = studentById.get(application.studentId.value);
-      if (!student) continue;
+      if (!student || !hasAccess(student, application.educatorId)) continue;
       notifications.push(
         Notification.scaleDraftStale({
-          educatorId: student.educatorId,
+          educatorId: application.educatorId,
           date: today,
           studentId: student.id,
           firstName: student.firstName,

@@ -5,6 +5,7 @@ import {
   makeAppointmentRepository,
   makeAppointmentSchedulerService,
   makeEducatorRepository,
+  makeStudentAccessService,
 } from "../../../../infraestructure/factories";
 import { NodemailerMailService } from "../../../../infraestructure/services/mail-service-impl";
 
@@ -29,13 +30,14 @@ const appointmentRouter = Router();
 const educatorRepository = makeEducatorRepository({ isMock: false });
 const appointmentRepository = makeAppointmentRepository();
 const schedulerService = makeAppointmentSchedulerService(appointmentRepository);
+const studentAccess = makeStudentAccessService();
 const mailService = new NodemailerMailService();
 
-const createAppointmentUseCase = new CreateAppointmentUseCase(appointmentRepository, schedulerService);
-const updateAppointmentUseCase = new UpdateAppointmentUseCase(appointmentRepository, schedulerService);
-const deleteAppointmentUseCase = new DeleteAppointmentUseCase(appointmentRepository, schedulerService);
-const listAppointmentsUseCase = new ListAppointmentsUseCase(appointmentRepository);
-const getAppointmentUseCase = new GetAppointmentUseCase(appointmentRepository);
+const createAppointmentUseCase = new CreateAppointmentUseCase(appointmentRepository, schedulerService, studentAccess);
+const updateAppointmentUseCase = new UpdateAppointmentUseCase(appointmentRepository, schedulerService, studentAccess);
+const deleteAppointmentUseCase = new DeleteAppointmentUseCase(appointmentRepository, schedulerService, studentAccess);
+const listAppointmentsUseCase = new ListAppointmentsUseCase(appointmentRepository, studentAccess);
+const getAppointmentUseCase = new GetAppointmentUseCase(appointmentRepository, studentAccess);
 const notifyAppointmentsUseCase = new NotifyAppointmentsUseCase(appointmentRepository, educatorRepository, schedulerService, mailService);
 const watchdogAppointmentsUseCase = new WatchdogAppointmentsUseCase(appointmentRepository, schedulerService);
 

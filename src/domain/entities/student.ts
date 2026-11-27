@@ -60,7 +60,7 @@ export class Student {
     private _learningTopics: string[],
     public readonly createdAt: Date,
     public readonly educators: Educator[],
-    public readonly educatorId: Uuid,
+    private _educatorId: Uuid,
     private _photoUrl?: string,
     private _documents: StudentDocument[] = [],
     private _guardianName?: string,
@@ -92,6 +92,15 @@ export class Student {
 
   assignEducator(educator: Educator) {
     this.educators.push(educator);
+  }
+
+  // Transfere o paciente: o novo educador passa a ser o dono.
+  transferTo(educatorId: Uuid) {
+    this._educatorId = educatorId;
+  }
+
+  get educatorId(): Uuid {
+    return this._educatorId;
   }
 
   updatePhoto(photoUrl: string) {

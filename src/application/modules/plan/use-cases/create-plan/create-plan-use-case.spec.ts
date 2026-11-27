@@ -6,6 +6,11 @@ import { Gender, Student } from "../../../../../domain/entities/student";
 import { Appointment } from "../../../../../domain/entities/appointment";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 import { AppointmentRepository } from "../../../../../domain/repositories/appointment-repository";
 import { createPlanSchema } from "../../schemas/create-plan.schema";
 
@@ -55,6 +60,7 @@ describe("CreatePlanUseCase", () => {
   let planRepository: PlanRepository;
   let studentRepository: StudentRepository;
   let appointmentRepository: AppointmentRepository;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let useCase: CreatePlanUseCase;
 
   const educatorId = Uuid.random();
@@ -98,7 +104,12 @@ describe("CreatePlanUseCase", () => {
     appointmentRepository = {
       findById: vi.fn().mockResolvedValue(null),
     } as unknown as AppointmentRepository;
-    useCase = new CreatePlanUseCase(planRepository, studentRepository, appointmentRepository);
+    shareRepository = makeShareRepository();
+    useCase = new CreatePlanUseCase(
+      planRepository,
+      makeStudentAccess(studentRepository, shareRepository),
+      appointmentRepository
+    );
   });
 
   it("should create and save an active PDI", async () => {
@@ -131,6 +142,30 @@ describe("CreatePlanUseCase", () => {
     const result = await useCase.execute(pdiRequest);
 
     expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
+  });
+
+  it("should let a colleague the student is shared with create a plan, as its author (EQ-11, EQ-12)", async () => {
+    const colleagueId = Uuid.random();
+    await shareRepository.create(shareStudent(student, colleagueId));
+
+    const result = await useCase.execute({ ...pdiRequest, educatorId: colleagueId });
+
+    expect(result.ok).toBe(true);
+    const plan = (result as any).value as Plan;
+    expect(plan.educatorId.value).toBe(colleagueId.value);
+    expect(plan.studentId.value).toBe(student.id.value);
+    expect(planRepository.save).toHaveBeenCalledWith(plan);
+  });
+
+  it("should return UNAUTHORIZED to a colleague after the share is undone", async () => {
+    const colleagueId = Uuid.random();
+    await shareRepository.create(shareStudent(student, colleagueId));
+    await shareRepository.delete(student.id, colleagueId);
+
+    const result = await useCase.execute({ ...pdiRequest, educatorId: colleagueId });
+
+    expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
+    expect(planRepository.save).not.toHaveBeenCalled();
   });
 
   it("should return STUDENT_NOT_FOUND when the student does not exist", async () => {
@@ -224,7 +259,9 @@ describe("CreatePlanUseCase", () => {
     expect(planRepository.save).not.toHaveBeenCalled();
   });
 
-  it("should return INVALID_APPOINTMENT when the appointment is of another educator", async () => {
+  it("should accept an appointment of the student made by another educator (EQ-11)", async () => {
+    // Atendimento do colega com quem o aluno é compartilhado: vale para o PE
+    // do dono, porque o acesso é pelo aluno.
     const appointment = Appointment.create({
       educatorId: Uuid.random(),
       studentId: student.id,
@@ -234,8 +271,8 @@ describe("CreatePlanUseCase", () => {
 
     const result = await useCase.execute({ ...peRequest, appointmentId: appointment.id.value });
 
-    expect(result).toEqual({ ok: false, error: "INVALID_APPOINTMENT" });
-    expect(planRepository.save).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    expect(((result as any).value as Plan).appointmentId?.value).toBe(appointment.id.value);
   });
 });
 

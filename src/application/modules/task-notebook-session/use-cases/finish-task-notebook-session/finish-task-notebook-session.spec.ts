@@ -9,6 +9,16 @@ import {
   AppointmentStatus,
 } from "../../../../../domain/entities/appointment";
 import { TaskNotebookSession } from "../../../../../domain/entities/task-notebook-session";
+import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { makeStudent } from "../../../session-evolution/use-cases/test-fixtures";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
+
+const EDUCATOR_ID = Uuid.random();
+const STUDENT = makeStudent(EDUCATOR_ID);
 
 // Factory para criar uma sessão mockada
 const makeSession = ({
@@ -18,6 +28,7 @@ const makeSession = ({
 } = {}) => {
   const session = {
     id: new Uuid(id),
+    studentId: STUDENT.id,
     finishedAt: finished ? new Date() : undefined,
     finish: vi.fn().mockImplementation(() => {
       if (!finishSuccess) return failure("ERROR");
@@ -55,14 +66,20 @@ describe("FinishTaskNotebookSessionUseCase", () => {
   let sessionRepository: TaskNotebookSessionRepository;
   let appointmentRepository: AppointmentRepository;
   let schedulerService: AppointmentSchedulerService;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let useCase: FinishTaskNotebookSessionUseCase;
 
   beforeEach(() => {
     sessionRepository = mockSessionRepository();
     appointmentRepository = mockAppointmentRepository();
     schedulerService = mockSchedulerService();
+    shareRepository = makeShareRepository();
+    const studentRepository = {
+      getById: vi.fn().mockResolvedValue(STUDENT),
+    } as unknown as StudentRepository;
     useCase = new FinishTaskNotebookSessionUseCase(
       sessionRepository,
+      makeStudentAccess(studentRepository, shareRepository),
       appointmentRepository,
       schedulerService
     );
@@ -71,17 +88,52 @@ describe("FinishTaskNotebookSessionUseCase", () => {
   it("should fail if session does not exist", async () => {
     (sessionRepository.getById as any).mockResolvedValue(null);
 
-    const result = await useCase.execute({ sessionId: Uuid.random().value });
+    const result = await useCase.execute({ sessionId: Uuid.random().value, educatorId: EDUCATOR_ID });
 
     expect(result).toEqual(failure("SESSION_NOT_FOUND"));
     expect(sessionRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("should return SESSION_NOT_FOUND for an id that is not a UUID", async () => {
+    const result = await useCase.execute({ sessionId: "abc", educatorId: EDUCATOR_ID });
+
+    expect(result).toEqual(failure("SESSION_NOT_FOUND"));
+  });
+
+  it("RS-08: should return UNAUTHORIZED for an educator without access to the student", async () => {
+    const session = makeSession({});
+    (sessionRepository.getById as any).mockResolvedValue(session);
+
+    const result = await useCase.execute({
+      sessionId: session.id.value,
+      educatorId: Uuid.random(),
+    });
+
+    expect(result).toEqual(failure("UNAUTHORIZED"));
+    expect(session.finish).not.toHaveBeenCalled();
+    expect(sessionRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("EQ-11: should let an educator the student is shared with finish the session", async () => {
+    const colleagueId = Uuid.random();
+    shareRepository.store.push(shareStudent(STUDENT, colleagueId));
+    const session = makeSession({});
+    (sessionRepository.getById as any).mockResolvedValue(session);
+
+    const result = await useCase.execute({
+      sessionId: session.id.value,
+      educatorId: colleagueId,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(sessionRepository.save).toHaveBeenCalledTimes(1);
   });
 
   it("should fail if session is already finished", async () => {
     const session = makeSession({ finished: true });
     (sessionRepository.getById as any).mockResolvedValue(session);
 
-    const result = await useCase.execute({ sessionId: Uuid.random().value });
+    const result = await useCase.execute({ sessionId: Uuid.random().value, educatorId: EDUCATOR_ID });
 
     expect(result).toEqual(failure("SESSION_ALREADY_FINISHED"));
     expect(session.finish).not.toHaveBeenCalled();
@@ -92,7 +144,7 @@ describe("FinishTaskNotebookSessionUseCase", () => {
     const session = makeSession({ finishSuccess: false });
     (sessionRepository.getById as any).mockResolvedValue(session);
 
-    const result = await useCase.execute({ sessionId: Uuid.random().value });
+    const result = await useCase.execute({ sessionId: Uuid.random().value, educatorId: EDUCATOR_ID });
 
     expect(result).toEqual(failure("SESSION_FINISH_FAILED"));
     expect(session.finish).toHaveBeenCalled();
@@ -103,7 +155,7 @@ describe("FinishTaskNotebookSessionUseCase", () => {
     const session = makeSession({});
     (sessionRepository.getById as any).mockResolvedValue(session);
 
-    const result = await useCase.execute({ sessionId: Uuid.random().value });
+    const result = await useCase.execute({ sessionId: Uuid.random().value, educatorId: EDUCATOR_ID });
 
     expect(session.finish).toHaveBeenCalled();
     expect(sessionRepository.save).toHaveBeenCalled();
@@ -125,7 +177,7 @@ describe("FinishTaskNotebookSessionUseCase", () => {
     const makeLinkedSession = (appointmentId?: Uuid) =>
       new TaskNotebookSession(
         Uuid.random(),
-        Uuid.random(),
+        STUDENT.id,
         Uuid.random(),
         "sessao",
         new Date(),
@@ -150,7 +202,7 @@ describe("FinishTaskNotebookSessionUseCase", () => {
         order.push("cancel");
       });
 
-      const result = await useCase.execute({ sessionId: session.id.value });
+      const result = await useCase.execute({ sessionId: session.id.value, educatorId: EDUCATOR_ID });
 
       expect(result.ok).toBe(true);
       const findArg = (appointmentRepository.findById as any).mock.calls[0][0] as Uuid;
@@ -169,7 +221,7 @@ describe("FinishTaskNotebookSessionUseCase", () => {
       (sessionRepository.getById as any).mockResolvedValue(session);
       (appointmentRepository.findById as any).mockResolvedValue(appointment);
 
-      const result = await useCase.execute({ sessionId: session.id.value });
+      const result = await useCase.execute({ sessionId: session.id.value, educatorId: EDUCATOR_ID });
 
       expect(result.ok).toBe(true);
       expect(appointmentRepository.save).not.toHaveBeenCalled();
@@ -184,7 +236,7 @@ describe("FinishTaskNotebookSessionUseCase", () => {
       (appointmentRepository.save as any).mockRejectedValue(new Error("db down"));
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-      const result = await useCase.execute({ sessionId: session.id.value });
+      const result = await useCase.execute({ sessionId: session.id.value, educatorId: EDUCATOR_ID });
 
       expect(result.ok).toBe(true);
       expect(sessionRepository.save).toHaveBeenCalled();
@@ -200,7 +252,7 @@ describe("FinishTaskNotebookSessionUseCase", () => {
       const session = makeLinkedSession();
       (sessionRepository.getById as any).mockResolvedValue(session);
 
-      const result = await useCase.execute({ sessionId: session.id.value });
+      const result = await useCase.execute({ sessionId: session.id.value, educatorId: EDUCATOR_ID });
 
       expect(result.ok).toBe(true);
       expect(appointmentRepository.findById).not.toHaveBeenCalled();
@@ -211,7 +263,7 @@ describe("FinishTaskNotebookSessionUseCase", () => {
       (sessionRepository.getById as any).mockResolvedValue(session);
       (appointmentRepository.findById as any).mockResolvedValue(null);
 
-      await useCase.execute({ sessionId: session.id.value });
+      await useCase.execute({ sessionId: session.id.value, educatorId: EDUCATOR_ID });
 
       const saved = (sessionRepository.save as any).mock.calls[0][0] as TaskNotebookSession;
       expect(saved.finishedAt).toBeInstanceOf(Date);

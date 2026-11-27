@@ -4,11 +4,11 @@ import { sessionDurationMinutes } from "../../../../../domain/entities/session-e
 import { selectEvolutionPlan } from "../../../../../domain/services/evolution-plan-selector";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
 import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 import { ActivityResultRepository } from "../../../../../domain/repositories/activity-result-repository";
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
-import { loadOwnedSession } from "../evolution-access";
+import { loadAccessibleSession } from "../evolution-access";
 
 export interface GetEvolutionContextUseCaseRequest {
   educatorId: Uuid;
@@ -18,7 +18,7 @@ export interface GetEvolutionContextUseCaseRequest {
 export class GetEvolutionContextUseCase {
   constructor(
     private sessionRepository: TaskNotebookSessionRepository,
-    private studentRepository: StudentRepository,
+    private studentAccess: StudentAccessService,
     private planRepository: PlanRepository,
     private evolutionRepository: SessionEvolutionRepository,
     private activityResultRepository: ActivityResultRepository,
@@ -26,9 +26,9 @@ export class GetEvolutionContextUseCase {
   ) {}
 
   async execute(request: GetEvolutionContextUseCaseRequest) {
-    const access = await loadOwnedSession(
+    const access = await loadAccessibleSession(
       this.sessionRepository,
-      this.studentRepository,
+      this.studentAccess,
       request.sessionId,
       request.educatorId
     );
@@ -38,8 +38,7 @@ export class GetEvolutionContextUseCase {
     if (!session.finishedAt) return failure("SESSION_NOT_FINISHED");
 
     const plans = await this.planRepository.search({
-      educatorId: request.educatorId,
-      studentId: session.studentId,
+      studentIds: [session.studentId],
       status: PlanStatus.ACTIVE,
     });
     const selection = selectEvolutionPlan({ session, plans });

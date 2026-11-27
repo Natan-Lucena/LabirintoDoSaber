@@ -58,9 +58,13 @@ export class PlanSuggestionRepositoryImpl implements PlanSuggestionRepository {
     return records.map((record) => this.mapToEntity(record));
   }
 
-  async countPendingByPlanId(planId: Uuid): Promise<number> {
+  async countPendingByPlanIdAndEducator(planId: Uuid, educatorId: Uuid): Promise<number> {
     return this.prismaService.planSuggestion.count({
-      where: { planId: planId.value, status: SuggestionStatus.PENDING },
+      where: {
+        planId: planId.value,
+        educatorId: educatorId.value,
+        status: SuggestionStatus.PENDING,
+      },
     });
   }
 

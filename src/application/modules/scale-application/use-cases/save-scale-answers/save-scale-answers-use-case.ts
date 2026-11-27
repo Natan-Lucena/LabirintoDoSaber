@@ -2,9 +2,9 @@ import { success, Uuid } from "@wave-telecom/framework/core";
 import { ScaleAnswer } from "../../../../../domain/entities/scale-template";
 import { ScaleApplicationRepository } from "../../../../../domain/repositories/scale-application-repository";
 import { ScaleTemplateRepository } from "../../../../../domain/repositories/scale-template-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import {
-  loadOwnedApplicationWithTemplate,
+  loadAccessibleApplicationWithTemplate,
   ScaleApplicationView,
 } from "../application-access";
 
@@ -18,14 +18,14 @@ export class SaveScaleAnswersUseCase {
   constructor(
     private applicationRepository: ScaleApplicationRepository,
     private templateRepository: ScaleTemplateRepository,
-    private studentRepository: StudentRepository
+    private studentAccess: StudentAccessService
   ) {}
 
   async execute(request: SaveScaleAnswersUseCaseRequest) {
-    const access = await loadOwnedApplicationWithTemplate(
+    const access = await loadAccessibleApplicationWithTemplate(
       this.applicationRepository,
       this.templateRepository,
-      this.studentRepository,
+      this.studentAccess,
       request.applicationId,
       request.educatorId
     );

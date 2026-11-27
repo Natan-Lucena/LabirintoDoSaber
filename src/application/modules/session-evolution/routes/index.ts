@@ -5,6 +5,7 @@ import {
   makeEducatorRepository,
   makePlanRepository,
   makeSessionEvolutionRepository,
+  makeStudentAccessService,
   makeStudentRepository,
   makeTaskNotebookSessionRepository,
   makeTaskRepository,
@@ -29,6 +30,7 @@ const sessionEvolutionRouter = Router();
 
 const educatorRepository = makeEducatorRepository({ isMock: false });
 const studentRepository = makeStudentRepository({ isMock: false });
+const studentAccess = makeStudentAccessService();
 const sessionRepository = makeTaskNotebookSessionRepository();
 const planRepository = makePlanRepository();
 const evolutionRepository = makeSessionEvolutionRepository();
@@ -38,7 +40,7 @@ const taskRepository = makeTaskRepository({ isMock: false });
 
 const getEvolutionContextUseCase = new GetEvolutionContextUseCase(
   sessionRepository,
-  studentRepository,
+  studentAccess,
   planRepository,
   evolutionRepository,
   activityResultRepository,
@@ -46,32 +48,35 @@ const getEvolutionContextUseCase = new GetEvolutionContextUseCase(
 );
 const createSessionEvolutionUseCase = new CreateSessionEvolutionUseCase(
   sessionRepository,
-  studentRepository,
+  studentAccess,
   planRepository,
   evolutionRepository
 );
 const listSessionEvolutionsUseCase = new ListSessionEvolutionsUseCase(
   evolutionRepository,
-  studentRepository
+  studentAccess,
+  educatorRepository
 );
 const getSessionEvolutionUseCase = new GetSessionEvolutionUseCase(
   evolutionRepository,
-  studentRepository
+  studentAccess,
+  educatorRepository
 );
 const updateSessionEvolutionUseCase = new UpdateSessionEvolutionUseCase(
   evolutionRepository,
-  studentRepository,
+  studentAccess,
   planRepository,
   sessionRepository
 );
 const listPendingEvolutionsUseCase = new ListPendingEvolutionsUseCase(
   sessionRepository,
   evolutionRepository,
-  studentRepository
+  studentRepository,
+  studentAccess
 );
 const nextSessionSuggestionUseCase = new NextSessionSuggestionUseCase(
   sessionRepository,
-  studentRepository,
+  studentAccess,
   planRepository,
   evolutionRepository,
   aiClinicalService

@@ -13,8 +13,20 @@ export class ListAnamneseResponsesByStudentController extends BaseController {
     if (!user) return this.unauthorized(res);
 
     const result = await this.useCase.execute({
-      studentId: req.params.studentId,
+      educatorId: user.id,
+      studentId: String(req.params.studentId),
     });
+
+    if (!result.ok) {
+      switch (result.error) {
+        case "STUDENT_NOT_FOUND":
+          return this.notFound(res, result.error);
+        case "UNAUTHORIZED":
+          return this.forbidden(res, result.error);
+        default:
+          return this.fail(res, "INTERNAL_SERVER_ERROR");
+      }
+    }
 
     return this.ok(res, result.value.map(mapAnamneseResponse));
   }

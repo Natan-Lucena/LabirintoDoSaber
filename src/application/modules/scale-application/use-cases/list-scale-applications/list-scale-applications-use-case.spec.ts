@@ -6,7 +6,8 @@ import {
   makeApplicationRepository,
   makeDemoTemplate,
   makeStudent,
-  makeStudentRepository,
+  makeStudentAccessFor,
+  shareStudent,
   makeTemplateRepository,
   startApplication,
 } from "../test-fixtures";
@@ -31,7 +32,7 @@ describe("ListScaleApplicationsUseCase", () => {
     useCase = new ListScaleApplicationsUseCase(
       applicationRepository,
       templateRepository,
-      makeStudentRepository([ana, bia, other])
+      makeStudentAccessFor([ana, bia, other])
     );
   });
 
@@ -91,5 +92,44 @@ describe("ListScaleApplicationsUseCase", () => {
     });
 
     expect(result).toEqual({ ok: false, error: "STUDENT_NOT_FOUND" });
+  });
+
+  describe("paciente compartilhado (EQ-11)", () => {
+    const colleagueId = Uuid.random();
+
+    beforeEach(() => {
+      useCase = new ListScaleApplicationsUseCase(
+        applicationRepository,
+        templateRepository,
+        makeStudentAccessFor([ana, bia, other], [shareStudent(ana, colleagueId)])
+      );
+    });
+
+    it("lists the applications of the students shared with the colleague", async () => {
+      const result = await useCase.execute({ educatorId: colleagueId, limit: 50 });
+
+      expect(result.ok).toBe(true);
+      expect(applicationRepository.search).toHaveBeenCalledWith({
+        studentIds: [ana.id],
+        status: undefined,
+        limit: 50,
+      });
+    });
+
+    it("filters by a shared student and refuses one not shared", async () => {
+      const shared = await useCase.execute({
+        educatorId: colleagueId,
+        studentId: ana.id.value,
+        limit: 50,
+      });
+      expect(shared.ok).toBe(true);
+
+      const notShared = await useCase.execute({
+        educatorId: colleagueId,
+        studentId: bia.id.value,
+        limit: 50,
+      });
+      expect(notShared).toEqual({ ok: false, error: "UNAUTHORIZED" });
+    });
   });
 });

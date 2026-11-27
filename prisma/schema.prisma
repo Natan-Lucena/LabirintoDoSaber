@@ -751,6 +751,22 @@ enum TeamRole {
   PROFESSIONAL
 }
 
+// Paciente compartilhado pelo dono com um colega da mesma clínica (EQ-10).
+// O dono continua em Student.educatorId; o compartilhado lê e escreve os
+// dados clínicos (EQ-11).
+model StudentShare {
+  id         String   @id @map("_id")
+  studentId  String
+  educatorId String
+  sharedBy   String
+  sharedAt   DateTime
+
+  // Lista do aluno e checagem de acesso: studentId + educatorId (prefixo).
+  @@unique([studentId, educatorId])
+  // Pacientes compartilhados com o educador (GET /student/, notificações).
+  @@index([educatorId])
+}
+
 // Contador de limite de requisições por chave (escopo + hash do IP + janela).
 // A função é serverless: o limite precisa ficar no banco.
 model RateLimitCounter {

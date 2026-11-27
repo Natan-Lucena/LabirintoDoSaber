@@ -1,7 +1,9 @@
-import { Uuid } from "@wave-telecom/framework/core";
+import { success, Uuid } from "@wave-telecom/framework/core";
 import { ReportRepository } from "../../../../../domain/repositories/report-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
-import { loadOwnedReport } from "../report-access";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
+import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
+import { loadAuthorNames } from "../../../../services/author-names";
+import { loadAccessibleReport } from "../report-access";
 
 export interface GetReportUseCaseRequest {
   educatorId: Uuid;
@@ -11,15 +13,27 @@ export interface GetReportUseCaseRequest {
 export class GetReportUseCase {
   constructor(
     private reportRepository: ReportRepository,
-    private studentRepository: StudentRepository
+    private studentAccess: StudentAccessService,
+    private educatorRepository: EducatorRepository
   ) {}
 
   async execute(request: GetReportUseCaseRequest) {
-    return loadOwnedReport(
+    const access = await loadAccessibleReport(
       this.reportRepository,
-      this.studentRepository,
+      this.studentAccess,
       request.reportId,
       request.educatorId
     );
+    if (!access.ok) return access;
+    const report = access.value;
+
+    // EQ-12: nome do autor só quando não é quem lê.
+    const authorNames = await loadAuthorNames(
+      this.educatorRepository,
+      [report.educatorId],
+      request.educatorId
+    );
+
+    return success({ report, authorName: authorNames.get(report.educatorId.value) });
   }
 }

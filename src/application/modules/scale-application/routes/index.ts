@@ -5,7 +5,7 @@ import {
   makeEducatorRepository,
   makeScaleApplicationRepository,
   makeScaleTemplateRepository,
-  makeStudentRepository,
+  makeStudentAccessService,
 } from "../../../../infraestructure/factories";
 import { makeAuthMiddleware } from "../../../../infraestructure/middlewares";
 import { StartScaleApplicationUseCase } from "../use-cases/start-scale-application/start-scale-application-use-case";
@@ -26,7 +26,7 @@ import { GenerateInsightController } from "../use-cases/generate-insight/generat
 const scaleApplicationRouter = Router();
 
 const educatorRepository = makeEducatorRepository({ isMock: false });
-const studentRepository = makeStudentRepository({ isMock: false });
+const studentAccess = makeStudentAccessService();
 const appointmentRepository = makeAppointmentRepository();
 const templateRepository = makeScaleTemplateRepository();
 const applicationRepository = makeScaleApplicationRepository();
@@ -34,37 +34,37 @@ const applicationRepository = makeScaleApplicationRepository();
 const startScaleApplicationUseCase = new StartScaleApplicationUseCase(
   applicationRepository,
   templateRepository,
-  studentRepository,
+  studentAccess,
   appointmentRepository
 );
 const listScaleApplicationsUseCase = new ListScaleApplicationsUseCase(
   applicationRepository,
   templateRepository,
-  studentRepository
+  studentAccess
 );
 const getScaleApplicationUseCase = new GetScaleApplicationUseCase(
   applicationRepository,
   templateRepository,
-  studentRepository
+  studentAccess
 );
 const saveScaleAnswersUseCase = new SaveScaleAnswersUseCase(
   applicationRepository,
   templateRepository,
-  studentRepository
+  studentAccess
 );
 const completeScaleApplicationUseCase = new CompleteScaleApplicationUseCase(
   applicationRepository,
   templateRepository,
-  studentRepository
+  studentAccess
 );
 const deleteScaleApplicationUseCase = new DeleteScaleApplicationUseCase(
   applicationRepository,
-  studentRepository
+  studentAccess
 );
 const generateInsightUseCase = new GenerateInsightUseCase(
   applicationRepository,
   templateRepository,
-  studentRepository,
+  studentAccess,
   makeAiClinicalService()
 );
 

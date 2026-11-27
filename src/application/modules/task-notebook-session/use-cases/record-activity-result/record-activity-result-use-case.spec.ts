@@ -14,6 +14,11 @@ import { TaskNotebookRepository } from "../../../../../domain/repositories/task-
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 import { makeSession, makeStudent } from "../../../session-evolution/use-cases/test-fixtures";
 import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
+import {
   makeMultipleChoiceTask,
   makePrintableTask,
   makeLibraryTask,
@@ -34,6 +39,7 @@ describe("RecordActivityResultUseCase", () => {
   let notebookRepository: TaskNotebookRepository;
   let taskGroupRepository: TaskGroupRepository;
   let resultRepository: ActivityResultRepository;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let useCase: RecordActivityResultUseCase;
 
   const openSession = (taskNotebookId?: Uuid) =>
@@ -73,9 +79,10 @@ describe("RecordActivityResultUseCase", () => {
       listBySessionIds: vi.fn().mockResolvedValue([]),
     } as unknown as ActivityResultRepository;
 
+    shareRepository = makeShareRepository();
     useCase = new RecordActivityResultUseCase(
       sessionRepository,
-      studentRepository,
+      makeStudentAccess(studentRepository, shareRepository),
       taskRepository,
       notebookRepository,
       taskGroupRepository,
@@ -134,6 +141,28 @@ describe("RecordActivityResultUseCase", () => {
     session = makeSession({ studentId: student.id, educatorId });
 
     expect(await execute()).toEqual({ ok: false, error: "SESSION_ALREADY_FINISHED" });
+    expect(resultRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("RS-08/EQ-11: should record the result for an educator the student is shared with", async () => {
+    const colleagueId = Uuid.random();
+    shareRepository.store.push(shareStudent(student, colleagueId));
+
+    const result = await execute({ educatorId: colleagueId });
+
+    expect(result.ok).toBe(true);
+    expect(resultRepository.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("RS-08: should return UNAUTHORIZED once the share is undone", async () => {
+    const colleagueId = Uuid.random();
+    shareRepository.store.push(shareStudent(student, colleagueId));
+    await shareRepository.delete(student.id, colleagueId);
+
+    expect(await execute({ educatorId: colleagueId })).toEqual({
+      ok: false,
+      error: "UNAUTHORIZED",
+    });
     expect(resultRepository.save).not.toHaveBeenCalled();
   });
 

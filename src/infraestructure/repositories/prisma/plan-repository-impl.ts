@@ -70,11 +70,12 @@ export class PlanRepositoryImpl implements PlanRepository {
   }
 
   async search(params: SearchPlanParams): Promise<Plan[]> {
+    if (params.studentIds.length === 0) return [];
+
     const where: Prisma.PlanWhereInput = {
-      educatorId: params.educatorId.value,
+      studentId: { in: params.studentIds.map((id) => id.value) },
     };
 
-    if (params.studentId) where.studentId = params.studentId.value;
     if (params.status) where.status = params.status;
     if (params.type) where.type = params.type;
 

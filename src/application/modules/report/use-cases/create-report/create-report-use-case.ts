@@ -6,10 +6,9 @@ import {
   ReportType,
 } from "../../../../../domain/entities/report";
 import { ReportRepository } from "../../../../../domain/repositories/report-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { AiClinicalService } from "../../../../../domain/services/ai-clinical-service";
 import { callClinicalAi, clipAiText } from "../../../../services/clinical-ai-call";
-import { assertStudentOwnership } from "../../../plan/use-cases/plan-access";
 import {
   assembleReportContent,
   buildSynthesisParams,
@@ -33,7 +32,7 @@ export interface CreateReportUseCaseRequest {
 export class CreateReportUseCase {
   constructor(
     private reportRepository: ReportRepository,
-    private studentRepository: StudentRepository,
+    private studentAccess: StudentAccessService,
     private contentBuilder: ReportContentBuilder,
     private aiClinicalService: AiClinicalService
   ) {}
@@ -50,13 +49,12 @@ export class CreateReportUseCase {
     });
     if (!sections.ok) return sections;
 
-    const ownership = await assertStudentOwnership(
-      this.studentRepository,
+    const access = await this.studentAccess.assertStudentAccess(
       new Uuid(request.studentId),
       request.educatorId
     );
-    if (!ownership.ok) return ownership;
-    const student = ownership.value;
+    if (!access.ok) return access;
+    const student = access.value;
 
     const data = await this.contentBuilder.load(student, period);
     if (!data.ok) return data;

@@ -1,8 +1,8 @@
 import { failure, success, Uuid } from "@wave-telecom/framework/core";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { PlanSuggestionRepository } from "../../../../../domain/repositories/plan-suggestion-repository";
 import { mapPlanSuggestionToResponse } from "../../../../../infraestructure/mappers/map-plan";
-import { assertStudentOwnership, loadPendingSuggestion } from "../plan-access";
+import { loadPendingSuggestion } from "../plan-access";
 
 export interface DismissPlanSuggestionUseCaseRequest {
   educatorId: Uuid;
@@ -12,7 +12,7 @@ export interface DismissPlanSuggestionUseCaseRequest {
 export class DismissPlanSuggestionUseCase {
   constructor(
     private suggestionRepository: PlanSuggestionRepository,
-    private studentRepository: StudentRepository
+    private studentAccess: StudentAccessService
   ) {}
 
   async execute(request: DismissPlanSuggestionUseCaseRequest) {
@@ -23,13 +23,12 @@ export class DismissPlanSuggestionUseCase {
     );
     if (!loaded.ok) return failure(loaded.error);
 
-    // Como no aceitar: confere também o dono atual do aluno.
-    const ownership = await assertStudentOwnership(
-      this.studentRepository,
+    // Como no aceitar: confere também o acesso atual ao aluno (EQ-11).
+    const access = await this.studentAccess.assertStudentAccess(
       loaded.value.studentId,
       request.educatorId
     );
-    if (!ownership.ok) return failure(ownership.error);
+    if (!access.ok) return failure(access.error);
 
     const dismissed = loaded.value.dismiss();
     if (!dismissed.ok) return failure(dismissed.error);
@@ -37,7 +36,7 @@ export class DismissPlanSuggestionUseCase {
     await this.suggestionRepository.save(dismissed.value);
 
     return success(
-      mapPlanSuggestionToResponse(dismissed.value, ownership.value.name)
+      mapPlanSuggestionToResponse(dismissed.value, access.value.name)
     );
   }
 }

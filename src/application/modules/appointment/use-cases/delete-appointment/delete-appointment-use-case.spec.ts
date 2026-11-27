@@ -4,6 +4,14 @@ import { DeleteAppointmentUseCase } from "./delete-appointment-use-case";
 import { AppointmentRepository } from "../../../../../domain/repositories/appointment-repository";
 import { AppointmentSchedulerService } from "../../../../../domain/services/appointment-scheduler-service";
 import { Appointment, AppointmentStatus } from "../../../../../domain/entities/appointment";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  makeStudentRepositoryFake,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
+import { makeStudent } from "../../../session-evolution/use-cases/test-fixtures";
+import { Student } from "../../../../../domain/entities/student";
 
 const mockAppointmentRepository = (): AppointmentRepository =>
   ({
@@ -20,11 +28,24 @@ const mockSchedulerService = (): AppointmentSchedulerService =>
     scheduleNext: vi.fn(),
   } as unknown as AppointmentSchedulerService);
 
-const makeAppointment = (educatorId: Uuid) =>
+// Alunos do repositório em memória do teste atual: o atendimento padrão é de
+// um aluno do próprio educador, que ele acessa.
+let students = new Map<string, Student>();
+const ownStudentOf = (educatorId: Uuid) => {
+  const student = makeStudent(educatorId);
+  students.set(student.id.value, student);
+  return student.id;
+};
+
+const makeAppointment = (
+  educatorId: Uuid,
+  overrides: Partial<Parameters<typeof Appointment.create>[0]> = {}
+) =>
   Appointment.create({
     educatorId,
-    studentId: Uuid.random(),
+    studentId: overrides.studentId ?? ownStudentOf(educatorId),
     scheduledAt: new Date("2026-08-01T10:00:00Z"),
+    ...overrides,
   });
 
 describe("DeleteAppointmentUseCase", () => {
@@ -33,12 +54,21 @@ describe("DeleteAppointmentUseCase", () => {
   let useCase: DeleteAppointmentUseCase;
 
   const educatorId = Uuid.random();
+  let studentRepository: ReturnType<typeof makeStudentRepositoryFake>;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
 
   beforeEach(() => {
     vi.restoreAllMocks();
     appointmentRepository = mockAppointmentRepository();
     schedulerService = mockSchedulerService();
-    useCase = new DeleteAppointmentUseCase(appointmentRepository, schedulerService);
+    studentRepository = makeStudentRepositoryFake();
+    students = studentRepository.store;
+    shareRepository = makeShareRepository();
+    useCase = new DeleteAppointmentUseCase(
+      appointmentRepository,
+      schedulerService,
+      makeStudentAccess(studentRepository, shareRepository)
+    );
 
     (schedulerService.cancel as any).mockResolvedValue(undefined);
     (appointmentRepository.delete as any).mockResolvedValue(undefined);
@@ -137,5 +167,36 @@ describe("DeleteAppointmentUseCase", () => {
     await useCase.execute({ id: appt.id, educatorId });
 
     expect(appointmentRepository.delete).not.toHaveBeenCalled();
+  });
+
+  describe("paciente compartilhado (EQ-11)", () => {
+    const ownerId = Uuid.random();
+    const colleagueId = Uuid.random();
+    const shared = makeStudent(ownerId);
+
+    beforeEach(async () => {
+      studentRepository.store.set(shared.id.value, shared);
+    });
+
+    it("lets the colleague delete the owner's appointment of a shared student", async () => {
+      await shareRepository.create(shareStudent(shared, colleagueId));
+      const appt = makeAppointment(ownerId, { studentId: shared.id });
+      (appointmentRepository.findById as any).mockResolvedValue(appt);
+
+      const result = await useCase.execute({ id: appt.id, educatorId: colleagueId });
+
+      expect(result.ok).toBe(true);
+      expect(appointmentRepository.delete).toHaveBeenCalledWith(appt.id);
+    });
+
+    it("returns NOT_FOUND for a colleague without the share", async () => {
+      const appt = makeAppointment(ownerId, { studentId: shared.id });
+      (appointmentRepository.findById as any).mockResolvedValue(appt);
+
+      const result = await useCase.execute({ id: appt.id, educatorId: colleagueId });
+
+      expect(result).toEqual(failure("NOT_FOUND"));
+      expect(appointmentRepository.delete).not.toHaveBeenCalled();
+    });
   });
 });

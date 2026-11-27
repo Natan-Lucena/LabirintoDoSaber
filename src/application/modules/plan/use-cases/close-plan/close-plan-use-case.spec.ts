@@ -5,11 +5,17 @@ import { Plan, PlanSource, PlanStatus, PlanType } from "../../../../../domain/en
 import { Gender, Student } from "../../../../../domain/entities/student";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 import { PlanSuggestionRepository } from "../../../../../domain/repositories/plan-suggestion-repository";
 
 describe("ClosePlanUseCase", () => {
   let planRepository: PlanRepository;
   let studentRepository: StudentRepository;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let suggestionRepository: PlanSuggestionRepository;
   let useCase: ClosePlanUseCase;
 
@@ -57,7 +63,8 @@ describe("ClosePlanUseCase", () => {
     suggestionRepository = {
       dismissPendingByPlanId: vi.fn(),
     } as unknown as PlanSuggestionRepository;
-    useCase = new ClosePlanUseCase(planRepository, studentRepository, suggestionRepository);
+    shareRepository = makeShareRepository();
+    useCase = new ClosePlanUseCase(planRepository, makeStudentAccess(studentRepository, shareRepository), suggestionRepository);
   });
 
   it("should close the plan with the given status", async () => {
@@ -91,5 +98,35 @@ describe("ClosePlanUseCase", () => {
     expect(stored.status).toBe(PlanStatus.COMPLETED);
     expect(planRepository.save).toHaveBeenCalledOnce();
     expect(suggestionRepository.dismissPendingByPlanId).toHaveBeenCalledOnce();
+  });
+
+  it("should let a colleague the student is shared with close the owner plan", async () => {
+    // Plano criado pelo dono; o colega com quem o aluno foi compartilhado
+    // escreve nele como o dono (EQ-11).
+    const colleagueId = Uuid.random();
+    await shareRepository.create(shareStudent(student, colleagueId));
+
+    const result = await useCase.execute({
+      educatorId: colleagueId,
+      planId: stored.id.value,
+      status: PlanStatus.COMPLETED,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(((result as any).value as Plan).status).toBe(PlanStatus.COMPLETED);
+  });
+
+  it("should return UNAUTHORIZED to a colleague after the share is undone", async () => {
+    const colleagueId = Uuid.random();
+    await shareRepository.create(shareStudent(student, colleagueId));
+    await shareRepository.delete(student.id, colleagueId);
+
+    const result = await useCase.execute({
+      educatorId: colleagueId,
+      planId: stored.id.value,
+      status: PlanStatus.COMPLETED,
+    });
+
+    expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
   });
 });

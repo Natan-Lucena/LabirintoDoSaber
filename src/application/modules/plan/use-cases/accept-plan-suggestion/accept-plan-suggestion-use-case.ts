@@ -5,9 +5,9 @@ import {
   SuggestionKind,
 } from "../../../../../domain/entities/plan-suggestion";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { PlanSuggestionRepository } from "../../../../../domain/repositories/plan-suggestion-repository";
-import { loadOwnedPlan, loadPendingSuggestion } from "../plan-access";
+import { loadAccessiblePlan, loadPendingSuggestion } from "../plan-access";
 
 export interface AcceptPlanSuggestionUseCaseRequest {
   educatorId: Uuid;
@@ -17,7 +17,7 @@ export interface AcceptPlanSuggestionUseCaseRequest {
 export class AcceptPlanSuggestionUseCase {
   constructor(
     private planRepository: PlanRepository,
-    private studentRepository: StudentRepository,
+    private studentAccess: StudentAccessService,
     private suggestionRepository: PlanSuggestionRepository
   ) {}
 
@@ -30,9 +30,9 @@ export class AcceptPlanSuggestionUseCase {
     if (!loaded.ok) return failure(loaded.error);
     const suggestion = loaded.value;
 
-    const planResult = await loadOwnedPlan(
+    const planResult = await loadAccessiblePlan(
       this.planRepository,
-      this.studentRepository,
+      this.studentAccess,
       suggestion.planId.value,
       request.educatorId
     );

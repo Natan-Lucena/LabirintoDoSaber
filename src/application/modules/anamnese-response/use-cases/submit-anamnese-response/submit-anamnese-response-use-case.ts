@@ -1,7 +1,7 @@
 import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { AnamneseTemplateRepository } from "../../../../../domain/repositories/anamnese-template-repository";
 import { AnamneseResponseRepository } from "../../../../../domain/repositories/anamnese-response-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { AnamneseResponse, AnamneseAnswerInput } from "../../../../../domain/entities/anamnese-response";
 
 interface SubmitAnamneseResponseUseCaseRequest {
@@ -15,7 +15,7 @@ export class SubmitAnamneseResponseUseCase {
   constructor(
     private templateRepository: AnamneseTemplateRepository,
     private responseRepository: AnamneseResponseRepository,
-    private studentRepository: StudentRepository
+    private studentAccess: StudentAccessService
   ) {}
 
   async execute(request: SubmitAnamneseResponseUseCaseRequest) {
@@ -27,13 +27,13 @@ export class SubmitAnamneseResponseUseCase {
       return failure("TEMPLATE_NOT_FOUND");
     }
 
-    const student = await this.studentRepository.getById(
-      new Uuid(request.studentId)
+    // Dono ou compartilhado (EQ-11); a resposta grava quem a criou.
+    const access = await this.studentAccess.assertStudentAccess(
+      new Uuid(request.studentId),
+      request.educatorId
     );
-
-    if (!student) {
-      return failure("STUDENT_NOT_FOUND");
-    }
+    if (!access.ok) return access;
+    const student = access.value;
 
     const response = AnamneseResponse.create(
       {
