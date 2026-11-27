@@ -92,4 +92,23 @@ describe("UpdateStudentUseCase", () => {
     expect(result).toEqual({ ok: false, error: "STUDENT_NOT_FOUND" });
     expect(studentRepository.save).not.toHaveBeenCalled();
   });
+
+  it("null apaga o responsável e ausente mantém (PP-05)", async () => {
+    const student = makeStudent();
+    student.update({ guardianName: "Maria", guardianPhone: "11999990000", guardianRelationship: "Mãe" });
+    (studentRepository.getById as any).mockResolvedValue(student);
+
+    const result = await useCase.execute({
+      id: student.id.value,
+      educatorEmail: owner.email,
+      guardianName: null,
+      guardianPhone: null,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.guardianName).toBeNull();
+    expect(result.value.guardianPhone).toBeNull();
+    expect(result.value.guardianRelationship).toBe("Mãe");
+  });
 });

@@ -411,4 +411,24 @@ describe("Plan Entity", () => {
       );
     });
   });
+
+  describe("update com null (PP-05)", () => {
+    it("null apaga nextReviewDate e professionalNotes", () => {
+      const plan = makePdi({ nextReviewDate: "2026-12-01", professionalNotes: "Nota" });
+
+      const updated = unwrap(plan.update({ nextReviewDate: null, professionalNotes: null }));
+
+      expect(updated.nextReviewDate).toBeUndefined();
+      expect(updated.professionalNotes).toBeUndefined();
+    });
+
+    it("ausente mantém nextReviewDate e professionalNotes", () => {
+      const plan = makePdi({ nextReviewDate: "2026-12-01", professionalNotes: "Nota" });
+
+      const updated = unwrap(plan.update({ title: "Outro" }));
+
+      expect(updated.nextReviewDate).toBe("2026-12-01");
+      expect(updated.professionalNotes).toBe("Nota");
+    });
+  });
 });

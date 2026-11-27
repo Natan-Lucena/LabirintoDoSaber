@@ -5,7 +5,8 @@ import { StudentAccessService } from "../../../../domain/services/student-access
 // Atendimento que o educador pode ler e editar: o de um aluno que ele acessa,
 // dono ou compartilhado (EQ-11), inclusive o que ele mesmo criou. Quem perdeu
 // o acesso ao aluno não lê, edita nem exclui. Sem acesso, NOT_FOUND, para não
-// revelar que o atendimento existe.
+// revelar que o atendimento existe. Devolve também o aluno, já carregado na
+// checagem de acesso.
 export async function loadAccessibleAppointment(
   appointmentRepository: AppointmentRepository,
   studentAccess: StudentAccessService,
@@ -18,5 +19,5 @@ export async function loadAccessibleAppointment(
   const access = await studentAccess.assertStudentAccess(appointment.studentId, educatorId);
   if (!access.ok) return failure("NOT_FOUND");
 
-  return success(appointment);
+  return success({ appointment, student: access.value });
 }

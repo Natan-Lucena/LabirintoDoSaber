@@ -567,4 +567,56 @@ describe("GenerateDailyNotificationsUseCase", () => {
 
     expect(result).toEqual({ ok: true, value: { created: 0, deleted: 0 } });
   });
+
+  describe("aluno arquivado (PA-03)", () => {
+    it("não gera notificação de evolução, revisão de plano nem rascunho de escala", async () => {
+      const archived = makeStudent(educatorA, "Eva Arquivada");
+      archived.archive(ago(DAY));
+      students.push(archived);
+      sessions = [session(archived.id, educatorA, ago(25 * HOUR))];
+      plans = [plan(archived.id, educatorA, "2026-11-12")];
+      applications = [application(archived.id, ago(8 * DAY))];
+
+      const result = await useCase.execute();
+
+      expect(result).toEqual({ ok: true, value: { created: 0, deleted: 0 } });
+    });
+
+    it("atendimento do dia de aluno arquivado não entra na contagem", async () => {
+      const archived = makeStudent(educatorA, "Eva Arquivada");
+      archived.archive(ago(HOUR));
+      students.push(archived);
+      appointments = [
+        appointment("2026-11-12T13:00:00.000Z"),
+        Appointment.create({
+          educatorId: educatorA,
+          studentId: archived.id,
+          scheduledAt: new Date("2026-11-12T14:00:00.000Z"),
+        }),
+      ];
+
+      await useCase.execute();
+
+      const [notification] = ofKind(NotificationKind.APPOINTMENTS_TODAY);
+      expect(ofKind(NotificationKind.APPOINTMENTS_TODAY)).toHaveLength(1);
+      expect(notification.title).toBe("1 atendimento hoje");
+    });
+
+    it("sem nenhum atendimento de aluno ativo no dia: nenhuma notificação de agenda", async () => {
+      const archived = makeStudent(educatorA, "Eva Arquivada");
+      archived.archive(ago(HOUR));
+      students.push(archived);
+      appointments = [
+        Appointment.create({
+          educatorId: educatorA,
+          studentId: archived.id,
+          scheduledAt: new Date("2026-11-12T14:00:00.000Z"),
+        }),
+      ];
+
+      await useCase.execute();
+
+      expect(ofKind(NotificationKind.APPOINTMENTS_TODAY)).toHaveLength(0);
+    });
+  });
 });

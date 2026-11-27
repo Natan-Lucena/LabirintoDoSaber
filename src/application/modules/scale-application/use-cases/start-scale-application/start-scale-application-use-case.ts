@@ -22,7 +22,8 @@ export class StartScaleApplicationUseCase {
   ) {}
 
   async execute(request: StartScaleApplicationUseCaseRequest) {
-    const access = await this.studentAccess.assertStudentAccess(
+    // Arquivado não recebe aplicação nova (PA-04).
+    const access = await this.studentAccess.assertActiveStudentAccess(
       new Uuid(request.studentId),
       request.educatorId
     );

@@ -294,6 +294,7 @@ export const makePlanRepository = (plans: Plan[]) =>
     ),
     findActivePdi: vi.fn(),
     listActiveWithReviewDueBy: vi.fn(),
+    listForOverview: vi.fn(),
   }) satisfies PlanRepository;
 
 export const makeApplicationRepository = (applications: ScaleApplication[]) =>
@@ -337,6 +338,7 @@ export const makeAnamneseResponseRepository = (responses: AnamneseResponse[]) =>
     ),
     existsByTemplateId: vi.fn(),
     saveSummary: vi.fn(),
+    findStudentIdsWithResponses: vi.fn(),
   }) satisfies AnamneseResponseRepository;
 
 // Data (AAAA-MM-DD) de uma sessão, para conferir as evoluções no conteúdo.

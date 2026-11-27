@@ -110,6 +110,35 @@ export class PlanRepositoryImpl implements PlanRepository {
     return records.map((record) => this.mapToEntity(record));
   }
 
+  async listForOverview(studentIds: Uuid[], reviewDueBy: string): Promise<Plan[]> {
+    if (studentIds.length === 0) return [];
+    const ids = studentIds.map((id) => id.value);
+
+    // Id do PE ACTIVE mais recente de cada aluno, pelo índice
+    // [studentId, type, status].
+    const latestPe = (await this.prismaService.plan.aggregateRaw({
+      pipeline: [
+        { $match: { studentId: { $in: ids }, type: PlanType.PE, status: PlanStatus.ACTIVE } },
+        { $sort: { studentId: 1, sessionDate: -1, createdAt: -1 } },
+        { $group: { _id: "$studentId", planId: { $first: "$_id" } } },
+      ],
+    })) as unknown as { planId: string }[];
+
+    const records = await this.prismaService.plan.findMany({
+      where: {
+        studentId: { in: ids },
+        status: PlanStatus.ACTIVE,
+        OR: [
+          { type: PlanType.PDI },
+          { nextReviewDate: { lte: reviewDueBy } },
+          { id: { in: latestPe.map((row) => row.planId) } },
+        ],
+      },
+    });
+
+    return records.map((record) => this.mapToEntity(record));
+  }
+
   private mapToEntity(record: PrismaPlan): Plan {
     return Plan.fromPersistence({
       id: new Uuid(record.id),

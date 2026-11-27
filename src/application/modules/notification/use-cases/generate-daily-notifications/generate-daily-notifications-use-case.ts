@@ -19,14 +19,17 @@ import {
   startOfDayInSaoPaulo,
   todayInSaoPaulo,
 } from "../../../../../domain/utils/date-only";
+import {
+  EVOLUTION_PENDING_WINDOW_DAYS,
+  PLAN_REVIEW_DAYS_AHEAD,
+} from "../../../../../domain/services/patient-overview";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
-// EVOLUTION_PENDING: finalizada há mais de 24 h e menos de 30 dias.
+// EVOLUTION_PENDING: finalizada há mais de 24 h e menos de 30 dias. A janela
+// e a antecedência da revisão são as mesmas do overview do paciente (PA-07).
 const EVOLUTION_PENDING_AFTER_MS = 24 * HOUR_MS;
-const EVOLUTION_PENDING_WINDOW_DAYS = 30;
-const PLAN_REVIEW_DAYS_AHEAD = 2;
 const SCALE_DRAFT_STALE_DAYS = 7;
 
 // Cron diário (NT-01). Uma consulta em lote por kind, para todos os
@@ -88,8 +91,11 @@ export class GenerateDailyNotificationsUseCase {
     const students = studentIds.size
       ? await this.studentRepository.getByIds([...studentIds].map((id) => new Uuid(id)))
       : [];
+    // PA-03: aluno arquivado não gera notificação.
     const studentById = new Map<string, Student>(
-      students.map((student) => [student.id.value, student])
+      students
+        .filter((student) => !student.isArchived)
+        .map((student) => [student.id.value, student])
     );
 
     // EQ-14: quem não é dono só recebe enquanto o aluno está compartilhado com
@@ -106,7 +112,8 @@ export class GenerateDailyNotificationsUseCase {
 
     const notifications: Notification[] = [];
 
-    // Só conta atendimento de aluno que o educador ainda acessa (EQ-11).
+    // Só conta atendimento de aluno ativo (PA-03) que o educador ainda acessa
+    // (EQ-11): o arquivado não está em studentById.
     const countByEducator = new Map<string, number>();
     for (const appointment of appointments) {
       const student = studentById.get(appointment.studentId.value);

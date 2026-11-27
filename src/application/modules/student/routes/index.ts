@@ -7,7 +7,14 @@ import { ListStudentsByEducatorUseCase } from "../use-cases/list-students-by-edu
 import { ListStudentsByEducatorController } from "../use-cases/list-students-by-educator/list-students-by-educator-controller";
 import { makeAuthMiddleware } from "../../../../infraestructure/middlewares";
 import {
+  makeAnamneseResponseRepository,
+  makeAppointmentRepository,
+  makeAppointmentSchedulerService,
   makeClinicMemberRepository,
+  makePlanRepository,
+  makeScaleApplicationRepository,
+  makeSessionEvolutionRepository,
+  makeTaskNotebookSessionRepository,
   makeEducatorRepository,
   makeFileStorage,
   makeStudentAccessService,
@@ -25,6 +32,12 @@ import { UnshareStudentUseCase } from "../use-cases/unshare-student/unshare-stud
 import { UnshareStudentController } from "../use-cases/unshare-student/unshare-student-controller";
 import { ListStudentSharesUseCase } from "../use-cases/list-student-shares/list-student-shares-use-case";
 import { ListStudentSharesController } from "../use-cases/list-student-shares/list-student-shares-controller";
+import { GetStudentUseCase } from "../use-cases/get-student/get-student-use-case";
+import { GetStudentController } from "../use-cases/get-student/get-student-controller";
+import { ChangeStudentStatusUseCase } from "../use-cases/change-student-status/change-student-status-use-case";
+import { ChangeStudentStatusController } from "../use-cases/change-student-status/change-student-status-controller";
+import { GetStudentsOverviewUseCase } from "../use-cases/get-students-overview/get-students-overview-use-case";
+import { GetStudentsOverviewController } from "../use-cases/get-students-overview/get-students-overview-controller";
 
 const studentRouter = Router();
 
@@ -33,6 +46,8 @@ const studentRepository = makeStudentRepository({ isMock: false });
 const studentAccess = makeStudentAccessService();
 const shareRepository = makeStudentShareRepository();
 const memberRepository = makeClinicMemberRepository();
+const appointmentRepository = makeAppointmentRepository();
+const schedulerService = makeAppointmentSchedulerService(appointmentRepository);
 
 const fileStorage = makeFileStorage();
 
@@ -86,6 +101,25 @@ const addStudentDocumentUseCase = new AddStudentDocumentUseCase(
   studentRepository,
   educatorRepository,
   fileStorage
+);
+
+const getStudentUseCase = new GetStudentUseCase(studentAccess, educatorRepository);
+
+const changeStudentStatusUseCase = new ChangeStudentStatusUseCase(
+  studentAccess,
+  studentRepository,
+  appointmentRepository,
+  schedulerService
+);
+
+const getStudentsOverviewUseCase = new GetStudentsOverviewUseCase(
+  studentAccess,
+  appointmentRepository,
+  makeTaskNotebookSessionRepository(),
+  makeSessionEvolutionRepository(),
+  makePlanRepository(),
+  makeScaleApplicationRepository(),
+  makeAnamneseResponseRepository()
 );
 
 const authMiddleware = makeAuthMiddleware(educatorRepository);
@@ -142,6 +176,19 @@ studentRouter.get("/", async (req, res) => {
     req,
     res
   );
+});
+
+// Antes de /:id, para "overview" não ser lido como id.
+studentRouter.get("/overview", async (req, res) => {
+  new GetStudentsOverviewController(getStudentsOverviewUseCase).execute(req, res);
+});
+
+studentRouter.put("/:id/status", async (req, res) => {
+  new ChangeStudentStatusController(changeStudentStatusUseCase).execute(req, res);
+});
+
+studentRouter.get("/:id", async (req, res) => {
+  new GetStudentController(getStudentUseCase).execute(req, res);
 });
 
 export { studentRouter };

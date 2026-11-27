@@ -50,6 +50,9 @@ export class ListRecommendedTasksUseCase {
     if (!access.ok) return access;
     const student = access.value;
 
+    // PA-03: arquivado sai da recomendação.
+    if (student.isArchived) return success([]);
+
     const [skills, sessions] = await Promise.all([
       this.skillRepository.listAll(),
       this.sessionRepository.listByStudentId(student.id),

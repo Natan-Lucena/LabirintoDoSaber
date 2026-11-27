@@ -138,4 +138,41 @@ describe("StudentAccessService", () => {
       ]);
     });
   });
+
+  describe("assertActiveStudentAccess (PA-04)", () => {
+    it("aluno ativo: devolve o aluno, para o dono e para o compartilhado", async () => {
+      const { owner, colleague, student, shareRepository, service } = setup();
+      shareRepository.store.push(shareStudent(student, colleague));
+
+      expect(await service.assertActiveStudentAccess(student.id, owner)).toEqual({
+        ok: true,
+        value: student,
+      });
+      expect((await service.assertActiveStudentAccess(student.id, colleague)).ok).toBe(true);
+    });
+
+    it("aluno arquivado: STUDENT_ARCHIVED", async () => {
+      const { owner, student, service } = setup();
+      student.archive(new Date());
+
+      expect(await service.assertActiveStudentAccess(student.id, owner)).toEqual({
+        ok: false,
+        error: "STUDENT_ARCHIVED",
+      });
+    });
+
+    it("sem acesso ou inexistente: os erros do acesso vêm antes do arquivamento", async () => {
+      const { outsider, student, service } = setup();
+      student.archive(new Date());
+
+      expect(await service.assertActiveStudentAccess(student.id, outsider)).toEqual({
+        ok: false,
+        error: "UNAUTHORIZED",
+      });
+      expect(await service.assertActiveStudentAccess(Uuid.random(), outsider)).toEqual({
+        ok: false,
+        error: "STUDENT_NOT_FOUND",
+      });
+    });
+  });
 });

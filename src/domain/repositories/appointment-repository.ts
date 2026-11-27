@@ -4,6 +4,8 @@ import { Appointment, AppointmentStatus } from "../entities/appointment";
 export interface SearchAppointmentParams {
   educatorId?: Uuid;
   studentId?: Uuid;
+  // Atendimentos de qualquer um destes alunos (consulta em lote).
+  studentIds?: Uuid[];
   status?: AppointmentStatus;
   scheduledBefore?: Date;
   scheduledAfter?: Date;
@@ -17,4 +19,7 @@ export interface AppointmentRepository {
   findById(id: Uuid): Promise<Appointment | null>;
   search(params: SearchAppointmentParams): Promise<Appointment[]>;
   delete(id: Uuid): Promise<void>;
+  // O próximo atendimento PENDING com scheduledAt > `after` de cada aluno
+  // (no máximo um por aluno).
+  findNextPendingByStudentIds(studentIds: Uuid[], after: Date): Promise<Appointment[]>;
 }

@@ -18,4 +18,8 @@ export interface PlanRepository {
   // (AAAA-MM-DD), inclusive as vencidas (cron de notificações), ordenados por
   // nextReviewDate e depois id.
   listActiveWithReviewDueBy(date: string): Promise<Plan[]>;
+  // Planos ACTIVE dos alunos que o overview usa, sem varrer todos: os PDIs,
+  // os com nextReviewDate ≤ `reviewDueBy` (AAAA-MM-DD) e o PE mais recente
+  // (sessionDate, depois createdAt) de cada aluno. Sem repetição.
+  listForOverview(studentIds: Uuid[], reviewDueBy: string): Promise<Plan[]>;
 }

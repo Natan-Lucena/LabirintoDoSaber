@@ -39,6 +39,7 @@ export class CreateAppointmentController extends BaseController {
     if (!result.ok) {
       if (result.error === "STUDENT_NOT_FOUND") return this.notFound(res, result.error);
       if (result.error === "UNAUTHORIZED") return this.forbidden(res, result.error);
+      if (result.error === "STUDENT_ARCHIVED") return this.conflict(res, result.error);
       if (typeof result.error === "string") return this.fail(res, "INTERNAL_SERVER_ERROR");
       return res.status(409).json({
         message: result.error.code,

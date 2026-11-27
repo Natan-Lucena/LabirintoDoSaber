@@ -9,4 +9,6 @@ export interface AnamneseResponseRepository {
   findById(id: Uuid): Promise<AnamneseResponse | null>;
   listByStudentId(studentId: Uuid): Promise<AnamneseResponse[]>;
   existsByTemplateId(templateId: Uuid): Promise<boolean>;
+  // Ids, entre os informados, dos alunos com ao menos uma resposta.
+  findStudentIdsWithResponses(studentIds: Uuid[]): Promise<Set<string>>;
 }

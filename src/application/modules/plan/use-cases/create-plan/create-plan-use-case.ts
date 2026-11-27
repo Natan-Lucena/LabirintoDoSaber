@@ -38,7 +38,8 @@ export class CreatePlanUseCase {
   async execute(request: CreatePlanUseCaseRequest) {
     const studentId = new Uuid(request.studentId);
 
-    const access = await this.studentAccess.assertStudentAccess(studentId, request.educatorId);
+    // Arquivado não recebe plano novo (PA-04).
+    const access = await this.studentAccess.assertActiveStudentAccess(studentId, request.educatorId);
     if (!access.ok) return access;
 
     if (request.type === PlanType.PDI) {

@@ -96,12 +96,13 @@ export interface CreatePlanProps {
   goals: PlanGoalInput[];
 }
 
+// PP-05: null apaga professionalNotes e nextReviewDate; ausente mantém.
 export interface UpdatePlanProps {
   title?: string;
   generalObjective?: string;
-  professionalNotes?: string;
+  professionalNotes?: string | null;
   endDate?: string;
-  nextReviewDate?: string;
+  nextReviewDate?: string | null;
   goals?: PlanGoalUpdateInput[];
 }
 
@@ -296,7 +297,10 @@ export class Plan {
     // No PE a vigência é a própria data da sessão; datesAreValid recusa
     // um endDate diferente dela.
     const endDate = props.endDate ?? this.props.endDate;
-    const nextReviewDate = props.nextReviewDate ?? this.props.nextReviewDate;
+    const nextReviewDate =
+      props.nextReviewDate === null
+        ? undefined
+        : (props.nextReviewDate ?? this.props.nextReviewDate);
 
     if (
       !Plan.datesAreValid(
@@ -323,7 +327,10 @@ export class Plan {
         ...this.props,
         title: props.title ?? this.props.title,
         generalObjective: props.generalObjective ?? this.props.generalObjective,
-        professionalNotes: props.professionalNotes ?? this.props.professionalNotes,
+        professionalNotes:
+          props.professionalNotes === null
+            ? undefined
+            : (props.professionalNotes ?? this.props.professionalNotes),
         endDate,
         nextReviewDate,
         goals,

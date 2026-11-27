@@ -45,6 +45,7 @@ const setup = () => {
     delete: vi.fn(async (id: Uuid) => {
       store.delete(id.value);
     }),
+    findNextPendingByStudentIds: vi.fn(),
   } satisfies AppointmentRepository;
   const scheduler = {
     ensureScheduled: vi.fn(async () => undefined),
