@@ -4,6 +4,7 @@ import {
 } from "@wave-telecom/framework/controllers";
 import { FinishTaskNotebookSessionUseCase } from "./finish-task-notebook-session-use-case";
 import { Request, Response } from "express";
+import { mapTaskNotebookSessionToResponse } from "../../../../../infraestructure/mappers/map-task-notebook-session";
 import { finishTaskNotebookSessionSchema } from "../../schemas/finish-task-notebook-session.schema";
 
 export class FinishTaskNotebookController extends BaseController {
@@ -44,6 +45,6 @@ export class FinishTaskNotebookController extends BaseController {
       }
     }
 
-    return this.ok(res, result.value);
+    return this.ok(res, mapTaskNotebookSessionToResponse(result.value));
   }
 }

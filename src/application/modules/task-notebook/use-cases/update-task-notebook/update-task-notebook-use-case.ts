@@ -15,7 +15,7 @@ export class UpdateTaskNotebookUseCase {
 
   async execute(props: UpdateTaskNotebookUseCaseRequest) {
     if (!Uuid.isValid(props.taskNotebookId)) {
-      return failure("INVALID_TASK_NOTEBOOK_ID");
+      return failure("TASK_NOTEBOOK_NOT_FOUND");
     }
 
     const existingNotebook = await this.taskNotebookRepository.getById(

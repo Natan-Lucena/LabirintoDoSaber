@@ -1742,7 +1742,7 @@
             }
           },
           "400": {
-            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `STUDENT_NOT_FOUND`, `STUDENT_NOT_ASSIGNED_TO_CURRENT_EDUCATOR`, `NEW_EDUCATOR_NOT_FOUND`, `NOT_IN_SAME_CLINIC`.",
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `STUDENT_NOT_ASSIGNED_TO_CURRENT_EDUCATOR`, `NOT_IN_SAME_CLINIC`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1767,19 +1767,9 @@
                       ]
                     }
                   },
-                  "STUDENT_NOT_FOUND": {
-                    "value": {
-                      "message": "STUDENT_NOT_FOUND"
-                    }
-                  },
                   "STUDENT_NOT_ASSIGNED_TO_CURRENT_EDUCATOR": {
                     "value": {
                       "message": "STUDENT_NOT_ASSIGNED_TO_CURRENT_EDUCATOR"
-                    }
-                  },
-                  "NEW_EDUCATOR_NOT_FOUND": {
-                    "value": {
-                      "message": "NEW_EDUCATOR_NOT_FOUND"
                     }
                   },
                   "NOT_IN_SAME_CLINIC": {
@@ -1812,6 +1802,28 @@
                   "Educator not found": {
                     "value": {
                       "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`STUDENT_NOT_FOUND`: aluno inexistente. `NEW_EDUCATOR_NOT_FOUND`: nenhum educador com o e-mail informado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  },
+                  "NEW_EDUCATOR_NOT_FOUND": {
+                    "value": {
+                      "message": "NEW_EDUCATOR_NOT_FOUND"
                     }
                   }
                 }
@@ -4687,7 +4699,7 @@
             "description": "Sucesso, sem corpo JSON (Express responde o texto \"OK\")."
           },
           "400": {
-            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `INVALID_TASK_GROUP_ID`, `INVALID_TASK_GROUP_DATA`. `PRINTABLE_NOT_PLAYABLE`: atividade imprimível não é jogada.",
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `INVALID_TASK_GROUP_DATA`. `PRINTABLE_NOT_PLAYABLE`: atividade imprimível não é jogada.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4710,11 +4722,6 @@
                           "field": "id"
                         }
                       ]
-                    }
-                  },
-                  "INVALID_TASK_GROUP_ID": {
-                    "value": {
-                      "message": "INVALID_TASK_GROUP_ID"
                     }
                   },
                   "INVALID_TASK_GROUP_DATA": {
@@ -4781,7 +4788,7 @@
             }
           },
           "404": {
-            "description": "`TASK_GROUP_NOT_FOUND`",
+            "description": "`TASK_GROUP_NOT_FOUND`: grupo inexistente ou `id` que não é UUID.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4914,7 +4921,7 @@
             }
           },
           "404": {
-            "description": "`TASK_GROUP_NOT_FOUND`",
+            "description": "`TASK_GROUP_NOT_FOUND`: grupo inexistente ou `taskGroupId` que não é UUID.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5031,7 +5038,7 @@
             }
           },
           "404": {
-            "description": "`TASK_GROUP_NOT_FOUND`",
+            "description": "`TASK_GROUP_NOT_FOUND`: grupo inexistente ou `id` que não é UUID.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5391,7 +5398,7 @@
             "description": "Sucesso, sem corpo JSON (Express responde o texto \"OK\")."
           },
           "400": {
-            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `INVALID_TASK_NOTEBOOK_ID`, `INVALID_TASK_NOTEBOOK_DATA`.",
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `INVALID_TASK_NOTEBOOK_DATA`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5414,11 +5421,6 @@
                           "field": "taskNotebookId"
                         }
                       ]
-                    }
-                  },
-                  "INVALID_TASK_NOTEBOOK_ID": {
-                    "value": {
-                      "message": "INVALID_TASK_NOTEBOOK_ID"
                     }
                   },
                   "INVALID_TASK_NOTEBOOK_DATA": {
@@ -5475,7 +5477,7 @@
             }
           },
           "404": {
-            "description": "`TASK_NOTEBOOK_NOT_FOUND`",
+            "description": "`TASK_NOTEBOOK_NOT_FOUND`: caderno inexistente ou `taskNotebookId` que não é UUID.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5608,7 +5610,7 @@
             }
           },
           "404": {
-            "description": "`TASK_NOTEBOOK_NOT_FOUND`",
+            "description": "`TASK_NOTEBOOK_NOT_FOUND`: caderno inexistente ou `taskNotebookId` que não é UUID.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5949,7 +5951,7 @@
             }
           },
           "404": {
-            "description": "`SESSION_NOT_FOUND`, `TASK_NOT_FOUND`, `NOTEBOOK_NOT_FOUND` Aluno da sessão inexistente.",
+            "description": "`SESSION_NOT_FOUND` (sessão inexistente ou `sessionId` que não é UUID), `TASK_NOT_FOUND` (atividade inexistente ou `taskId` que não é UUID), `NOTEBOOK_NOT_FOUND`. `STUDENT_NOT_FOUND`: aluno da sessão inexistente.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6628,7 +6630,7 @@
             }
           },
           "404": {
-            "description": "Aluno inexistente.",
+            "description": "`STUDENT_NOT_FOUND`: aluno inexistente ou `studentId` que não é UUID.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6768,7 +6770,7 @@
             }
           },
           "404": {
-            "description": "`SESSION_NOT_FOUND` Aluno da sessão inexistente.",
+            "description": "`SESSION_NOT_FOUND`: sessão inexistente ou `sessionId` que não é UUID. `STUDENT_NOT_FOUND`: aluno da sessão inexistente.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6943,7 +6945,7 @@
             }
           },
           "404": {
-            "description": "`STUDENT_NOT_FOUND`",
+            "description": "`STUDENT_NOT_FOUND`: aluno inexistente ou `studentId` que não é UUID.",
             "content": {
               "application/json": {
                 "schema": {
@@ -7113,7 +7115,7 @@
             }
           },
           "404": {
-            "description": "`STUDENT_NOT_FOUND`",
+            "description": "`STUDENT_NOT_FOUND`: aluno inexistente ou `studentId` que não é UUID.",
             "content": {
               "application/json": {
                 "schema": {
@@ -7256,7 +7258,7 @@
             }
           },
           "404": {
-            "description": "Aluno inexistente.",
+            "description": "`STUDENT_NOT_FOUND`: aluno inexistente ou `studentId` que não é UUID.",
             "content": {
               "application/json": {
                 "schema": {
@@ -7436,7 +7438,7 @@
             }
           },
           "404": {
-            "description": "`STUDENT_NOT_FOUND`",
+            "description": "`STUDENT_NOT_FOUND`: aluno inexistente ou `studentId` que não é UUID.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9562,7 +9564,7 @@
         },
         "responses": {
           "200": {
-            "description": "Sucesso.",
+            "description": "Sucesso. Mesmo formato do GET, com `summary` (quando houver) e `summaryOutdated`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9999,7 +10001,7 @@
         },
         "responses": {
           "200": {
-            "description": "Sucesso.",
+            "description": "Sucesso. Mesmo formato do GET, com `summary` (quando houver) e `summaryOutdated`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12253,7 +12255,7 @@
             }
           },
           "409": {
-            "description": "`SUGGESTION_ALREADY_RESOLVED`, `SUGGESTION_NOT_APPLICABLE`",
+            "description": "`SUGGESTION_ALREADY_RESOLVED`, `SUGGESTION_NOT_APPLICABLE` (a mudança não pode mais ser aplicada; a sugestão é descartada). `GOAL_NOT_FOUND`: a meta da sugestão não está mais no plano.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12268,6 +12270,11 @@
                   "SUGGESTION_NOT_APPLICABLE": {
                     "value": {
                       "message": "SUGGESTION_NOT_APPLICABLE"
+                    }
+                  },
+                  "GOAL_NOT_FOUND": {
+                    "value": {
+                      "message": "GOAL_NOT_FOUND"
                     }
                   }
                 }
@@ -15583,7 +15590,7 @@
           "Notification"
         ],
         "summary": "Lista as notificações do educador, mais recentes primeiro.",
-        "description": "Paginada por cursor (`createdAt` + `id`). Geradas uma vez por dia pelo cron (06:00 de São Paulo) e apagadas após 90 dias. Notificações de pacientes que não são mais do educador não aparecem. Uma página pode vir vazia com `nextCursor`; continue paginando enquanto ele vier.",
+        "description": "Paginada por cursor (`createdAt` + `id`). Geradas pelo cron diário (06:00 de São Paulo) e apagadas após 90 dias. `APPOINTMENTS_TODAY` sai uma vez por dia; `EVOLUTION_PENDING`, `PLAN_REVIEW_DUE` e `SCALE_DRAFT_STALE` saem uma vez por pendência, sem repetir enquanto ela continuar aberta (uma nova data de revisão do plano, ou um rascunho de escala retomado e abandonado de novo, conta como nova pendência). Uma pendência aberta por mais de 90 dias volta a ser notificada depois que a anterior é apagada. Notificações de pacientes que não são mais do educador não aparecem. Uma página pode vir vazia com `nextCursor`; continue paginando enquanto ele vier.",
         "parameters": [
           {
             "name": "unreadOnly",
@@ -15862,7 +15869,7 @@
           "Notification"
         ],
         "summary": "Registra o token de push do aparelho (depois do login e da permissão).",
-        "description": "Upsert pelo token: o mesmo token não duplica e, se era de outro educador, passa para o atual. Até 5 aparelhos por educador; o visto há mais tempo sai. Push diário: no máximo um por dia, com contagens por tipo e sem nome de paciente; `data` = `{ notificationIds, target? }` (target só quando houver uma notificação).",
+        "description": "Upsert pelo token: o mesmo token não duplica e, se era de outro educador, passa para o atual. Até 5 aparelhos por educador; o visto há mais tempo sai. Push diário: no máximo um por dia, só com as notificações não lidas criadas naquele dia (a pendência antiga não volta ao push), com contagens por tipo e sem nome de paciente; `data` = `{ notificationIds, target? }` (target só quando houver uma notificação).",
         "requestBody": {
           "required": true,
           "content": {
@@ -18849,7 +18856,12 @@
           "timeToAnswer": {
             "type": "number",
             "minimum": 0,
-            "description": "Tempo de resposta em milissegundos. Respostas anteriores a 2026-10-09 foram gravadas em segundos e não foram migradas; a análise com IA omite o tempo delas."
+            "description": "Tempo de resposta como foi gravado. Em milissegundos desde 2026-10-09 (São Paulo); antes disso, em segundos na maior parte das respostas e não migrado. Para exibir ou calcular, use `timeToAnswerMs`."
+          },
+          "timeToAnswerMs": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Tempo de resposta normalizado em milissegundos: respostas anteriores a 2026-10-09 com valor até 600 (segundos) são multiplicadas por 1000; acima disso já estão em milissegundos. É o valor usado no relatório da sessão, nas estatísticas e na análise com IA."
           },
           "answeredAt": {
             "type": "string",
@@ -18861,6 +18873,7 @@
           "selectedAlternativeId",
           "isCorrect",
           "timeToAnswer",
+          "timeToAnswerMs",
           "answeredAt"
         ]
       },
@@ -20995,7 +21008,8 @@
           },
           "evolutionId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Id da evolução que a sessão já tem; use `GET /session-evolution/{id}` ou `PUT /session-evolution/{id}`."
           }
         },
         "required": [
@@ -21999,7 +22013,7 @@
       },
       "ReportContent": {
         "type": "object",
-        "description": "Retrato gravado na geração; não muda depois (RP-03). Só traz as seções pedidas. Nunca traz endereço, telefones, documentos, foto, dados do responsável nem CPF (RP-01).",
+        "description": "Retrato gravado na geração; não muda depois (RP-03). Só traz as seções pedidas. Nunca traz endereço, telefones, documentos, foto, dados do responsável nem CPF (RP-01). Texto livre escrito pelo profissional (registros de evolução, metas, títulos) entra como foi escrito, sem filtro de nomes.",
         "properties": {
           "title": {
             "type": "string"
@@ -22024,7 +22038,7 @@
           },
           "patient": {
             "type": "object",
-            "description": "Seção PATIENT_DATA. `displayName` é o nome completo (RP-02).",
+            "description": "Seção PATIENT_DATA. `displayName` é o nome completo nas audiências FAMILY e PROFESSIONAL; na SCHOOL é o primeiro nome com a inicial do primeiro sobrenome (\"Ana Souza Lima\" → \"Ana S.\"; as partículas de/da/do/dos/das não contam como sobrenome; nome único fica como está) (RP-02). Relatórios SCHOOL gravados antes da regra também saem abreviados na leitura.",
             "properties": {
               "displayName": {
                 "type": "string"
@@ -22033,7 +22047,8 @@
                 "type": "integer"
               },
               "schoolGrade": {
-                "type": "string"
+                "type": "string",
+                "description": "Reservado: nunca preenchido hoje, porque o cadastro do aluno não tem série escolar. O campo não aparece no JSON."
               }
             },
             "required": [
@@ -22258,7 +22273,7 @@
           },
           "studentName": {
             "type": "string",
-            "description": "Nome do aluno na geração."
+            "description": "Nome do aluno na geração. Na audiência SCHOOL vem abreviado como `content.patient.displayName` (\"Ana S.\")."
           },
           "educatorId": {
             "type": "string",
@@ -22366,7 +22381,8 @@
             "format": "uuid"
           },
           "studentName": {
-            "type": "string"
+            "type": "string",
+            "description": "Nome do aluno na geração. Na audiência SCHOOL vem abreviado como `content.patient.displayName` (\"Ana S.\")."
           },
           "educatorId": {
             "type": "string",

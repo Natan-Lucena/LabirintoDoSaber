@@ -66,6 +66,7 @@ export class CreateReportUseCase {
     const content = assembleReportContent({
       data: data.value,
       type: request.type,
+      audience: request.audience,
       sections: sections.value,
       student,
       professional: request.professional,

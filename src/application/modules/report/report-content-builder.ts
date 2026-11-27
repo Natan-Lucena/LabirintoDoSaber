@@ -20,6 +20,7 @@ import {
   endOfDayInSaoPaulo,
   startOfDayInSaoPaulo,
 } from "../../../domain/utils/date-only";
+import { shortDisplayName } from "../../../domain/utils/person-name";
 import { GenerateStudentAnalysisUseCase } from "../task-notebook-session/use-cases/generate-student-analisys/generate-student-analisys-use-case";
 
 // Teto de itens por seção num período de até 365 dias.
@@ -54,6 +55,7 @@ export interface ReportContentBuilderDeps {
 export interface AssembleReportContentParams {
   data: ReportPeriodData;
   type: ReportType;
+  audience: ReportAudience;
   sections: ReportSection[];
   student: Student;
   professional: { name: string; profession?: string };
@@ -215,7 +217,8 @@ export function isEmptyPeriod(data: ReportPeriodData, sections: ReportSection[])
 
 // Monta o retrato campo a campo, só com as seções pedidas. Do cadastro do aluno
 // saem só nome e idade: nunca endereço, telefones, documentos, foto ou
-// responsável (RP-01). A síntese da IA entra depois.
+// responsável (RP-01). Para a escola, o nome sai abreviado ("Ana S.", RP-02).
+// A síntese da IA entra depois.
 export function assembleReportContent(params: AssembleReportContentParams): ReportContent {
   const { data, sections, professional } = params;
   const has = (section: ReportSection) => sections.includes(section);
@@ -230,7 +233,11 @@ export function assembleReportContent(params: AssembleReportContentParams): Repo
   };
 
   if (has(ReportSection.PATIENT_DATA)) {
-    content.patient = { displayName: params.student.name, ageYears: params.student.age };
+    const displayName =
+      params.audience === ReportAudience.SCHOOL
+        ? shortDisplayName(params.student.name)
+        : params.student.name;
+    content.patient = { displayName, ageYears: params.student.age };
   }
   if (has(ReportSection.SESSION_METRICS)) content.sessionMetrics = data.sessionMetrics;
   if (has(ReportSection.EVOLUTIONS)) content.evolutions = data.evolutions;

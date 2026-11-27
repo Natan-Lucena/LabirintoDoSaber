@@ -29,10 +29,12 @@ const makeAnswer = ({
   taskId = Uuid.random(),
   isCorrect = true,
   timeToAnswer = 10, // milissegundos
+  answeredAt = new Date(),
 } = {}) => ({
   taskId,
   isCorrect,
   timeToAnswer,
+  answeredAt,
 });
 
 // Factory para criar uma sessão mockada
@@ -371,6 +373,33 @@ describe("GeneratorReportTaskNotebookSessionUseCase", () => {
     });
 
     expect(result).toEqual(expectedSuccess);
+  });
+
+  it("should convert the times of answers recorded before 2026-10-09 from seconds (PP-08)", async () => {
+    const taskId = Uuid.random();
+    const startTime = new Date("2026-10-08T13:00:00.000Z");
+    const session = makeSession({
+      answers: [
+        // Antes do corte: segundos.
+        makeAnswer({ taskId, isCorrect: true, timeToAnswer: 4, answeredAt: new Date("2026-10-08T13:00:10.000Z") }),
+        makeAnswer({ taskId, isCorrect: false, timeToAnswer: 6, answeredAt: new Date("2026-10-08T13:00:20.000Z") }),
+        // 09/10 00:00 em São Paulo: já em milissegundos.
+        makeAnswer({ taskId, isCorrect: true, timeToAnswer: 2000, answeredAt: new Date("2026-10-09T03:00:00.000Z") }),
+      ],
+      startedAt: startTime,
+      finishedAt: new Date("2026-10-09T03:01:00.000Z"),
+    });
+    (sessionRepository.getById as any).mockResolvedValue(session);
+    stubTaskCatalog(taskRepository, { [taskId.value]: makeTask({ id: taskId }) });
+
+    const result = await useCase.execute({ sessionId: Uuid.random().value, educatorId: EDUCATOR_ID });
+
+    expect(result.ok).toBe(true);
+    expect((result as any).value).toMatchObject({
+      averageTimePerQuestion: 4000,
+      averageCorrectTime: 3000,
+      averageIncorrectTime: 6000,
+    });
   });
 
   it("should handle session with zero answers (empty arrays/null averages)", async () => {

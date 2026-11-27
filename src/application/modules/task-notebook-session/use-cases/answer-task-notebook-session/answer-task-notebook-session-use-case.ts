@@ -38,7 +38,9 @@ export class AnswerTaskNotebookSessionUseCase {
     const { session } = access.value;
 
     const alternativeId = new Uuid(request.selectedAlternativeId);
-    const task = await this.taskRepository.getById(new Uuid(request.taskId));
+    const task = Uuid.isValid(request.taskId)
+      ? await this.taskRepository.getById(new Uuid(request.taskId))
+      : null;
 
     if (session.finishedAt) {
       return failure("SESSION_ALREADY_FINISHED");

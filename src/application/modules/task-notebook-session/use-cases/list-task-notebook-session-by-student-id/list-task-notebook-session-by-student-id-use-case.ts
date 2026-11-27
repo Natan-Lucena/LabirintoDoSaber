@@ -1,9 +1,10 @@
-import { success, Uuid } from "@wave-telecom/framework/core";
+import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 import { ActivityResultRepository } from "../../../../../domain/repositories/activity-result-repository";
 import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
 import { StudentAccessService } from "../../../../../domain/services/student-access-service";
+import { mapTaskNotebookSessionToResponse } from "../../../../../infraestructure/mappers/map-task-notebook-session";
 import { mapActivityResultToResponse } from "../../../../../infraestructure/mappers/map-activity-result";
 import { loadAuthorNames } from "../../../../services/author-names";
 
@@ -23,6 +24,7 @@ export class ListTaskNotebookSessionByStudentIdUseCase {
 
   async execute(props: IListTaskNotebookSessionByStudentRequest) {
     // RS-08: só quem acessa o aluno (dono ou compartilhado) lista.
+    if (!Uuid.isValid(props.studentId)) return failure("STUDENT_NOT_FOUND" as const);
     const access = await this.studentAccess.assertStudentAccess(
       new Uuid(props.studentId),
       props.educatorId
@@ -57,7 +59,7 @@ export class ListTaskNotebookSessionByStudentIdUseCase {
 
     return success(
       sessions.map((session) => ({
-        ...session,
+        ...mapTaskNotebookSessionToResponse(session),
         evolutionId: evolutionIds.get(session.id.value),
         activityResults: resultsBySession.get(session.id.value) ?? [],
         authorName: authorNames.get(session.educatorId.value),

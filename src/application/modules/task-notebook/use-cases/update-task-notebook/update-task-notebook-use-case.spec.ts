@@ -83,13 +83,13 @@ describe("UpdateTaskNotebookUseCase", () => {
     expect(repository.save).not.toHaveBeenCalled();
   });
 
-  it("devolve INVALID_TASK_NOTEBOOK_ID sem consultar o banco", async () => {
+  it("devolve TASK_NOTEBOOK_NOT_FOUND sem consultar o banco quando o id não é UUID", async () => {
     const result = await useCase.execute({
       taskNotebookId: "id-invalido",
       educatorId: owner.id,
     });
 
-    expect(result).toEqual({ ok: false, error: "INVALID_TASK_NOTEBOOK_ID" });
+    expect(result).toEqual({ ok: false, error: "TASK_NOTEBOOK_NOT_FOUND" });
     expect(repository.getById).not.toHaveBeenCalled();
   });
 });

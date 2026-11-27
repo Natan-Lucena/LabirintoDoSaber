@@ -84,6 +84,41 @@ describe("ListTaskNotebookSessionByStudentIdUseCase", () => {
     expect(JSON.parse(JSON.stringify(result[1]))).not.toHaveProperty("evolutionId");
   });
 
+  it("PP-08: should add timeToAnswerMs to each answer, keeping the raw timeToAnswer", async () => {
+    const answer = (timeToAnswer: number, answeredAt: string) => ({
+      taskId: Uuid.random(),
+      selectedAlternativeId: Uuid.random(),
+      isCorrect: true,
+      timeToAnswer,
+      answeredAt: new Date(answeredAt),
+    });
+    const session = new TaskNotebookSession(
+      Uuid.random(),
+      STUDENT.id,
+      OWNER_ID,
+      "Sessão antiga",
+      new Date("2026-10-01T13:00:00.000Z"),
+      new Date("2026-10-01T13:40:00.000Z"),
+      [answer(9, "2026-10-01T13:01:00.000Z"), answer(2689, "2026-10-01T13:02:00.000Z")]
+    );
+    const useCase = new ListTaskNotebookSessionByStudentIdUseCase(
+      { listByStudentId: vi.fn().mockResolvedValue([session]) } as unknown as TaskNotebookSessionRepository,
+      makeStudentAccess(makeStudentRepository()),
+      { findIdsBySessionIds: vi.fn().mockResolvedValue(new Map()) } as unknown as SessionEvolutionRepository,
+      { listBySessionIds: vi.fn().mockResolvedValue([]) } as unknown as ActivityResultRepository,
+      makeEducatorRepository()
+    );
+
+    const listed = await useCase.execute({ studentId: STUDENT.id.value, educatorId: OWNER_ID });
+    if (!listed.ok) throw new Error(String(listed.error));
+
+    const json = JSON.parse(JSON.stringify(listed.value));
+    expect(json[0].answers.map((a: any) => [a.timeToAnswer, a.timeToAnswerMs])).toEqual([
+      [9, 9000],
+      [2689, 2689],
+    ]);
+  });
+
   it("RS-07: should add the activityResults of each session with one batch query", async () => {
     const studentId = STUDENT.id;
     const first = makeSession(studentId);

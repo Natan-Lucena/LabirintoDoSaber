@@ -20,8 +20,8 @@ export class UpdateTaskGroupUseCase {
 
   async execute(props: UpdateTaskGroupUseCaseRequest) {
     try {
-      if (!props.id || !Uuid.isValid(props.id)) {
-        return failure("INVALID_TASK_GROUP_ID");
+      if (!Uuid.isValid(props.id)) {
+        return failure("TASK_GROUP_NOT_FOUND");
       }
 
       const existingTaskGroup = await this.taskGroupRepository.findById(

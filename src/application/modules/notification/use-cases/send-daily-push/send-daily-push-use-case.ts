@@ -45,7 +45,9 @@ export class SendDailyPushUseCase {
       new Date(now.getTime() - DISPATCH_RETENTION_MS)
     );
 
-    // As do dia, inclusive as criadas por outra execução mais cedo.
+    // As criadas hoje, inclusive por outra execução mais cedo. A pendência
+    // antiga não lida não entra: ela não é recriada a cada dia (PP-07), então
+    // aparece no push só no dia em que surgiu.
     const notifications = await this.notificationRepository.listUnreadCreatedSince(
       startOfDayInSaoPaulo(today)
     );

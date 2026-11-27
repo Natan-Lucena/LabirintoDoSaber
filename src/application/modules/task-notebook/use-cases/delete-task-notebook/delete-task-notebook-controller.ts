@@ -5,7 +5,6 @@ import {
 import { Request, Response } from "express";
 import { DeleteTaskNotebookUseCase } from "./delete-task-notebook-use-case";
 import { DeleteTaskNotebookSchema } from "../../schemas/delete-task-notebook-schema";
-import { Uuid } from "@wave-telecom/framework/core";
 
 export class DeleteTaskNotebookController extends BaseController {
   constructor(private useCase: DeleteTaskNotebookUseCase) {
@@ -26,7 +25,7 @@ export class DeleteTaskNotebookController extends BaseController {
     }
 
     const result = await this.useCase.execute({
-      taskNotebookId: new Uuid(validation.data.taskNotebookId),
+      taskNotebookId: validation.data.taskNotebookId,
       educatorId: user.id,
     });
 

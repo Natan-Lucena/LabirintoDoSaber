@@ -4,6 +4,7 @@ import {
 } from "@wave-telecom/framework/controllers";
 import { StartTaskNotebookSessionUseCase } from "./start-task-session-use-case";
 import { Request, Response } from "express";
+import { mapTaskNotebookSessionToResponse } from "../../../../../infraestructure/mappers/map-task-notebook-session";
 import { startTaskSessionSchema } from "../../schemas/start-task-session.schema";
 
 export class StartTaskNotebookSessionController extends BaseController {
@@ -46,6 +47,6 @@ export class StartTaskNotebookSessionController extends BaseController {
           return this.fail(res, "INTERNAL_SERVER_ERROR");
       }
     }
-    return this.ok(res, result.value);
+    return this.ok(res, mapTaskNotebookSessionToResponse(result.value));
   }
 }

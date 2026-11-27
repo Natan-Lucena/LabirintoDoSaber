@@ -37,6 +37,7 @@ export class GenerateStudentAiAnalysisUseCase {
 
   async execute(request: GenerateStudentAiAnalysisUseCaseRequest) {
     // EQ-11: dono ou compartilhado; confere antes de qualquer busca ou IA.
+    if (!Uuid.isValid(request.studentId)) return failure("STUDENT_NOT_FOUND" as const);
     const access = await this.studentAccess.assertStudentAccess(
       new Uuid(request.studentId),
       request.educatorId
@@ -68,17 +69,13 @@ export class GenerateStudentAiAnalysisUseCase {
       (session) => {
         let correctAnswers = 0;
         let totalTime = 0;
-        let timedAnswers = 0;
 
         const answers = session.answers.map((answer) => {
           const task = taskById.get(answer.taskId.value);
           if (answer.isCorrect) correctAnswers++;
-          // Respostas antigas (em segundos) ficam sem tempo e fora da média.
+          // Respostas antigas (em segundos) normalizadas para ms (PP-08).
           const timeToAnswer = timeToAnswerInMs(answer);
-          if (timeToAnswer !== undefined) {
-            totalTime += timeToAnswer;
-            timedAnswers++;
-          }
+          totalTime += timeToAnswer;
 
           return {
             taskPrompt: task?.prompt,
@@ -96,7 +93,7 @@ export class GenerateStudentAiAnalysisUseCase {
           totalAnswers: session.answers.length,
           correctAnswers,
           // Em milissegundos; o prompt converte para segundos.
-          averageTimeToAnswer: timedAnswers ? totalTime / timedAnswers : undefined,
+          averageTimeToAnswer: answers.length ? totalTime / answers.length : undefined,
           answers,
         };
       },

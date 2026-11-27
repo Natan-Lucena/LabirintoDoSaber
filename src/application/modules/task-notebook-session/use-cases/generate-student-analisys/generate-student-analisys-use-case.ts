@@ -92,6 +92,7 @@ export class GenerateStudentAnalysisUseCase {
 
   // Rota HTTP: só quem acessa o aluno (dono ou compartilhado, EQ-11).
   async execute(request: GenerateStudentAnalysisExecuteRequest) {
+    if (!Uuid.isValid(request.studentId)) return failure("STUDENT_NOT_FOUND" as const);
     const access = await this.studentAccess.assertStudentAccess(
       new Uuid(request.studentId),
       request.educatorId,

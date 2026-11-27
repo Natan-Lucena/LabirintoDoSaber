@@ -37,6 +37,7 @@ const draft = (firstName = "Carla") =>
     applicationId: Uuid.random(),
     templateName: "SNAP-IV",
     days: 8,
+    updatedAt: new Date("2026-11-04T12:00:00.000Z"),
   });
 
 describe("buildDailyPush (PU-03, PU-04)", () => {

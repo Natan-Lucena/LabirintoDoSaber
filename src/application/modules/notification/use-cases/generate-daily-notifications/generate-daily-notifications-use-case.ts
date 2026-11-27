@@ -33,7 +33,10 @@ const EVOLUTION_PENDING_AFTER_MS = 24 * HOUR_MS;
 const SCALE_DRAFT_STALE_DAYS = 7;
 
 // Cron diário (NT-01). Uma consulta em lote por kind, para todos os
-// educadores; o dedupeKey único impede duplicatas no mesmo dia (NT-02).
+// educadores. O dedupeKey único impede duplicatas (NT-02): APPOINTMENTS_TODAY
+// sai uma vez por dia; cada pendência sai uma vez só, mesmo que continue
+// aberta nos dias seguintes (PP-07). Se a retenção apagar a notificação e a
+// pendência ainda existir, ela volta uma vez (aceito).
 export class GenerateDailyNotificationsUseCase {
   constructor(
     private appointmentRepository: AppointmentRepository,
@@ -180,6 +183,7 @@ export class GenerateDailyNotificationsUseCase {
           applicationId: application.id,
           templateName: application.templateName,
           days: Math.floor((now.getTime() - application.updatedAt.getTime()) / DAY_MS),
+          updatedAt: application.updatedAt,
           now,
         })
       );

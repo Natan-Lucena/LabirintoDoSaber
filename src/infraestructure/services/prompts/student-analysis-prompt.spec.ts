@@ -20,8 +20,8 @@ const input = (): StudentAnalysisAiInput => ({
       answers: [
         { taskPrompt: "Leia a sílaba", isCorrect: true, timeToAnswer: 2500 },
         { taskPrompt: "Conte as letras", isCorrect: false, timeToAnswer: 12345 },
-        // Resposta antiga, gravada em segundos: o tempo não vai ao prompt.
-        { taskPrompt: "Ache a rima", isCorrect: true },
+        // Resposta antiga, já normalizada para milissegundos (PP-08).
+        { taskPrompt: "Ache a rima", isCorrect: true, timeToAnswer: 8000 },
       ],
     },
   ],
@@ -38,11 +38,10 @@ describe("buildStudentAnalysisPrompt: tempo de resposta", () => {
     expect(prompt).not.toContain("12345s");
   });
 
-  it("omite o tempo das respostas sem tempo em milissegundos", () => {
+  it("mostra o tempo de toda resposta, inclusive as antigas já normalizadas", () => {
     const prompt = buildStudentAnalysisPrompt(input());
 
-    expect(prompt).toContain("[ACERTOU] (?) Ache a rima");
-    expect(prompt).not.toContain("0.0s");
+    expect(prompt).toContain("[ACERTOU] (?, 8.0s) Ache a rima");
   });
 
   it("mostra n/d quando a sessão não tem média em milissegundos", () => {

@@ -30,7 +30,7 @@ describe("DeleteTaskGroupUseCase", () => {
     (repository.findById as any).mockResolvedValue(group);
 
     const result = await useCase.execute({
-      taskGroupId: group.id,
+      taskGroupId: group.id.value,
       educatorId: ownerId,
     });
 
@@ -43,7 +43,7 @@ describe("DeleteTaskGroupUseCase", () => {
     (repository.findById as any).mockResolvedValue(group);
 
     const result = await useCase.execute({
-      taskGroupId: group.id,
+      taskGroupId: group.id.value,
       educatorId: ownerId,
     });
 
@@ -55,12 +55,19 @@ describe("DeleteTaskGroupUseCase", () => {
     (repository.findById as any).mockResolvedValue(null);
 
     const result = await useCase.execute({
-      taskGroupId: Uuid.random(),
+      taskGroupId: Uuid.random().value,
       educatorId: ownerId,
     });
 
     expect(result).toEqual({ ok: false, error: "TASK_GROUP_NOT_FOUND" });
     expect(repository.deleteById).not.toHaveBeenCalled();
+  });
+
+  it("devolve TASK_GROUP_NOT_FOUND sem consultar o banco quando o id não é UUID", async () => {
+    const result = await useCase.execute({ taskGroupId: "nao-e-uuid", educatorId: ownerId });
+
+    expect(result).toEqual({ ok: false, error: "TASK_GROUP_NOT_FOUND" });
+    expect(repository.findById).not.toHaveBeenCalled();
   });
 
   it("devolve DELETE_TASK_GROUP_FAILED quando o repositório falha", async () => {
@@ -69,7 +76,7 @@ describe("DeleteTaskGroupUseCase", () => {
     (repository.deleteById as any).mockRejectedValue(new Error("db"));
 
     const result = await useCase.execute({
-      taskGroupId: group.id,
+      taskGroupId: group.id.value,
       educatorId: ownerId,
     });
 
