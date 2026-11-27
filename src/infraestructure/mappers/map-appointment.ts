@@ -5,6 +5,7 @@ export function mapAppointmentToResponse(appointment: Appointment) {
     id: appointment.id.value,
     educatorId: appointment.educatorId.value,
     studentId: appointment.studentId.value,
+    seriesId: appointment.seriesId?.value,
     scheduledAt: appointment.scheduledAt,
     observation: appointment.observation,
     type: appointment.type,

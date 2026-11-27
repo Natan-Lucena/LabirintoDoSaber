@@ -89,6 +89,12 @@ export class UpdateAppointmentUseCase {
       await this.schedulerService.cancel(updated);
     } else if (reactivated && updated.scheduledAt.getTime() > Date.now()) {
       await this.schedulerService.ensureScheduled(updated);
+    } else if (
+      updated.status === AppointmentStatus.PENDING &&
+      updated.scheduledAt.getTime() !== appointment.scheduledAt.getTime()
+    ) {
+      // PENDING remarcado: o lembrete marcado é do horário antigo.
+      await this.schedulerService.reschedule(updated);
     }
 
     return success(updated);

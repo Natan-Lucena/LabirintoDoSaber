@@ -19,6 +19,7 @@ export class AppointmentRepositoryImpl implements AppointmentRepository {
       update: {
         educatorId: appointment.educatorId.value,
         studentId: appointment.studentId.value,
+        seriesId: appointment.seriesId?.value ?? null,
         scheduledAt: appointment.scheduledAt,
         observation: appointment.observation ?? null,
         type: appointment.type ?? null,
@@ -31,6 +32,7 @@ export class AppointmentRepositoryImpl implements AppointmentRepository {
         id: appointment.id.value,
         educatorId: appointment.educatorId.value,
         studentId: appointment.studentId.value,
+        seriesId: appointment.seriesId?.value ?? null,
         scheduledAt: appointment.scheduledAt,
         observation: appointment.observation ?? null,
         type: appointment.type ?? null,
@@ -66,6 +68,10 @@ export class AppointmentRepositoryImpl implements AppointmentRepository {
 
     if (params.studentIds) {
       where.studentId = { in: params.studentIds.map((id) => id.value) };
+    }
+
+    if (params.seriesId) {
+      where.seriesId = params.seriesId.value;
     }
 
     if (params.status) {
@@ -153,6 +159,7 @@ export class AppointmentRepositoryImpl implements AppointmentRepository {
     id: string;
     educatorId: string;
     studentId: string;
+    seriesId: string | null;
     scheduledAt: Date;
     observation: string | null;
     type: string | null;
@@ -172,6 +179,7 @@ export class AppointmentRepositoryImpl implements AppointmentRepository {
       id: new Uuid(record.id),
       educatorId: new Uuid(record.educatorId),
       studentId: new Uuid(record.studentId),
+      seriesId: record.seriesId ? new Uuid(record.seriesId) : undefined,
       scheduledAt: record.scheduledAt,
       observation: record.observation ?? undefined,
       type: record.type ?? undefined,

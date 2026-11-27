@@ -59,6 +59,7 @@ const mockSchedulerService = (): AppointmentSchedulerService =>
   ({
     cancel: vi.fn(),
     ensureScheduled: vi.fn(),
+    reschedule: vi.fn(),
     scheduleNext: vi.fn(),
   } as unknown as AppointmentSchedulerService);
 

@@ -396,4 +396,22 @@ describe("Appointment Entity", () => {
       expect(legacy.overlaps(at("2026-07-01T10:50:00Z", 15))).toBe(false);
     });
   });
+
+  describe("seriesId", () => {
+    it("should keep the series through edits and status changes", () => {
+      const seriesId = Uuid.random();
+      const appt = Appointment.create(makeProps({ seriesId }));
+
+      const edited = updateOk(appt, { observation: "Sala 2" });
+      const cancelled = edited.cancel();
+
+      expect(appt.seriesId?.value).toBe(seriesId.value);
+      expect(edited.seriesId?.value).toBe(seriesId.value);
+      expect(cancelled.seriesId?.value).toBe(seriesId.value);
+    });
+
+    it("should be undefined for a single appointment", () => {
+      expect(Appointment.create(makeProps()).seriesId).toBeUndefined();
+    });
+  });
 });

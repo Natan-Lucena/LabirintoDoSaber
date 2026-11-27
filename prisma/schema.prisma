@@ -315,6 +315,8 @@ model Appointment {
   id          String            @id @map("_id")
   educatorId  String
   studentId   String
+  // Ocorrência de uma série (AppointmentSeries); null no atendimento avulso.
+  seriesId    String?
   scheduledAt DateTime
   observation String?
   type            String?
@@ -335,12 +337,35 @@ model Appointment {
   // Atendimentos futuros PENDING de um conjunto de alunos (arquivar e
   // GET /student/overview).
   @@index([studentId, status, scheduledAt])
+  // Ocorrências de uma série, em ordem (GET/PUT/cancelar série).
+  @@index([seriesId, scheduledAt])
 }
 
 enum AppointmentStatus {
   PENDING
   COMPLETED
   CANCELLED
+}
+
+enum RecurrenceFrequency {
+  WEEKLY
+  BIWEEKLY
+}
+
+// Atendimentos recorrentes. As ocorrências são Appointment comuns com
+// seriesId; a série guarda a regra de criação e quando foi encerrada.
+model AppointmentSeries {
+  id               String              @id @map("_id")
+  studentId        String
+  educatorId       String
+  frequency        RecurrenceFrequency
+  firstScheduledAt DateTime
+  occurrences      Int
+  type             String?
+  durationMinutes  Int
+  observation      String?
+  endedAt          DateTime?
+  createdAt        DateTime            @default(now())
 }
 
 model StudentAnalysisReport {

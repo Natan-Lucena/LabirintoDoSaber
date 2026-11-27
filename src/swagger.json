@@ -7896,6 +7896,636 @@
         ]
       }
     },
+    "/appointment/series": {
+      "post": {
+        "tags": [
+          "Appointment"
+        ],
+        "summary": "Agenda atendimentos recorrentes (semanais ou quinzenais).",
+        "description": "Cria de uma vez de 2 a 26 ocorrências, no máximo 6 meses a partir da primeira (até 26 semanais ou 13 quinzenais). Cada ocorrência é um atendimento comum com `seriesId`, no mesmo dia da semana e horário de São Paulo da primeira.\n\nOcorrência que colide com outro atendimento pendente do educador é pulada e listada em `skipped`; se todas colidirem, nada é criado (409 `APPOINTMENT_CONFLICT`).\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado. Paciente arquivado não recebe série.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppointmentSeriesCreateBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Série criada; ocorrências criadas em `created`, puladas em `skipped`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`). Ou `SERIES_TOO_LONG`: as ocorrências passam de 6 meses (mais de 13 quinzenais).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "studentId"
+                        }
+                      ]
+                    }
+                  },
+                  "SERIES_TOO_LONG": {
+                    "value": {
+                      "message": "SERIES_TOO_LONG"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Paciente fora do alcance do educador (nem dono nem compartilhado).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Aluno inexistente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`APPOINTMENT_CONFLICT`: todas as ocorrências colidem com outros atendimentos do educador. Ou `STUDENT_ARCHIVED`: o paciente está arquivado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/AppointmentConflict"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "STUDENT_ARCHIVED": {
+                    "value": {
+                      "message": "STUDENT_ARCHIVED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/appointment/series/{id}": {
+      "get": {
+        "tags": [
+          "Appointment"
+        ],
+        "summary": "Detalha uma série com as ocorrências.",
+        "description": "Acesso: dono do paciente ou educador com quem ele foi compartilhado.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Id da série.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Série e ocorrências em ordem de data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppointmentSeriesWithAppointments"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Paciente fora do alcance do educador (nem dono nem compartilhado).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Série inexistente ou id inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "SERIES_NOT_FOUND": {
+                    "value": {
+                      "message": "SERIES_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Appointment"
+        ],
+        "summary": "Altera esta ocorrência e as seguintes.",
+        "description": "Aplica horário, duração, tipo ou observação à ocorrência indicada e às seguintes que ainda estão pendentes e por acontecer. Ocorrências passadas, concluídas ou canceladas não mudam. De `scheduledAt` só o horário de São Paulo é usado.\n\nOcorrência cujo novo horário colide com outro atendimento pendente do educador fica como estava e é listada em `skipped`.\n\nPara mudar uma ocorrência só, use `PUT /appointment/{id}`.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Id da série.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppointmentSeriesUpdateBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ocorrências alteradas em `created`; as que colidiram em `skipped`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`). Ou `APPOINTMENT_NOT_IN_SERIES`: `fromAppointmentId` não é desta série.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "studentId"
+                        }
+                      ]
+                    }
+                  },
+                  "APPOINTMENT_NOT_IN_SERIES": {
+                    "value": {
+                      "message": "APPOINTMENT_NOT_IN_SERIES"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Paciente fora do alcance do educador (nem dono nem compartilhado).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Série inexistente ou id inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "SERIES_NOT_FOUND": {
+                    "value": {
+                      "message": "SERIES_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A ocorrência indicada não está pendente ou já passou.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "APPOINTMENT_NOT_EDITABLE": {
+                    "value": {
+                      "message": "APPOINTMENT_NOT_EDITABLE"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/appointment/series/{id}/cancel": {
+      "post": {
+        "tags": [
+          "Appointment"
+        ],
+        "summary": "Cancela esta ocorrência e as seguintes e encerra a série.",
+        "description": "Cancela a ocorrência indicada e as seguintes pendentes e por acontecer; passadas, concluídas e já canceladas ficam como estão. A indicada pode já ter passado. A série passa a ter `endedAt`.\n\nAcesso: dono do paciente ou educador com quem ele foi compartilhado.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Id da série.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppointmentSeriesCancelBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ocorrências canceladas em `created`; `skipped` vem vazio.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`). Ou `APPOINTMENT_NOT_IN_SERIES`: `fromAppointmentId` não é desta série.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "studentId"
+                        }
+                      ]
+                    }
+                  },
+                  "APPOINTMENT_NOT_IN_SERIES": {
+                    "value": {
+                      "message": "APPOINTMENT_NOT_IN_SERIES"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Paciente fora do alcance do educador (nem dono nem compartilhado).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Série inexistente ou id inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "SERIES_NOT_FOUND": {
+                    "value": {
+                      "message": "SERIES_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/appointment/{id}": {
       "get": {
         "tags": [
@@ -18156,6 +18786,11 @@
             "type": "string",
             "format": "uuid"
           },
+          "seriesId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Série de que o atendimento é ocorrência; ausente no atendimento avulso."
+          },
           "scheduledAt": {
             "type": "string",
             "format": "date-time"
@@ -22589,6 +23224,242 @@
             }
           }
         }
+      },
+      "RecurrenceFrequency": {
+        "type": "string",
+        "enum": [
+          "WEEKLY",
+          "BIWEEKLY"
+        ],
+        "description": "WEEKLY: a cada 7 dias. BIWEEKLY: a cada 14 dias."
+      },
+      "AppointmentSeries": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "studentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "educatorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/RecurrenceFrequency"
+          },
+          "firstScheduledAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Primeira ocorrência pedida; o dia da semana e o horário de São Paulo das demais vêm daqui."
+          },
+          "occurrences": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 26,
+            "description": "Ocorrências pedidas na criação."
+          },
+          "type": {
+            "type": "string"
+          },
+          "durationMinutes": {
+            "type": "integer"
+          },
+          "observation": {
+            "type": "string"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Quando a série foi encerrada (cancelamento)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "studentId",
+          "educatorId",
+          "frequency",
+          "firstScheduledAt",
+          "occurrences",
+          "durationMinutes",
+          "createdAt"
+        ]
+      },
+      "AppointmentSeriesWithAppointments": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AppointmentSeries"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "appointments": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Appointment"
+                },
+                "description": "Todas as ocorrências da série, em ordem de data, em qualquer status."
+              }
+            },
+            "required": [
+              "appointments"
+            ]
+          }
+        ]
+      },
+      "SeriesSkippedOccurrence": {
+        "type": "object",
+        "properties": {
+          "appointmentId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Só na edição: a ocorrência que ficou como estava."
+          },
+          "scheduledAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Horário que colidiu."
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "CONFLICT"
+            ]
+          },
+          "conflictingAppointmentId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "scheduledAt",
+          "reason",
+          "conflictingAppointmentId"
+        ]
+      },
+      "SeriesResult": {
+        "type": "object",
+        "properties": {
+          "series": {
+            "$ref": "#/components/schemas/AppointmentSeries"
+          },
+          "created": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Appointment"
+            },
+            "description": "Ocorrências afetadas pela operação: criadas (POST), alteradas (PUT) ou canceladas (cancel)."
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SeriesSkippedOccurrence"
+            },
+            "description": "Ocorrências puladas por conflito de horário com outro atendimento pendente do educador."
+          }
+        },
+        "required": [
+          "series",
+          "created",
+          "skipped"
+        ]
+      },
+      "AppointmentSeriesCreateBody": {
+        "type": "object",
+        "properties": {
+          "studentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scheduledAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Primeira ocorrência."
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/RecurrenceFrequency"
+          },
+          "occurrences": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 26,
+            "description": "No máximo 6 meses: até 26 semanais ou 13 quinzenais."
+          },
+          "type": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "minimum": 15,
+            "maximum": 240,
+            "description": "Padrão 50."
+          },
+          "observation": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "studentId",
+          "scheduledAt",
+          "frequency",
+          "occurrences"
+        ]
+      },
+      "AppointmentSeriesUpdateBody": {
+        "type": "object",
+        "description": "Informe fromAppointmentId e ao menos um dos demais campos.",
+        "properties": {
+          "fromAppointmentId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Ocorrência a partir da qual a mudança vale."
+          },
+          "scheduledAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Só o horário (de São Paulo) é usado; cada ocorrência mantém o seu dia."
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "minimum": 15,
+            "maximum": 240
+          },
+          "type": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50
+          },
+          "observation": {
+            "type": "string",
+            "nullable": true,
+            "description": "null apaga."
+          }
+        },
+        "required": [
+          "fromAppointmentId"
+        ]
+      },
+      "AppointmentSeriesCancelBody": {
+        "type": "object",
+        "properties": {
+          "fromAppointmentId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Ocorrência a partir da qual cancelar."
+          }
+        },
+        "required": [
+          "fromAppointmentId"
+        ]
       }
     }
   }

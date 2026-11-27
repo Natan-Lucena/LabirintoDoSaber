@@ -49,6 +49,7 @@ const setup = () => {
   } satisfies AppointmentRepository;
   const scheduler = {
     ensureScheduled: vi.fn(async () => undefined),
+    reschedule: vi.fn(async () => undefined),
     cancel: vi.fn(async () => undefined),
     scheduleNext: vi.fn(async () => undefined),
   } as unknown as AppointmentSchedulerService;

@@ -50,3 +50,15 @@ export function startOfDayInSaoPaulo(dateOnly: string): Date {
 export function endOfDayInSaoPaulo(dateOnly: string): Date {
   return new Date(`${dateOnly}T23:59:59.999-03:00`);
 }
+
+const SAO_PAULO_OFFSET_MS = 3 * 60 * 60 * 1000;
+
+// Hora local de São Paulo (HH:mm:ss.sss) do instante, com o fuso fixo em -03:00.
+export function timeInSaoPaulo(date: Date): string {
+  return new Date(date.getTime() - SAO_PAULO_OFFSET_MS).toISOString().slice(11, 23);
+}
+
+// Instante do dia AAAA-MM-DD na hora local de São Paulo (HH:mm:ss.sss).
+export function atTimeInSaoPaulo(dateOnly: string, time: string): Date {
+  return new Date(`${dateOnly}T${time}-03:00`);
+}
