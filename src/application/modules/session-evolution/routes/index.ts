@@ -1,11 +1,13 @@
 import { Router } from "express";
 import {
+  makeActivityResultRepository,
   makeAiClinicalService,
   makeEducatorRepository,
   makePlanRepository,
   makeSessionEvolutionRepository,
   makeStudentRepository,
   makeTaskNotebookSessionRepository,
+  makeTaskRepository,
 } from "../../../../infraestructure/factories";
 import { makeAuthMiddleware } from "../../../../infraestructure/middlewares";
 import { GetEvolutionContextUseCase } from "../use-cases/get-evolution-context/get-evolution-context-use-case";
@@ -31,12 +33,16 @@ const sessionRepository = makeTaskNotebookSessionRepository();
 const planRepository = makePlanRepository();
 const evolutionRepository = makeSessionEvolutionRepository();
 const aiClinicalService = makeAiClinicalService();
+const activityResultRepository = makeActivityResultRepository();
+const taskRepository = makeTaskRepository({ isMock: false });
 
 const getEvolutionContextUseCase = new GetEvolutionContextUseCase(
   sessionRepository,
   studentRepository,
   planRepository,
-  evolutionRepository
+  evolutionRepository,
+  activityResultRepository,
+  taskRepository
 );
 const createSessionEvolutionUseCase = new CreateSessionEvolutionUseCase(
   sessionRepository,

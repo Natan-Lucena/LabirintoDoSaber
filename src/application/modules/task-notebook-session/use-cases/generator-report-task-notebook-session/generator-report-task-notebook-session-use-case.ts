@@ -3,6 +3,9 @@ import { TaskNotebookSessionRepository } from "../../../../../domain/repositorie
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
 import { Task } from "../../../../../domain/entities/task";
 import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
+import { ActivityResultRepository } from "../../../../../domain/repositories/activity-result-repository";
+import { summarizeActivityResults } from "../../../../../domain/entities/activity-result";
+import { mapActivityResultToResponse } from "../../../../../infraestructure/mappers/map-activity-result";
 
 export interface GeneratorReportTaskNotebookSessionUseCaseRequest {
   sessionId: string;
@@ -12,7 +15,8 @@ export class GeneratorReportTaskNotebookSessionUseCase {
   constructor(
     private sessionRepository: TaskNotebookSessionRepository,
     private taskRepository: TaskRepository,
-    private evolutionRepository: SessionEvolutionRepository
+    private evolutionRepository: SessionEvolutionRepository,
+    private activityResultRepository: ActivityResultRepository
   ) {}
 
   async execute(request: GeneratorReportTaskNotebookSessionUseCaseRequest) {
@@ -25,6 +29,9 @@ export class GeneratorReportTaskNotebookSessionUseCase {
     }
 
     const evolution = await this.evolutionRepository.findBySessionId(session.id);
+    // RS-05: os resultados de jogo ficam fora das estatísticas abaixo, que
+    // usam só as respostas de múltipla escolha.
+    const activityResults = await this.activityResultRepository.listBySessionId(session.id);
 
     const uniqueTaskIds = new Map<string, Uuid>();
     for (const answer of session.answers) {
@@ -44,9 +51,12 @@ export class GeneratorReportTaskNotebookSessionUseCase {
 
     const totalQuestions = session.answers.length;
 
+    // Sessão sem respostas (por exemplo, só jogos): null, nunca NaN.
     const averageTimePerQuestion =
-      session.answers.reduce((acc, curr) => acc + curr.timeToAnswer, 0) /
-      totalQuestions; // milissegundos (timeToAnswer cru)
+      totalQuestions > 0
+        ? session.answers.reduce((acc, curr) => acc + curr.timeToAnswer, 0) /
+          totalQuestions
+        : null; // milissegundos (timeToAnswer cru)
 
     const correctTimes = session.answers
       .filter((a) => a.isCorrect)
@@ -126,6 +136,8 @@ export class GeneratorReportTaskNotebookSessionUseCase {
       percentageByType,
       observation: session.observation ?? null,
       evolutionId: evolution?.id.value,
+      activitySummary: summarizeActivityResults(activityResults),
+      activityResults: activityResults.map(mapActivityResultToResponse),
     });
   }
 }

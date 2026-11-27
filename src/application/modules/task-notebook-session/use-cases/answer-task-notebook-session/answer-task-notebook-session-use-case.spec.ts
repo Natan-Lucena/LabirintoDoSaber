@@ -10,7 +10,14 @@ import {
 } from "../../../../../domain/entities/task-notebook-session";
 import { TaskGroupRepository } from "../../../../../domain/repositories/task-group-repository";
 import { AnswerTaskNotebookSessionUseCase } from "./answer-task-notebook-session-use-case";
-import { makePrintableTask } from "../../../task/use-cases/test-fixtures";
+import { TaskType } from "../../../../../domain/entities/task";
+import {
+  makeMultipleChoiceTask,
+  makePrintableTask,
+  makeWordBuilderTask,
+} from "../../../task/use-cases/test-fixtures";
+
+const EDUCATOR_ID = Uuid.random();
 
 const ID = {
   session: Uuid.random().value,
@@ -44,6 +51,7 @@ const makeSession = (
 
 const makeTask = (taskId: string, correctAltId: string) => ({
   id: new Uuid(taskId),
+  type: TaskType.MultipleChoice,
   alternatives: [
     { id: new Uuid(correctAltId), isCorrect: true },
     { id: new Uuid(ID.altWrong), isCorrect: false },
@@ -64,6 +72,7 @@ const mockSessionRepository = (): TaskNotebookSessionRepository =>
 const mockTaskRepository = (): TaskRepository =>
   ({
     getById: vi.fn(),
+    findLegacyOwners: vi.fn().mockResolvedValue(new Map()),
   } as unknown as TaskRepository);
 
 const mockNotebookRepository = (): TaskNotebookRepository =>
@@ -101,6 +110,7 @@ describe("AnswerTaskNotebookSessionUseCase", () => {
     (sessionRepo.getById as any).mockResolvedValue(null);
 
     const result = await useCase.execute({
+      educatorId: EDUCATOR_ID,
       sessionId: ID.session,
       taskId: ID.task,
       selectedAlternativeId: ID.altCorrect,
@@ -116,6 +126,7 @@ describe("AnswerTaskNotebookSessionUseCase", () => {
     (sessionRepo.getById as any).mockResolvedValue(session);
 
     const result = await useCase.execute({
+      educatorId: EDUCATOR_ID,
       sessionId: ID.session,
       taskId: ID.task,
       selectedAlternativeId: ID.altCorrect,
@@ -132,6 +143,7 @@ describe("AnswerTaskNotebookSessionUseCase", () => {
     (taskRepo.getById as any).mockResolvedValue(null);
 
     const result = await useCase.execute({
+      educatorId: EDUCATOR_ID,
       sessionId: ID.session,
       taskId: ID.task,
       selectedAlternativeId: ID.altCorrect,
@@ -149,6 +161,7 @@ describe("AnswerTaskNotebookSessionUseCase", () => {
     (taskRepo.getById as any).mockResolvedValue(printable);
 
     const result = await useCase.execute({
+      educatorId: EDUCATOR_ID,
       sessionId: ID.session,
       taskId: printable.id.value,
       selectedAlternativeId: ID.altCorrect,
@@ -156,6 +169,26 @@ describe("AnswerTaskNotebookSessionUseCase", () => {
     });
 
     expect(result).toEqual(failure("PRINTABLE_NOT_PLAYABLE"));
+    expect(sessionRepo.save).not.toHaveBeenCalled();
+  });
+
+  it("RS-03: tipo jogável novo usa a rota de resultado → USE_ACTIVITY_RESULT_ROUTE", async () => {
+    const session = makeSession(ID.session, ID.notebook);
+    const playable = makeWordBuilderTask();
+
+    (sessionRepo.getById as any).mockResolvedValue(session);
+    (taskRepo.getById as any).mockResolvedValue(playable);
+
+    const result = await useCase.execute({
+      educatorId: EDUCATOR_ID,
+      sessionId: ID.session,
+      taskId: playable.id.value,
+      selectedAlternativeId: ID.altCorrect,
+      timeToAnswer: 10,
+    });
+
+    expect(result).toEqual(failure("USE_ACTIVITY_RESULT_ROUTE"));
+    expect(notebookRepo.getById).not.toHaveBeenCalled();
     expect(sessionRepo.save).not.toHaveBeenCalled();
   });
 
@@ -183,6 +216,7 @@ describe("AnswerTaskNotebookSessionUseCase", () => {
     );
 
     const result = await useCase.execute({
+      educatorId: EDUCATOR_ID,
       sessionId: ID.session,
       taskId: ID.task,
       selectedAlternativeId: ID.altCorrect,
@@ -205,6 +239,7 @@ describe("AnswerTaskNotebookSessionUseCase", () => {
     );
 
     const result = await useCase.execute({
+      educatorId: EDUCATOR_ID,
       sessionId: ID.session,
       taskId: ID.task,
       selectedAlternativeId: ID.altCorrect,
@@ -218,6 +253,63 @@ describe("AnswerTaskNotebookSessionUseCase", () => {
 
     expect(saved.answers.length).toBe(1);
     expect(saved.answers[0].isCorrect).toBe(true);
+  });
+
+  describe("session without a notebook: only tasks the educator can use", () => {
+    const freeSession = () =>
+      new TaskNotebookSession(
+        new Uuid(ID.session),
+        Uuid.random(),
+        Uuid.random(),
+        "sessao",
+        new Date()
+      );
+
+    const answerTask = (taskId: string, alternativeId: string) =>
+      useCase.execute({
+        educatorId: EDUCATOR_ID,
+        sessionId: ID.session,
+        taskId,
+        selectedAlternativeId: alternativeId,
+        timeToAnswer: 8,
+      });
+
+    beforeEach(() => {
+      (sessionRepo.getById as any).mockResolvedValue(freeSession());
+    });
+
+    it("should return UNAUTHORIZED for a task of another educator", async () => {
+      const foreign = makeMultipleChoiceTask({ educatorId: Uuid.random() });
+      (taskRepo.getById as any).mockResolvedValue(foreign);
+
+      const result = await answerTask(foreign.id.value, foreign.alternatives[0].id!.value);
+
+      expect(result).toEqual(failure("UNAUTHORIZED"));
+      expect(sessionRepo.save).not.toHaveBeenCalled();
+    });
+
+    it("should return UNAUTHORIZED for a legacy task owned by other educators", async () => {
+      const legacy = makeMultipleChoiceTask();
+      (taskRepo.getById as any).mockResolvedValue(legacy);
+      (taskRepo.findLegacyOwners as any).mockResolvedValue(
+        new Map([[legacy.id.value, [Uuid.random().value]]])
+      );
+
+      const result = await answerTask(legacy.id.value, legacy.alternatives[0].id!.value);
+
+      expect(result).toEqual(failure("UNAUTHORIZED"));
+      expect(sessionRepo.save).not.toHaveBeenCalled();
+    });
+
+    it("should accept the educator's own task", async () => {
+      const own = makeMultipleChoiceTask({ educatorId: EDUCATOR_ID });
+      (taskRepo.getById as any).mockResolvedValue(own);
+
+      const result = await answerTask(own.id.value, own.alternatives[0].id!.value);
+
+      expect(result.ok).toBe(true);
+      expect(sessionRepo.save).toHaveBeenCalled();
+    });
   });
 
   describe("session linked to a notebook", () => {
@@ -235,6 +327,7 @@ describe("AnswerTaskNotebookSessionUseCase", () => {
       );
 
     const answerRequest = {
+      educatorId: EDUCATOR_ID,
       sessionId: ID.session,
       taskId: ID.task,
       selectedAlternativeId: ID.altCorrect,
