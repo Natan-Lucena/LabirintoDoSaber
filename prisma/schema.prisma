@@ -710,3 +710,54 @@ enum NotificationTargetType {
   PLAN
   SCALE_APPLICATION
 }
+
+// Equipe: clínica que reúne educadores. Sem clínica, o app funciona como antes.
+model Clinic {
+  id        String   @id @map("_id")
+  name      String
+  createdAt DateTime
+}
+
+// Vínculo do educador com a clínica. Um educador em no máximo uma clínica.
+model ClinicMember {
+  id         String   @id @map("_id")
+  clinicId   String
+  educatorId String   @unique
+  role       TeamRole
+  joinedAt   DateTime
+
+  @@index([clinicId])
+}
+
+// Convite de uso único; consumido com updateMany condicional.
+model ClinicInvite {
+  id        String    @id @map("_id")
+  clinicId  String
+  code      String    @unique
+  role      TeamRole
+  createdBy String
+  createdAt DateTime
+  expiresAt DateTime
+  usedAt    DateTime?
+  usedBy    String?
+  revokedAt DateTime?
+
+  // Ativos da clínica (lista e limite de 20): clinicId + validade.
+  @@index([clinicId, expiresAt])
+}
+
+enum TeamRole {
+  ADMIN
+  PROFESSIONAL
+}
+
+// Contador de limite de requisições por chave (escopo + hash do IP + janela).
+// A função é serverless: o limite precisa ficar no banco.
+model RateLimitCounter {
+  id        String   @id @map("_id")
+  count     Int
+  expiresAt DateTime
+
+  // Limpeza dos contadores de janelas já fechadas.
+  @@index([expiresAt])
+}

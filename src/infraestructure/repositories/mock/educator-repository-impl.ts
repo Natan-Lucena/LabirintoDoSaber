@@ -44,6 +44,11 @@ export class MockEducatorRepository implements EducatorRepository {
     return results.length > 0 ? results : null;
   }
 
+  async getByIds(ids: Uuid[]): Promise<Educator[]> {
+    const wanted = new Set(ids.map((id) => id.value));
+    return this.data.filter((educator) => wanted.has(educator.id.value));
+  }
+
   async delete(id: Uuid): Promise<void> {
     
     this.data = this.data.filter((educator) => educator.id.toString() !== id.toString());

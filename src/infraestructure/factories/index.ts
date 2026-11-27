@@ -48,6 +48,16 @@ import { TaskSkillRepository } from "../../domain/repositories/task-skill-reposi
 import { TaskSkillRepositoryImpl } from "../repositories/prisma/task-skill-repository-impl";
 import { ActivityResultRepository } from "../../domain/repositories/activity-result-repository";
 import { ActivityResultRepositoryImpl } from "../repositories/prisma/activity-result-repository-impl";
+import { ClinicRepository } from "../../domain/repositories/clinic-repository";
+import { ClinicRepositoryImpl } from "../repositories/prisma/clinic-repository-impl";
+import { ClinicMemberRepository } from "../../domain/repositories/clinic-member-repository";
+import { ClinicMemberRepositoryImpl } from "../repositories/prisma/clinic-member-repository-impl";
+import { ClinicInviteRepository } from "../../domain/repositories/clinic-invite-repository";
+import { ClinicInviteRepositoryImpl } from "../repositories/prisma/clinic-invite-repository-impl";
+import { RateLimitRepository } from "../../domain/repositories/rate-limit-repository";
+import { RateLimitRepositoryImpl } from "../repositories/prisma/rate-limit-repository-impl";
+import { ClinicDepartureService } from "../../domain/services/clinic-departure-service";
+import { ClinicDepartureServiceImpl } from "../services/clinic-departure-service-impl";
 
 const prismaClient = new PrismaClient();
 
@@ -177,4 +187,24 @@ export const makeTaskSkillRepository = (): TaskSkillRepository => {
 
 export const makeActivityResultRepository = (): ActivityResultRepository => {
   return new ActivityResultRepositoryImpl(prismaClient);
+};
+
+export const makeClinicRepository = (): ClinicRepository => {
+  return new ClinicRepositoryImpl(prismaClient);
+};
+
+export const makeClinicMemberRepository = (): ClinicMemberRepository => {
+  return new ClinicMemberRepositoryImpl(prismaClient);
+};
+
+export const makeClinicInviteRepository = (): ClinicInviteRepository => {
+  return new ClinicInviteRepositoryImpl(prismaClient);
+};
+
+export const makeRateLimitRepository = (): RateLimitRepository => {
+  return new RateLimitRepositoryImpl(prismaClient);
+};
+
+export const makeClinicDepartureService = (): ClinicDepartureService => {
+  return new ClinicDepartureServiceImpl();
 };

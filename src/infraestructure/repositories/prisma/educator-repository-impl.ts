@@ -53,6 +53,13 @@ export class EducatorRepositoryImpl implements EducatorRepository {
     });
     return result ? this.mapToEntity(result) : null;
   }
+  async getByIds(ids: Uuid[]): Promise<Educator[]> {
+    if (ids.length === 0) return [];
+    const records = await this.prismaService.educator.findMany({
+      where: { id: { in: ids.map((id) => id.value) } },
+    });
+    return records.map((record) => this.mapToEntity(record));
+  }
   async delete(id: Uuid): Promise<void> {
     await this.prismaService.educator.delete({ where: { id: id.value } });
   }

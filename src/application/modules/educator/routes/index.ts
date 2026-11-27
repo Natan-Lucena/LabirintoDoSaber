@@ -18,6 +18,10 @@ import { GetEducatorProfileController } from "../use-cases/get-educator-profile/
 import { makeAuthMiddleware } from "../../../../infraestructure/middlewares/index";
 import {
   makeAuthTokenRepository,
+  makeClinicInviteRepository,
+  makeClinicMemberRepository,
+  makeClinicRepository,
+  makeRateLimitRepository,
   makeEducatorRepository,
   makeFileStorage,
   makeStudentRepository,
@@ -37,6 +41,7 @@ const educatorRepository = makeEducatorRepository({ isMock: false });
 const studentRepository = makeStudentRepository({ isMock: false });
 const taskNotebookSessionRepository = makeTaskNotebookSessionRepository();
 const authTokenRepository = makeAuthTokenRepository({ isMock: false });
+const clinicMemberRepository = makeClinicMemberRepository();
 
 const authService = new JwtAuthService();
 
@@ -47,7 +52,12 @@ const signInEducatorUseCase = new SignInEducatorUseCase(
   authService
 );
 
-const registerEducatorUseCase = new RegisterEducatorUseCase(educatorRepository);
+const registerEducatorUseCase = new RegisterEducatorUseCase(
+  educatorRepository,
+  makeClinicInviteRepository(),
+  clinicMemberRepository,
+  makeRateLimitRepository()
+);
 const updatePasswordEducatorUseCase = new UpdatePasswordEducatorUseCase(
   educatorRepository,
   authTokenRepository
@@ -62,7 +72,9 @@ const changePasswordUseCase = new ChangePasswordUseCase(
 );
 
 const getEducatorProfileUseCase = new GetEducatorProfileUseCase(
-  educatorRepository
+  educatorRepository,
+  clinicMemberRepository,
+  makeClinicRepository()
 );
 
 const mailer = new NodemailerMailService();
