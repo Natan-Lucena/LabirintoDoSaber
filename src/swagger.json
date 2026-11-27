@@ -76,6 +76,10 @@
     {
       "name": "Clinic",
       "description": "Equipe: clínica, papéis (ADMIN e PROFESSIONAL) e convites. Cada educador está em no máximo uma clínica; a clínica não dá acesso automático aos pacientes."
+    },
+    {
+      "name": "Help",
+      "description": "Central de ajuda: tutoriais de uso do app."
     }
   ],
   "paths": {
@@ -7520,45 +7524,6 @@
             "jobApiKey": []
           }
         ]
-      }
-    },
-    "/appointment/watchdog": {
-      "post": {
-        "tags": [
-          "Appointment"
-        ],
-        "summary": "Job: watchdog dos atendimentos.",
-        "responses": {
-          "200": {
-            "description": "`{ \"message\": \"Watchdog executed\" }`",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Message"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Exceção não tratada (`An unexpected error occurred`).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InternalError"
-                },
-                "examples": {
-                  "An unexpected error occurred": {
-                    "value": {
-                      "message": "An unexpected error occurred",
-                      "error": "Error not specified."
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": []
       }
     },
     "/appointment": {
@@ -15891,6 +15856,404 @@
         "description": "`updated` conta também as notificações escondidas da lista por troca de dono do paciente (NT-03), então pode ser maior que o contador de não lidas."
       }
     },
+    "/notification/push-token": {
+      "post": {
+        "tags": [
+          "Notification"
+        ],
+        "summary": "Registra o token de push do aparelho (depois do login e da permissão).",
+        "description": "Upsert pelo token: o mesmo token não duplica e, se era de outro educador, passa para o atual. Até 5 aparelhos por educador; o visto há mais tempo sai. Push diário: no máximo um por dia, com contagens por tipo e sem nome de paciente; `data` = `{ notificationIds, target? }` (target só quando houver uma notificação).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushTokenBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushToken"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod, ou `INVALID_PUSH_TOKEN` (fora do formato da Expo).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "token"
+                        }
+                      ]
+                    }
+                  },
+                  "INVALID_PUSH_TOKEN": {
+                    "value": {
+                      "message": "INVALID_PUSH_TOKEN"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Notification"
+        ],
+        "summary": "Remove o token de push do aparelho (logout).",
+        "description": "Só apaga se o token for do educador. Idempotente: token desconhecido também devolve 204.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushTokenDeleteBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Removido (ou já não existia)."
+          },
+          "400": {
+            "description": "Falha de validação Zod.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "token"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/notification/preferences": {
+      "get": {
+        "tags": [
+          "Notification"
+        ],
+        "summary": "Preferências de push do educador.",
+        "description": "Sem preferências salvas: push ligado e todos os kinds ligados.",
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPreferences"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Notification"
+        ],
+        "summary": "Atualiza as preferências de push (parcial).",
+        "description": "Desligar um kind só o tira do push; a lista de notificações continua com tudo. `pushEnabled: false` não envia push nenhum.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationPreferencesBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sucesso. Preferências completas depois da mudança.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPreferences"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Falha de validação Zod.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "pushEnabled"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/notification/{id}/read": {
       "post": {
         "tags": [
@@ -17264,6 +17627,80 @@
                   "LAST_ADMIN": {
                     "value": {
                       "message": "LAST_ADMIN"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                },
+                "examples": {
+                  "An unexpected error occurred": {
+                    "value": {
+                      "message": "An unexpected error occurred",
+                      "error": "Error not specified."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/help/tutorials": {
+      "get": {
+        "tags": [
+          "Help"
+        ],
+        "summary": "Tutoriais da central de ajuda, por `order`.",
+        "description": "Conteúdo carregado por seed versionado (`help/tutorials.json`, `pnpm seed:help`). No máximo um `featured`. Sem `videoUrl`, o app mostra os `steps`.",
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HelpTutorial"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
                     }
                   }
                 }
@@ -23459,6 +23896,187 @@
         },
         "required": [
           "fromAppointmentId"
+        ]
+      },
+      "PushPlatform": {
+        "type": "string",
+        "enum": [
+          "android",
+          "ios"
+        ]
+      },
+      "PushToken": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "example": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/PushPlatform"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "token",
+          "platform",
+          "createdAt",
+          "lastSeenAt"
+        ]
+      },
+      "PushTokenBody": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Token da Expo: `ExponentPushToken[...]` ou `ExpoPushToken[...]`.",
+            "example": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/PushPlatform"
+          }
+        },
+        "required": [
+          "token",
+          "platform"
+        ]
+      },
+      "PushTokenDeleteBody": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "token"
+        ]
+      },
+      "NotificationPreferences": {
+        "type": "object",
+        "properties": {
+          "pushEnabled": {
+            "type": "boolean"
+          },
+          "kinds": {
+            "type": "object",
+            "properties": {
+              "APPOINTMENTS_TODAY": {
+                "type": "boolean"
+              },
+              "EVOLUTION_PENDING": {
+                "type": "boolean"
+              },
+              "PLAN_REVIEW_DUE": {
+                "type": "boolean"
+              },
+              "SCALE_DRAFT_STALE": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "APPOINTMENTS_TODAY",
+              "EVOLUTION_PENDING",
+              "PLAN_REVIEW_DUE",
+              "SCALE_DRAFT_STALE"
+            ],
+            "additionalProperties": false,
+            "description": "Todos os kinds, sempre presentes."
+          }
+        },
+        "required": [
+          "pushEnabled",
+          "kinds"
+        ]
+      },
+      "NotificationPreferencesBody": {
+        "type": "object",
+        "description": "Parcial: só o que vier muda. `kinds` também é parcial.",
+        "properties": {
+          "pushEnabled": {
+            "type": "boolean"
+          },
+          "kinds": {
+            "type": "object",
+            "properties": {
+              "APPOINTMENTS_TODAY": {
+                "type": "boolean"
+              },
+              "EVOLUTION_PENDING": {
+                "type": "boolean"
+              },
+              "PLAN_REVIEW_DUE": {
+                "type": "boolean"
+              },
+              "SCALE_DRAFT_STALE": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "HelpTutorial": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "order": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "durationSeconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "featured": {
+            "type": "boolean",
+            "description": "No máximo um tutorial em destaque."
+          },
+          "videoUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Arquivo direto em HTTPS (MP4 ou HLS). Ausente: o app mostra os passos."
+          },
+          "thumbnailUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "steps": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "maxLength": 300
+            }
+          }
+        },
+        "required": [
+          "id",
+          "order",
+          "title",
+          "description",
+          "durationSeconds",
+          "featured"
         ]
       }
     }

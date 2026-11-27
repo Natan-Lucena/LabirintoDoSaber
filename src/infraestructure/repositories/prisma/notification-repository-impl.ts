@@ -109,6 +109,14 @@ export class NotificationRepositoryImpl implements NotificationRepository {
     }));
   }
 
+  async listUnreadCreatedSince(since: Date): Promise<Notification[]> {
+    const records = await this.prismaService.notification.findMany({
+      where: { createdAt: { gte: since }, readAt: null },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    });
+    return records.map((record) => this.mapToEntity(record));
+  }
+
   async markAllRead(educatorId: Uuid, readAt: Date): Promise<number> {
     const result = await this.prismaService.notification.updateMany({
       where: { educatorId: educatorId.value, readAt: null },
@@ -127,6 +135,7 @@ export class NotificationRepositoryImpl implements NotificationRepository {
       targetId: notification.target?.id ?? null,
       studentId: notification.studentId?.value ?? null,
       dedupeKey: notification.dedupeKey,
+      count: notification.count ?? null,
       createdAt: notification.createdAt,
       readAt: notification.readAt ?? null,
     };
@@ -145,6 +154,7 @@ export class NotificationRepositoryImpl implements NotificationRepository {
           : undefined,
       studentId: record.studentId ? new Uuid(record.studentId) : undefined,
       dedupeKey: record.dedupeKey,
+      count: record.count ?? undefined,
       createdAt: record.createdAt,
       readAt: record.readAt ?? undefined,
     });

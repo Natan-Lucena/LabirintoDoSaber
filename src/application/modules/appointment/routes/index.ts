@@ -1,11 +1,14 @@
-import { Router } from "express";
+import { Request, Response, Router } from "express";
 import { makeAuthMiddleware } from "../../../../infraestructure/middlewares";
-import { requireJobApiKey } from "../../../../infraestructure/middlewares";
+import { requireCronSecret, requireJobApiKey } from "../../../../infraestructure/middlewares";
 import {
   makeAppointmentRepository,
   makeAppointmentSchedulerService,
   makeAppointmentSeriesRepository,
   makeEducatorRepository,
+  makePushReceiptRepository,
+  makePushSender,
+  makePushTokenRepository,
   makeStudentAccessService,
 } from "../../../../infraestructure/factories";
 import { NodemailerMailService } from "../../../../infraestructure/services/mail-service-impl";
@@ -17,6 +20,7 @@ import { ListAppointmentsUseCase } from "../use-cases/list-appointments/list-app
 import { GetAppointmentUseCase } from "../use-cases/get-appointment/get-appointment-use-case";
 import { NotifyAppointmentsUseCase } from "../use-cases/notify-appointments/notify-appointments-use-case";
 import { WatchdogAppointmentsUseCase } from "../use-cases/watchdog-appointments/watchdog-appointments-use-case";
+import { CheckPushReceiptsUseCase } from "../../notification/use-cases/check-push-receipts/check-push-receipts-use-case";
 import { CreateAppointmentSeriesUseCase } from "../use-cases/create-appointment-series/create-appointment-series-use-case";
 import { GetAppointmentSeriesUseCase } from "../use-cases/get-appointment-series/get-appointment-series-use-case";
 import { UpdateAppointmentSeriesUseCase } from "../use-cases/update-appointment-series/update-appointment-series-use-case";
@@ -50,6 +54,11 @@ const listAppointmentsUseCase = new ListAppointmentsUseCase(appointmentRepositor
 const getAppointmentUseCase = new GetAppointmentUseCase(appointmentRepository, studentAccess);
 const notifyAppointmentsUseCase = new NotifyAppointmentsUseCase(appointmentRepository, educatorRepository, schedulerService, mailService);
 const watchdogAppointmentsUseCase = new WatchdogAppointmentsUseCase(appointmentRepository, schedulerService);
+const checkPushReceiptsUseCase = new CheckPushReceiptsUseCase(
+  makePushReceiptRepository(),
+  makePushTokenRepository(),
+  makePushSender()
+);
 const createSeriesUseCase = new CreateAppointmentSeriesUseCase(appointmentRepository, seriesRepository, schedulerService, studentAccess);
 const getSeriesUseCase = new GetAppointmentSeriesUseCase(appointmentRepository, seriesRepository, studentAccess);
 const updateSeriesUseCase = new UpdateAppointmentSeriesUseCase(appointmentRepository, seriesRepository, schedulerService, studentAccess);
@@ -62,9 +71,12 @@ appointmentRouter.post("/notify", requireJobApiKey, async (req, res) => {
   new NotifyAppointmentsController(notifyAppointmentsUseCase).execute(req, res);
 });
 
-appointmentRouter.post("/watchdog", async (req, res) => {
-  new WatchdogAppointmentsController(watchdogAppointmentsUseCase).execute(req, res);
-});
+// Cron diário da Vercel (GET, com CRON_SECRET). O POST fica para disparo manual,
+// com o mesmo segredo.
+const runWatchdog = (req: Request, res: Response) =>
+  new WatchdogAppointmentsController(watchdogAppointmentsUseCase, checkPushReceiptsUseCase).execute(req, res);
+appointmentRouter.get("/watchdog", requireCronSecret, runWatchdog);
+appointmentRouter.post("/watchdog", requireCronSecret, runWatchdog);
 
 // CRUD routes under auth middleware
 appointmentRouter.use(authMiddleware);

@@ -11,7 +11,8 @@
     "postinstall": "prisma generate",
     "start": "node dist/index.js",
     "seed:scales": "ts-node --transpile-only scripts/seed-scales.ts",
-    "seed:task-library": "ts-node --transpile-only scripts/seed-task-library.ts"
+    "seed:task-library": "ts-node --transpile-only scripts/seed-task-library.ts",
+    "seed:help": "ts-node --transpile-only scripts/seed-help.ts"
   },
   "keywords": [],
   "author": "",

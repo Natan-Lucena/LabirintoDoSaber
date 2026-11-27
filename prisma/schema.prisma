@@ -725,6 +725,8 @@ model Notification {
   studentId  String?
   // Uma por kind + alvo + dia; o cron pode rodar de novo sem duplicar.
   dedupeKey  String                  @unique
+  // Quantidade do APPOINTMENTS_TODAY, para o texto do push.
+  count      Int?
   createdAt  DateTime
   readAt     DateTime?
 
@@ -746,6 +748,74 @@ enum NotificationTargetType {
   SESSION
   PLAN
   SCALE_APPLICATION
+}
+
+// Token de push da Expo de um aparelho do educador. Até 5 por educador; o
+// visto há mais tempo sai.
+model PushToken {
+  id         String       @id @map("_id")
+  token      String       @unique
+  educatorId String
+  platform   PushPlatform
+  createdAt  DateTime
+  lastSeenAt DateTime
+
+  // Aparelhos do educador (limite e envio do cron).
+  @@index([educatorId, lastSeenAt])
+}
+
+enum PushPlatform {
+  android
+  ios
+}
+
+// Preferências de push. Ausente = padrões (push ligado e todos os kinds).
+model NotificationPreferences {
+  id            String             @id @map("_id")
+  educatorId    String             @unique
+  pushEnabled   Boolean
+  // Só os kinds desligados: um kind novo nasce ligado.
+  disabledKinds NotificationKind[]
+  updatedAt     DateTime
+}
+
+// Um push por educador por dia: o índice único impede o segundo envio,
+// inclusive com dois crons em paralelo.
+model PushDispatch {
+  id         String   @id @map("_id")
+  educatorId String
+  // Dia em São Paulo, AAAA-MM-DD.
+  date       String
+  createdAt  DateTime
+
+  @@unique([educatorId, date])
+  // Retenção: o cron apaga os registros antigos.
+  @@index([createdAt])
+}
+
+// Recibo de envio da Expo ainda não conferido. O id é o id do recibo.
+model PushReceipt {
+  id        String   @id @map("_id")
+  token     String
+  createdAt DateTime
+
+  // Retenção curta: a Expo guarda os recibos por um dia.
+  @@index([createdAt])
+}
+
+// Central de ajuda: carregada pelo seed versionado (help/tutorials.json).
+model HelpTutorial {
+  id              String   @id @map("_id")
+  order           Int
+  title           String
+  description     String
+  durationSeconds Int
+  featured        Boolean
+  videoUrl        String?
+  thumbnailUrl    String?
+  steps           String[]
+
+  @@index([order])
 }
 
 // Equipe: clínica que reúne educadores. Sem clínica, o app funciona como antes.
