@@ -5,6 +5,11 @@ import { TaskGroup } from "../../../../../domain/entities/task-group";
 import { TaskCategory } from "../../../../../domain/entities/task";
 import { TaskGroupRepository } from "../../../../../domain/repositories/task-group-repository";
 import { UpdateTaskGroupSchema } from "../../schemas/update-task-group-schema";
+import {
+  makeLibraryTask,
+  makePrintableTask,
+  makeTaskRepository,
+} from "../../../task/use-cases/test-fixtures";
 
 const makeGroup = (educatorId: Uuid) =>
   TaskGroup.create({
@@ -16,6 +21,7 @@ const makeGroup = (educatorId: Uuid) =>
 describe("UpdateTaskGroupUseCase", () => {
   let repository: TaskGroupRepository;
   let useCase: UpdateTaskGroupUseCase;
+  let taskRepository: ReturnType<typeof makeTaskRepository>;
   const ownerId = Uuid.random();
 
   beforeEach(() => {
@@ -23,7 +29,8 @@ describe("UpdateTaskGroupUseCase", () => {
       findById: vi.fn(),
       save: vi.fn(),
     } as unknown as TaskGroupRepository;
-    useCase = new UpdateTaskGroupUseCase(repository);
+    taskRepository = makeTaskRepository();
+    useCase = new UpdateTaskGroupUseCase(repository, taskRepository);
   });
 
   it("atualiza o grupo quando o educador é o dono, mantendo o dono", async () => {
@@ -90,6 +97,55 @@ describe("UpdateTaskGroupUseCase", () => {
 
     expect(result).toEqual({ ok: false, error: "INVALID_TASK_GROUP_ID" });
     expect(repository.findById).not.toHaveBeenCalled();
+  });
+
+  it("BE-AT-05: imprimível no grupo → PRINTABLE_NOT_PLAYABLE sem salvar", async () => {
+    const group = makeGroup(ownerId);
+    (repository.findById as any).mockResolvedValue(group);
+    const printable = makePrintableTask();
+    taskRepository.getByIds.mockResolvedValue([printable]);
+
+    const result = await useCase.execute({
+      id: group.id.value,
+      educatorId: ownerId,
+      tasksIds: [printable.id.value],
+    });
+
+    expect(result).toEqual({ ok: false, error: "PRINTABLE_NOT_PLAYABLE" });
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+
+  it("tarefa EDUCATOR de outro educador → UNAUTHORIZED sem salvar", async () => {
+    const group = makeGroup(ownerId);
+    (repository.findById as any).mockResolvedValue(group);
+    const othersTask = makeLibraryTask({ source: undefined, educatorId: Uuid.random() });
+    taskRepository.getByIds.mockResolvedValue([othersTask]);
+
+    const result = await useCase.execute({
+      id: group.id.value,
+      educatorId: ownerId,
+      tasksIds: [othersTask.id.value],
+    });
+
+    expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+
+  it("AT-10: aceita tarefa da biblioteca e de tipo novo", async () => {
+    const group = makeGroup(ownerId);
+    (repository.findById as any).mockResolvedValue(group);
+    const library = makeLibraryTask();
+    taskRepository.getByIds.mockResolvedValue([library]);
+
+    const result = await useCase.execute({
+      id: group.id.value,
+      educatorId: ownerId,
+      tasksIds: [library.id.value],
+    });
+
+    expect(result).toEqual({ ok: true, value: undefined });
+    const saved = (repository.save as any).mock.calls[0][0] as TaskGroup;
+    expect(saved.tasksIds).toEqual([library.id.value]);
   });
 
   it("devolve UPDATE_TASK_GROUP_FAILED quando o salvamento falha", async () => {

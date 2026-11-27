@@ -1,64 +1,216 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
+import { Uuid } from "@wave-telecom/framework/core";
+import { Task, TaskTone, TaskType } from "../../../../../domain/entities/task";
 import { UpdateTaskUseCase } from "./update-task-use-case";
-import { success, failure, Uuid } from "@wave-telecom/framework/core";
+import {
+  BUCKET_URL,
+  makeFileStorage,
+  makeLibraryTask,
+  makeMultipleChoiceTask,
+  makeSkillRepository,
+  makeTaskRepository,
+  makeWordBuilderTask,
+} from "../test-fixtures";
 
 describe("UpdateTaskUseCase", () => {
-  const mockRepo = {
-    getById: vi.fn(),
-    save: vi.fn(),
-  };
-
+  let taskRepository: ReturnType<typeof makeTaskRepository>;
+  let fileStorage: ReturnType<typeof makeFileStorage>;
   let useCase: UpdateTaskUseCase;
+  const educatorId = Uuid.random();
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    useCase = new UpdateTaskUseCase(mockRepo as any);
+    taskRepository = makeTaskRepository();
+    fileStorage = makeFileStorage();
+    useCase = new UpdateTaskUseCase(taskRepository, makeSkillRepository(), fileStorage);
   });
 
-  it("deve retornar erro se o ID for inválido", async () => {
-    const result = await useCase.execute({ id: "id-invalido" });
-    expect(result).toEqual(failure("INVALID_TASK_ID"));
+  it("id inválido → TASK_NOT_FOUND sem consultar o banco", async () => {
+    const result = await useCase.execute({ educatorId, id: "id-invalido" });
+    expect(result).toEqual({ ok: false, error: "TASK_NOT_FOUND" });
+    expect(taskRepository.getById).not.toHaveBeenCalled();
   });
 
-  it("deve retornar erro se a task não for encontrada", async () => {
-    mockRepo.getById.mockResolvedValue(null);
-
-    const id = Uuid.random().toString();
-    const result = await useCase.execute({ id });
-
-    expect(result).toEqual(failure("TASK_NOT_FOUND"));
-    expect(mockRepo.getById).toHaveBeenCalled();
+  it("tarefa inexistente → TASK_NOT_FOUND", async () => {
+    taskRepository.getById.mockResolvedValue(null);
+    const result = await useCase.execute({ educatorId, id: Uuid.random().value });
+    expect(result).toEqual({ ok: false, error: "TASK_NOT_FOUND" });
   });
 
-  it("deve retornar erro se updateTask falhar", async () => {
-    const fakeTask = {
-      updateTask: vi.fn().mockReturnValue(failure("INVALID_TASK_DATA")),
-    };
+  it("BE-AT-03: tarefa da biblioteca → LIBRARY_TASK_READ_ONLY", async () => {
+    const library = makeLibraryTask();
+    taskRepository.getById.mockResolvedValue(library);
 
-    mockRepo.getById.mockResolvedValue(fakeTask);
+    const result = await useCase.execute({ educatorId, id: library.id.value, prompt: "Outro" });
 
-    const id = Uuid.random().toString();
-    const result = await useCase.execute({ id });
-
-    expect(fakeTask.updateTask).toHaveBeenCalled();
-    expect(result).toEqual(failure("INVALID_TASK_DATA"));
+    expect(result).toEqual({ ok: false, error: "LIBRARY_TASK_READ_ONLY" });
+    expect(taskRepository.save).not.toHaveBeenCalled();
   });
 
-  it("deve atualizar a task com sucesso", async () => {
-    const updatedTask = { id: Uuid.random() };
+  it("tarefa de outro educador → UNAUTHORIZED", async () => {
+    const task = makeWordBuilderTask({ educatorId: Uuid.random() });
+    taskRepository.getById.mockResolvedValue(task);
 
-    const fakeTask = {
-      updateTask: vi.fn().mockReturnValue(success(updatedTask)),
-    };
+    const result = await useCase.execute({ educatorId, id: task.id.value, prompt: "Outro" });
 
-    mockRepo.getById.mockResolvedValue(fakeTask);
-    mockRepo.save.mockResolvedValue(void 0);
+    expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
+    expect(taskRepository.save).not.toHaveBeenCalled();
+  });
 
-    const id = Uuid.random().toString();
-    const result = await useCase.execute({ id, prompt: "Nova descrição" });
+  it("tarefa antiga sem dono continua editável", async () => {
+    const legacy = makeMultipleChoiceTask();
+    taskRepository.getById.mockResolvedValue(legacy);
 
-    expect(fakeTask.updateTask).toHaveBeenCalledWith({ id, prompt: "Nova descrição" });
-    expect(mockRepo.save).toHaveBeenCalledWith(updatedTask);
-    expect(result).toEqual(success(void 0));
+    const result = await useCase.execute({ educatorId, id: legacy.id.value, prompt: "Novo" });
+
+    expect(result.ok).toBe(true);
+    const saved = taskRepository.save.mock.calls[0][0] as Task;
+    expect(saved.prompt).toBe("Novo");
+    expect(result).toEqual({ ok: true, value: saved });
+  });
+
+  it("antiga sem dono em caderno/grupo de outro educador → UNAUTHORIZED", async () => {
+    const legacy = makeMultipleChoiceTask();
+    taskRepository.getById.mockResolvedValue(legacy);
+    taskRepository.findLegacyOwners.mockResolvedValue(
+      new Map([[legacy.id.value, [Uuid.random().value]]])
+    );
+
+    const result = await useCase.execute({ educatorId, id: legacy.id.value, prompt: "Novo" });
+
+    expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
+    expect(taskRepository.findLegacyOwners).toHaveBeenCalledWith([legacy.id]);
+    expect(taskRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("antiga sem dono em caderno/grupo do próprio educador é editável", async () => {
+    const legacy = makeMultipleChoiceTask();
+    taskRepository.getById.mockResolvedValue(legacy);
+    taskRepository.findLegacyOwners.mockResolvedValue(
+      new Map([[legacy.id.value, [Uuid.random().value, educatorId.value]]])
+    );
+
+    const result = await useCase.execute({ educatorId, id: legacy.id.value, prompt: "Novo" });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("troca entre multipleChoice e multipleChoiceWithMedia", async () => {
+    const quiz = makeMultipleChoiceTask({ educatorId });
+    taskRepository.getById.mockResolvedValue(quiz);
+
+    const result = await useCase.execute({
+      educatorId,
+      id: quiz.id.value,
+      type: TaskType.MultipleChoiceWithMedia,
+      imageFile: `${BUCKET_URL}figura.png`,
+    });
+
+    expect(result.ok).toBe(true);
+    const saved = taskRepository.save.mock.calls[0][0] as Task;
+    expect(saved.type).toBe(TaskType.MultipleChoiceWithMedia);
+    expect(saved.imageFile).toBe(`${BUCKET_URL}figura.png`);
+  });
+
+  it("AT-05: imageFile/audioFile enviados fora do armazenamento → INVALID_MEDIA_URL", async () => {
+    const quiz = makeMultipleChoiceTask({ educatorId });
+    taskRepository.getById.mockResolvedValue(quiz);
+
+    const result = await useCase.execute({
+      educatorId,
+      id: quiz.id.value,
+      type: TaskType.MultipleChoiceWithMedia,
+      imageFile: `${BUCKET_URL}figura.png`,
+      audioFile: "https://example.com/som.mp3",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "INVALID_MEDIA_URL",
+        errors: [{ field: "audioFile", message: expect.any(String) }],
+      },
+    });
+    expect(taskRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("TYPE_CHANGE_NOT_ALLOWED ao mudar o tipo", async () => {
+    const task = makeWordBuilderTask({ educatorId });
+    taskRepository.getById.mockResolvedValue(task);
+
+    const result = await useCase.execute({
+      educatorId,
+      id: task.id.value,
+      type: TaskType.MemoryGame,
+    });
+
+    expect(result).toEqual({ ok: false, error: "TYPE_CHANGE_NOT_ALLOWED" });
+  });
+
+  it("INVALID_CONTENT, ALTERNATIVES_NOT_ALLOWED, INVALID_SKILL e INVALID_MEDIA_URL", async () => {
+    const task = makeWordBuilderTask({ educatorId });
+    taskRepository.getById.mockResolvedValue(task);
+    const id = task.id.value;
+
+    expect(
+      await useCase.execute({ educatorId, id, content: { kind: "wordBuilder", word: "" } })
+    ).toEqual({
+      ok: false,
+      error: {
+        code: "INVALID_CONTENT",
+        errors: [{ field: "content.word", message: expect.any(String) }],
+      },
+    });
+    expect(
+      await useCase.execute({
+        educatorId,
+        id,
+        alternatives: [{ text: "A", isCorrect: true }],
+      })
+    ).toEqual({ ok: false, error: "ALTERNATIVES_NOT_ALLOWED" });
+    expect(await useCase.execute({ educatorId, id, skills: ["NAO_EXISTE"] })).toEqual({
+      ok: false,
+      error: "INVALID_SKILL",
+    });
+    expect(
+      await useCase.execute({
+        educatorId,
+        id,
+        content: { kind: "wordBuilder", word: "BOLA", hintAudioUrl: "https://x.com/a.mp3" },
+      })
+    ).toEqual({
+      ok: false,
+      error: {
+        code: "INVALID_MEDIA_URL",
+        errors: [{ field: "content.hintAudioUrl", message: expect.any(String) }],
+      },
+    });
+    expect(taskRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("atualiza content, skills, theme e tone do próprio educador", async () => {
+    const task = makeWordBuilderTask({ educatorId });
+    taskRepository.getById.mockResolvedValue(task);
+
+    const result = await useCase.execute({
+      educatorId,
+      id: task.id.value,
+      content: { kind: "wordBuilder", word: "GATO", hintImageUrl: `${BUCKET_URL}gato.png` },
+      skills: ["VOCABULARIO"],
+      theme: "Animais",
+      tone: TaskTone.Yellow,
+    });
+
+    expect(result.ok).toBe(true);
+    const saved = taskRepository.save.mock.calls[0][0] as Task;
+    expect(saved.id.value).toBe(task.id.value);
+    expect(saved.content).toEqual({
+      kind: "wordBuilder",
+      word: "GATO",
+      hintImageUrl: `${BUCKET_URL}gato.png`,
+    });
+    expect(saved.skills).toEqual(["VOCABULARIO"]);
+    expect(saved.theme).toBe("Animais");
+    expect(saved.tone).toBe(TaskTone.Yellow);
+    expect(saved.educatorId?.value).toBe(educatorId.value);
   });
 });

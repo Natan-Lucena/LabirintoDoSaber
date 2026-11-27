@@ -1,0 +1,106 @@
+[
+  {
+    "code": "CONSCIENCIA_FONOLOGICA",
+    "label": "Consciência fonológica",
+    "order": 1,
+    "learningTopics": [
+      "consciência fonológica",
+      "fonologia",
+      "rimas",
+      "sílabas",
+      "sons das letras",
+      "alfabetização",
+      "dislexia"
+    ]
+  },
+  {
+    "code": "RECONHECIMENTO_LETRAS",
+    "label": "Reconhecimento de letras",
+    "order": 2,
+    "learningTopics": ["alfabeto", "letras", "reconhecimento de letras", "alfabetização"]
+  },
+  {
+    "code": "DECODIFICACAO",
+    "label": "Decodificação",
+    "order": 3,
+    "learningTopics": [
+      "decodificação",
+      "leitura",
+      "leitura de palavras",
+      "fluência leitora",
+      "alfabetização",
+      "dislexia"
+    ]
+  },
+  {
+    "code": "FORMACAO_PALAVRAS",
+    "label": "Formação de palavras",
+    "order": 4,
+    "learningTopics": ["formação de palavras", "soletração", "escrita", "alfabetização"]
+  },
+  {
+    "code": "VOCABULARIO",
+    "label": "Vocabulário",
+    "order": 5,
+    "learningTopics": [
+      "vocabulário",
+      "linguagem",
+      "linguagem oral",
+      "atraso de linguagem",
+      "nomeação"
+    ]
+  },
+  {
+    "code": "COMPREENSAO_LEITORA",
+    "label": "Compreensão leitora",
+    "order": 6,
+    "learningTopics": [
+      "compreensão leitora",
+      "compreensão de texto",
+      "interpretação de texto",
+      "leitura"
+    ]
+  },
+  {
+    "code": "ESCRITA_ORTOGRAFIA",
+    "label": "Escrita e ortografia",
+    "order": 7,
+    "learningTopics": ["escrita", "ortografia", "disortografia", "produção textual"]
+  },
+  {
+    "code": "COORDENACAO_GRAFOMOTORA",
+    "label": "Coordenação grafomotora",
+    "order": 8,
+    "learningTopics": ["coordenação motora", "coordenação motora fina", "grafomotricidade", "disgrafia"]
+  },
+  {
+    "code": "ATENCAO_VISUAL",
+    "label": "Atenção visual",
+    "order": 9,
+    "learningTopics": ["atenção", "atenção visual", "concentração", "TDAH"]
+  },
+  {
+    "code": "MEMORIA_TRABALHO",
+    "label": "Memória de trabalho",
+    "order": 10,
+    "learningTopics": ["memória", "memória de trabalho", "funções executivas", "TDAH"]
+  },
+  {
+    "code": "CORES_ASSOCIACAO",
+    "label": "Cores e associação",
+    "order": 11,
+    "learningTopics": ["cores", "associação", "educação infantil", "autismo", "TEA"]
+  },
+  {
+    "code": "SEQUENCIA_LOGICA",
+    "label": "Sequência lógica",
+    "order": 12,
+    "learningTopics": ["sequência lógica", "raciocínio lógico", "funções executivas", "organização"]
+  },
+  {
+    "code": "NOCAO_NUMERICA",
+    "label": "Noção numérica",
+    "order": 13,
+    "learningTopics": ["matemática", "números", "contagem", "discalculia"]
+  }
+]

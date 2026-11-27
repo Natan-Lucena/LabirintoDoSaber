@@ -238,7 +238,9 @@ export const makeTaskRepository = (tasks: Task[]) =>
     getByIds: vi.fn(async (ids: Uuid[]) =>
       tasks.filter((task) => ids.some((id) => id.value === task.id.value))
     ),
-    search: vi.fn(),
+    listByEducator: vi.fn(),
+    listLibrary: vi.fn(),
+    findLegacyOwners: vi.fn(async () => new Map<string, string[]>()),
     delete: vi.fn(),
   }) satisfies TaskRepository;
 

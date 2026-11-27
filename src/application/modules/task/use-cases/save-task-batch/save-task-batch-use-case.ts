@@ -8,6 +8,8 @@ import { TaskRepository } from "../../../../../domain/repositories/task-reposito
 import { TaskGroupRepository } from "../../../../../domain/repositories/task-group-repository";
 import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
 import { TaskGroup } from "../../../../../domain/entities/task-group";
+import { FileStorage } from "../../../../services/file-storage";
+import { checkMediaRefs, multipleChoiceMediaRefs } from "../task-rules";
 
 interface TaskInput {
   category: TaskCategory;
@@ -29,13 +31,21 @@ export class SaveTaskBatchUseCase {
   constructor(
     private taskRepository: TaskRepository,
     private taskGroupRepository: TaskGroupRepository,
-    private educatorRepository: EducatorRepository
+    private educatorRepository: EducatorRepository,
+    private fileStorage: FileStorage
   ) {}
 
   async execute(request: SaveTaskBatchUseCaseRequest) {
     if (!request.tasks || request.tasks.length === 0) {
       return failure("EMPTY_TASK_LIST");
     }
+
+    // AT-05: as mídias vêm de POST /task/upload-media.
+    const media = checkMediaRefs(
+      this.fileStorage,
+      request.tasks.flatMap((task, index) => multipleChoiceMediaRefs(task, `tasks.${index}.`))
+    );
+    if (!media.ok) return media;
 
     const educator = await this.educatorRepository.getByEmail(
       request.educatorEmail
@@ -51,6 +61,7 @@ export class SaveTaskBatchUseCase {
     const tasks: Task[] = [];
     for (const input of request.tasks) {
       const taskResult = Task.create({
+        educatorId: educator.id,
         category: input.category,
         type: input.type,
         prompt: input.prompt,

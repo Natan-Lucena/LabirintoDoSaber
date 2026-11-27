@@ -33,6 +33,10 @@ export class CreateTaskGroupController extends BaseController {
       switch (result.error) {
         case "EDUCATOR_NOT_FOUND":
           return this.notFound(res, "EDUCATOR_NOT_FOUND");
+        case "PRINTABLE_NOT_PLAYABLE":
+          return this.clientError(res, result.error);
+        case "UNAUTHORIZED":
+          return this.forbidden(res, result.error);
         case "TASK_NOT_FOUND":
           return this.notFound(res, "TASK_NOT_FOUND");
         default:

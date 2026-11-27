@@ -1,11 +1,17 @@
-import {failure, success, Uuid} from "@wave-telecom/framework/core";
-import {TaskRepository} from "../../../../../domain/repositories/task-repository";
+import { success, Uuid } from "@wave-telecom/framework/core";
+import { TaskRepository } from "../../../../../domain/repositories/task-repository";
+import { TaskSkillRepository } from "../../../../../domain/repositories/task-skill-repository";
+import { TaskCategory, TaskTone, TaskType } from "../../../../../domain/entities/task";
+import { FileStorage } from "../../../../services/file-storage";
 import {
-  TaskCategory,
-  TaskType,
-} from "../../../../../domain/entities/task";
+  checkMediaRefs,
+  checkSkills,
+  loadEditableTask,
+  multipleChoiceMediaRefs,
+} from "../task-rules";
 
-interface UpdateTaskUseCaseRequest {
+export interface UpdateTaskUseCaseRequest {
+  educatorId: Uuid;
   id: string;
   category?: TaskCategory;
   type?: TaskType;
@@ -16,32 +22,39 @@ interface UpdateTaskUseCaseRequest {
   }[];
   imageFile?: string;
   audioFile?: string;
+  content?: unknown;
+  skills?: string[];
+  theme?: string;
+  tone?: TaskTone;
 }
 
 export class UpdateTaskUseCase {
-    constructor(private taskRepository: TaskRepository) {}
+  constructor(
+    private taskRepository: TaskRepository,
+    private skillRepository: TaskSkillRepository,
+    private fileStorage: FileStorage
+  ) {}
 
-    async execute(props: UpdateTaskUseCaseRequest) {
-        if (!Uuid.isValid(props.id)) {
-            return failure("INVALID_TASK_ID");
-        }
-        
-        const existingTask = await this.taskRepository.getById(new Uuid(props.id));
+  async execute({ educatorId, id, ...changes }: UpdateTaskUseCaseRequest) {
+    const existing = await loadEditableTask(this.taskRepository, id, educatorId);
+    if (!existing.ok) return existing;
 
-        if (!existingTask) {
-            return failure("TASK_NOT_FOUND");
-        }
+    const skills = await checkSkills(this.skillRepository, changes.skills);
+    if (!skills.ok) return skills;
 
-        const updateResult = existingTask.updateTask(props);
+    const updated = existing.value.updateTask(changes);
+    if (!updated.ok) return updated;
 
-        if (!updateResult.ok) {
-            return failure("INVALID_TASK_DATA");
-        }
+    // Mídias do content e os imageFile/audioFile enviados agora (os já gravados
+    // não são revalidados).
+    const media = checkMediaRefs(this.fileStorage, [
+      ...updated.value.mediaUrls,
+      ...multipleChoiceMediaRefs(changes),
+    ]);
+    if (!media.ok) return media;
 
-        const updatedTask = updateResult.value;
+    await this.taskRepository.save(updated.value);
 
-        await this.taskRepository.save(updatedTask);
-
-        return success(void 0);
-    }
-}    
+    return success(updated.value);
+  }
+}

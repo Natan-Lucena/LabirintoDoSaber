@@ -80,10 +80,46 @@ model Task {
   audioFile    String?
   createdAt    DateTime          @default(now())
 
+  // Campos do banco de atividades. Tarefas antigas não têm: na leitura,
+  // source ausente = EDUCATOR, skills = [] e tone escolhido pelo id.
+  source     TaskSource?
+  // Dono da tarefa EDUCATOR; ausente na biblioteca e nas tarefas antigas.
+  educatorId String?
+  skills     String[]
+  theme      String?
+  tone       TaskTone?
+  // Conteúdo dos tipos novos, validado pela entidade (a forma muda por tipo).
+  content    Json?
+
+  // Legado: cadernos antigos ligam as tasks por aqui; os novos usam
+  // TaskNotebook.taskIds (a mesma task pode estar em vários cadernos).
   notebookId String?
   notebook   TaskNotebook? @relation(fields: [notebookId], references: [id])
 
   @@index([notebookId])
+  @@index([educatorId])
+  @@index([source])
+}
+
+enum TaskSource {
+  EDUCATOR
+  LIBRARY
+}
+
+enum TaskTone {
+  mint
+  peach
+  lavender
+  yellow
+}
+
+// Catálogo de habilidades (task-library/skills.json), carregado por seed.
+model TaskSkill {
+  id             String   @id @map("_id")
+  code           String   @unique
+  label          String
+  learningTopics String[]
+  order          Int
 }
 
 type TaskAlternative {
@@ -97,6 +133,9 @@ model TaskNotebook {
   educatorId    String
   educator      Educator             @relation(fields: [educatorId], references: [id])
   tasks         Task[]
+  // Ids das tasks do caderno (inclui as da biblioteca). Cadernos antigos têm
+  // só a relação `tasks`; a leitura junta as duas.
+  taskIds       String[]
   category      TaskNotebookCategory
   description   String
   taskGroupsIds String[]
@@ -135,6 +174,10 @@ enum TaskCategory {
 enum TaskType {
   MultipleChoice
   MultipleChoiceWithMedia
+  WordBuilder
+  ColorMatch
+  MemoryGame
+  Printable
 }
 
 enum TaskNotebookCategory {

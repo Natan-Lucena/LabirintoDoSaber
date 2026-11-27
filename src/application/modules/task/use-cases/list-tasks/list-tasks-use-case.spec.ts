@@ -1,81 +1,88 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { TaskRepository } from "../../../../../domain/repositories/task-repository";
+import { describe, it, expect, beforeEach } from "vitest";
+import { Uuid } from "@wave-telecom/framework/core";
 import { TaskCategory, TaskType } from "../../../../../domain/entities/task";
 import { ListTasksUseCase } from "./list-tasks-use-case";
-import { success, failure, Uuid } from "@wave-telecom/framework/core";
+import {
+  makeMultipleChoiceTask,
+  makeTaskRepository,
+  makeWordBuilderTask,
+} from "../test-fixtures";
 
-// Mock do repositório
-const mockTaskRepository = (): TaskRepository => {
-  return {
-    save: vi.fn(),
-    getById: vi.fn(),
-    search: vi.fn(),
-    delete: vi.fn(),
-  } as unknown as TaskRepository;
-};
-
-describe("ListTasksUseCase", () => {
-  let taskRepository: TaskRepository;
+describe("ListTasksUseCase (GET /task/)", () => {
+  let taskRepository: ReturnType<typeof makeTaskRepository>;
   let useCase: ListTasksUseCase;
+  const educatorId = Uuid.random();
 
   beforeEach(() => {
-    taskRepository = mockTaskRepository();
+    taskRepository = makeTaskRepository();
     useCase = new ListTasksUseCase(taskRepository);
   });
 
-  it("should return tasks successfully", async () => {
-    const fakeTasks = [
-      {
-        id: Uuid.random(),
-        category: TaskCategory.Reading,
-        type: TaskType.MultipleChoice,
-        prompt: "Questão 1",
-      },
-      {
-        id: Uuid.random(),
-        category: TaskCategory.Writing,
-        type: TaskType.MultipleChoiceWithMedia,
-        prompt: "Questão 2",
-      },
-    ];
+  it("AT-11: lista só as tarefas do educador do token", async () => {
+    const own = [makeMultipleChoiceTask({ educatorId }), makeWordBuilderTask({ educatorId })];
+    taskRepository.listByEducator.mockResolvedValue(own);
 
-    (taskRepository.search as any).mockResolvedValue(fakeTasks);
+    const result = await useCase.execute({ educatorId });
 
-    const result = await useCase.execute({});
-
-    expect(result).toEqual(success(fakeTasks));
-    expect(taskRepository.search).toHaveBeenCalledWith({});
+    expect(result).toEqual({ ok: true, value: own });
+    expect(taskRepository.listByEducator).toHaveBeenCalledWith(educatorId);
+    expect(taskRepository.listLibrary).not.toHaveBeenCalled();
   });
 
-  it("should call repository with provided filters", async () => {
-    const filters = {
-      id: Uuid.random(),
-      category: TaskCategory.Vocabulary,
-      type: TaskType.MultipleChoice,
-      promptContains: "matemática",
-    };
+  it("BE-AT-06: tarefa antiga sai no formato de antes, com os defaults novos", async () => {
+    const legacy = makeMultipleChoiceTask();
+    taskRepository.listByEducator.mockResolvedValue([legacy]);
 
-    (taskRepository.search as any).mockResolvedValue([]);
+    const result = await useCase.execute({ educatorId });
 
-    await useCase.execute(filters);
-
-    expect(taskRepository.search).toHaveBeenCalledWith(filters);
+    if (!result.ok) throw new Error("deveria listar");
+    const [json] = JSON.parse(JSON.stringify(result.value));
+    expect(json).toMatchObject({
+      id: legacy.id.value,
+      category: "reading",
+      type: "multipleChoice",
+      prompt: "Qual palavra rima com gato?",
+      alternatives: [
+        { id: expect.any(String), text: "Pato", isCorrect: true },
+        { id: expect.any(String), text: "Casa", isCorrect: false },
+      ],
+      createdAt: expect.any(String),
+      format: "INTERACTIVE",
+      source: "EDUCATOR",
+      skills: [],
+      tone: expect.any(String),
+    });
+    expect(json).not.toHaveProperty("content");
   });
 
-  it("should return failure if repository throws", async () => {
-    (taskRepository.search as any).mockRejectedValue(new Error("DB error"));
+  it("mantém os filtros antigos (id, categoria, tipo, trecho do prompt sem acento)", async () => {
+    const reading = makeMultipleChoiceTask({ educatorId, prompt: "Qual é a vogal?" });
+    const writing = makeWordBuilderTask({ educatorId });
+    taskRepository.listByEducator.mockResolvedValue([reading, writing]);
 
-    const result = await useCase.execute({});
-
-    expect(result).toEqual(failure("LIST_TASKS_FAILED"));
+    expect(await useCase.execute({ educatorId, category: TaskCategory.Writing })).toEqual({
+      ok: true,
+      value: [writing],
+    });
+    expect(await useCase.execute({ educatorId, type: TaskType.MultipleChoice })).toEqual({
+      ok: true,
+      value: [reading],
+    });
+    expect(await useCase.execute({ educatorId, promptContains: "QUAL E" })).toEqual({
+      ok: true,
+      value: [reading],
+    });
+    expect(await useCase.execute({ educatorId, id: writing.id })).toEqual({
+      ok: true,
+      value: [writing],
+    });
   });
 
-  it("should handle empty results gracefully", async () => {
-    (taskRepository.search as any).mockResolvedValue([]);
-
-    const result = await useCase.execute({});
-
-    expect(result).toEqual(success([]));
-    expect(taskRepository.search).toHaveBeenCalledWith({});
+  it("LIST_TASKS_FAILED quando o repositório falha", async () => {
+    taskRepository.listByEducator.mockRejectedValue(new Error("DB error"));
+    expect(await useCase.execute({ educatorId })).toEqual({
+      ok: false,
+      error: "LIST_TASKS_FAILED",
+    });
   });
 });

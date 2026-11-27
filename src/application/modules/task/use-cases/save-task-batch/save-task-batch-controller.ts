@@ -30,6 +30,9 @@ export class SaveTaskBatchController extends BaseController {
     });
 
     if (!result.ok) {
+      if (typeof result.error === "object") {
+        return res.status(400).json({ message: result.error.code, errors: result.error.errors });
+      }
       switch (result.error) {
         case "EDUCATOR_NOT_FOUND":
           return this.notFound(res, "EDUCATOR_NOT_FOUND");

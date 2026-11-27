@@ -1875,7 +1875,7 @@
           "Task"
         ],
         "summary": "Cria uma tarefa (multipart, mídias até 10 MB).",
-        "description": "Erros de regra do use case (exceto `INVALID_TASK_DATA`) saem como 500.",
+        "description": "Múltipla escolha como antes (alternativas e arquivos). Tipos novos (`wordBuilder`, `colorMatch`, `memoryGame`, `printable`) usam `content`; o formato é derivado do tipo. A tarefa criada é do educador do token (`source: EDUCATOR`).",
         "requestBody": {
           "required": true,
           "content": {
@@ -1896,7 +1896,11 @@
                     "type": "string",
                     "enum": [
                       "multipleChoice",
-                      "multipleChoiceWithMedia"
+                      "multipleChoiceWithMedia",
+                      "wordBuilder",
+                      "colorMatch",
+                      "memoryGame",
+                      "printable"
                     ]
                   },
                   "prompt": {
@@ -1905,22 +1909,45 @@
                   },
                   "alternatives": {
                     "type": "string",
-                    "description": "Array JSON de `{ text, isCorrect }` (mínimo 2), ex.: `[{\"text\":\"A\",\"isCorrect\":true},{\"text\":\"B\",\"isCorrect\":false}]`."
+                    "description": "Só múltipla escolha: array JSON de `{ text, isCorrect }` (mínimo 2). Nos tipos novos não envie (ALTERNATIVES_NOT_ALLOWED)."
                   },
                   "imageFile": {
                     "type": "string",
-                    "format": "binary"
+                    "format": "binary",
+                    "description": "Só multipleChoiceWithMedia."
                   },
                   "audioFile": {
                     "type": "string",
-                    "format": "binary"
+                    "format": "binary",
+                    "description": "Só multipleChoiceWithMedia."
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "Tipos novos: objeto `TaskContent` em JSON, com `kind` igual a `type`, ex.: `{\"kind\":\"wordBuilder\",\"word\":\"BOLA\"}`. URLs de mídia vêm de `POST /task/upload-media`."
+                  },
+                  "skills": {
+                    "type": "string",
+                    "description": "Array JSON de até 5 códigos de `GET /task/skills`, ex.: `[\"VOCABULARIO\"]`."
+                  },
+                  "theme": {
+                    "type": "string",
+                    "maxLength": 60
+                  },
+                  "tone": {
+                    "type": "string",
+                    "enum": [
+                      "mint",
+                      "peach",
+                      "lavender",
+                      "yellow"
+                    ],
+                    "description": "Escolhido pelo servidor se não vier."
                   }
                 },
                 "required": [
                   "category",
                   "type",
-                  "prompt",
-                  "alternatives"
+                  "prompt"
                 ]
               }
             }
@@ -1928,10 +1955,17 @@
         },
         "responses": {
           "201": {
-            "description": "Criada, sem corpo JSON (texto \"Created\")."
+            "description": "Tarefa criada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
           },
           "400": {
-            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `INVALID_ALTERNATIVES_FORMAT`, `INVALID_TASK_DATA`.",
+            "description": "Validação Zod, `INVALID_CONTENT` / `INVALID_MEDIA_URL` (com `errors[].field`) ou erro de negócio.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1941,6 +1975,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TaskFieldErrors"
                     }
                   ]
                 },
@@ -1961,9 +1998,61 @@
                       "message": "INVALID_ALTERNATIVES_FORMAT"
                     }
                   },
+                  "ALTERNATIVES_NOT_ALLOWED": {
+                    "value": {
+                      "message": "ALTERNATIVES_NOT_ALLOWED"
+                    }
+                  },
+                  "INVALID_SKILL": {
+                    "value": {
+                      "message": "INVALID_SKILL"
+                    }
+                  },
                   "INVALID_TASK_DATA": {
                     "value": {
                       "message": "INVALID_TASK_DATA"
+                    }
+                  },
+                  "INVALID_TASK_TYPE": {
+                    "value": {
+                      "message": "INVALID_TASK_TYPE"
+                    }
+                  },
+                  "TEXT_TASK_CANNOT_HAVE_MEDIA": {
+                    "value": {
+                      "message": "TEXT_TASK_CANNOT_HAVE_MEDIA"
+                    }
+                  },
+                  "MEDIA_TASK_REQUIRES_IMAGE_OR_AUDIO": {
+                    "value": {
+                      "message": "MEDIA_TASK_REQUIRES_IMAGE_OR_AUDIO"
+                    }
+                  },
+                  "AT_LEAST_ONE_ALTERNATIVE_MUST_BE_CORRECT": {
+                    "value": {
+                      "message": "AT_LEAST_ONE_ALTERNATIVE_MUST_BE_CORRECT"
+                    }
+                  },
+                  "INVALID_CONTENT": {
+                    "value": {
+                      "message": "INVALID_CONTENT",
+                      "errors": [
+                        {
+                          "field": "content.word",
+                          "message": "Obrigatório"
+                        }
+                      ]
+                    }
+                  },
+                  "INVALID_MEDIA_URL": {
+                    "value": {
+                      "message": "INVALID_MEDIA_URL",
+                      "errors": [
+                        {
+                          "field": "content.hintImageUrl",
+                          "message": "Use uma URL de POST /task/upload-media"
+                        }
+                      ]
                     }
                   }
                 }
@@ -1998,37 +2087,11 @@
             }
           },
           "500": {
-            "description": "`INVALID_TASK_TYPE`, `TEXT_TASK_CANNOT_HAVE_MEDIA`, `MEDIA_TASK_REQUIRES_IMAGE_OR_AUDIO`, `AT_LEAST_ONE_ALTERNATIVE_MUST_BE_CORRECT`. Qualquer exceção não tratada também cai aqui com `An unexpected error occurred`.",
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InternalError"
-                },
-                "examples": {
-                  "INVALID_TASK_TYPE": {
-                    "value": {
-                      "message": "INVALID_TASK_TYPE",
-                      "error": "Error not specified."
-                    }
-                  },
-                  "TEXT_TASK_CANNOT_HAVE_MEDIA": {
-                    "value": {
-                      "message": "TEXT_TASK_CANNOT_HAVE_MEDIA",
-                      "error": "Error not specified."
-                    }
-                  },
-                  "MEDIA_TASK_REQUIRES_IMAGE_OR_AUDIO": {
-                    "value": {
-                      "message": "MEDIA_TASK_REQUIRES_IMAGE_OR_AUDIO",
-                      "error": "Error not specified."
-                    }
-                  },
-                  "AT_LEAST_ONE_ALTERNATIVE_MUST_BE_CORRECT": {
-                    "value": {
-                      "message": "AT_LEAST_ONE_ALTERNATIVE_MUST_BE_CORRECT",
-                      "error": "Error not specified."
-                    }
-                  }
                 }
               }
             }
@@ -2069,7 +2132,7 @@
             }
           },
           "400": {
-            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `EMPTY_TASK_LIST`, `INVALID_TASK_DATA`.",
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), erro de negócio (`EMPTY_TASK_LIST`, `INVALID_TASK_DATA`) ou `INVALID_MEDIA_URL` com `errors[].field` (`tasks.N.imageFile`/`tasks.N.audioFile` fora de `POST /task/upload-media`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2079,6 +2142,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TaskFieldErrors"
                     }
                   ]
                 },
@@ -2102,6 +2168,17 @@
                   "INVALID_TASK_DATA": {
                     "value": {
                       "message": "INVALID_TASK_DATA"
+                    }
+                  },
+                  "INVALID_MEDIA_URL": {
+                    "value": {
+                      "message": "INVALID_MEDIA_URL",
+                      "errors": [
+                        {
+                          "field": "tasks.0.imageFile",
+                          "message": "Use uma URL de POST /task/upload-media"
+                        }
+                      ]
                     }
                   }
                 }
@@ -2289,7 +2366,7 @@
         "tags": [
           "Task"
         ],
-        "summary": "Lista tarefas com filtros.",
+        "summary": "Lista as tarefas do educador (sem a biblioteca).",
         "parameters": [
           {
             "name": "id",
@@ -2325,7 +2402,11 @@
               "type": "string",
               "enum": [
                 "multipleChoice",
-                "multipleChoiceWithMedia"
+                "multipleChoiceWithMedia",
+                "wordBuilder",
+                "colorMatch",
+                "memoryGame",
+                "printable"
               ]
             }
           },
@@ -2333,7 +2414,7 @@
             "name": "promptContains",
             "in": "query",
             "required": false,
-            "description": "Trecho do enunciado.",
+            "description": "Trecho do enunciado (sem acento/maiúscula).",
             "schema": {
               "type": "string",
               "minLength": 1
@@ -2427,7 +2508,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Tarefas `EDUCATOR` que o educador pode usar, com os campos novos: as dele, as antigas sem dono que estão num caderno/grupo dele e as antigas avulsas (fora de qualquer caderno/grupo), que aparecem para todos como antes. Regra de uso: biblioteca é de todos; tarefa com dono, só do dono; tarefa antiga sem dono conta como dos donos dos cadernos/grupos em que está e, fora de qualquer caderno/grupo (legado avulso), é de todos."
       }
     },
     "/task/update": {
@@ -2435,7 +2517,7 @@
         "tags": [
           "Task"
         ],
-        "summary": "Atualiza uma tarefa.",
+        "summary": "Atualiza uma tarefa do educador.",
         "requestBody": {
           "required": true,
           "content": {
@@ -2448,14 +2530,31 @@
         },
         "responses": {
           "200": {
-            "description": "Sucesso, sem corpo JSON (Express responde o texto \"OK\")."
-          },
-          "400": {
-            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`).",
+            "description": "Tarefa atualizada.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ValidationError"
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validação Zod, `INVALID_CONTENT` / `INVALID_MEDIA_URL` (com `errors[].field`) ou erro de negócio.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TaskFieldErrors"
+                    }
+                  ]
                 },
                 "examples": {
                   "validation": {
@@ -2465,6 +2564,59 @@
                         {
                           "message": "Required",
                           "field": "id"
+                        }
+                      ]
+                    }
+                  },
+                  "TYPE_CHANGE_NOT_ALLOWED": {
+                    "value": {
+                      "message": "TYPE_CHANGE_NOT_ALLOWED"
+                    }
+                  },
+                  "ALTERNATIVES_NOT_ALLOWED": {
+                    "value": {
+                      "message": "ALTERNATIVES_NOT_ALLOWED"
+                    }
+                  },
+                  "INVALID_SKILL": {
+                    "value": {
+                      "message": "INVALID_SKILL"
+                    }
+                  },
+                  "INVALID_TASK_DATA": {
+                    "value": {
+                      "message": "INVALID_TASK_DATA"
+                    }
+                  },
+                  "INVALID_CONTENT": {
+                    "value": {
+                      "message": "INVALID_CONTENT",
+                      "errors": [
+                        {
+                          "field": "content.word",
+                          "message": "Obrigatório"
+                        }
+                      ]
+                    }
+                  },
+                  "INVALID_MEDIA_URL": {
+                    "value": {
+                      "message": "INVALID_MEDIA_URL",
+                      "errors": [
+                        {
+                          "field": "content.hintImageUrl",
+                          "message": "Use uma URL de POST /task/upload-media"
+                        }
+                      ]
+                    }
+                  },
+                  "INVALID_MEDIA_URL_FILE": {
+                    "value": {
+                      "message": "INVALID_MEDIA_URL",
+                      "errors": [
+                        {
+                          "field": "imageFile",
+                          "message": "Use uma URL de POST /task/upload-media"
                         }
                       ]
                     }
@@ -2500,32 +2652,51 @@
               }
             }
           },
+          "403": {
+            "description": "Biblioteca (`LIBRARY_TASK_READ_ONLY`) ou tarefa que o educador não pode usar (`UNAUTHORIZED`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "LIBRARY_TASK_READ_ONLY": {
+                    "value": {
+                      "message": "LIBRARY_TASK_READ_ONLY"
+                    }
+                  },
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tarefa inexistente ou id inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "TASK_NOT_FOUND": {
+                    "value": {
+                      "message": "TASK_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "500": {
-            "description": "`INVALID_TASK_ID`, `TASK_NOT_FOUND`, `INVALID_TASK_DATA`. Qualquer exceção não tratada também cai aqui com `An unexpected error occurred`.",
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InternalError"
-                },
-                "examples": {
-                  "INVALID_TASK_ID": {
-                    "value": {
-                      "message": "INVALID_TASK_ID",
-                      "error": "Error not specified."
-                    }
-                  },
-                  "TASK_NOT_FOUND": {
-                    "value": {
-                      "message": "TASK_NOT_FOUND",
-                      "error": "Error not specified."
-                    }
-                  },
-                  "INVALID_TASK_DATA": {
-                    "value": {
-                      "message": "INVALID_TASK_DATA",
-                      "error": "Error not specified."
-                    }
-                  }
                 }
               }
             }
@@ -2535,7 +2706,8 @@
           {
             "bearerAuth": []
           }
-        ]
+        ],
+        "description": "Revalida a tarefa inteira. `content` substitui o conteúdo. `type` só muda entre `multipleChoice` e `multipleChoiceWithMedia`. `imageFile`/`audioFile` enviados precisam ser URLs de `POST /task/upload-media`. Tarefa da biblioteca: 403 LIBRARY_TASK_READ_ONLY (duplique antes). Regra de uso: biblioteca é de todos; tarefa com dono, só do dono; tarefa antiga sem dono conta como dos donos dos cadernos/grupos em que está e, fora de qualquer caderno/grupo (legado avulso), é de todos."
       }
     },
     "/task/delete/{id}": {
@@ -2549,7 +2721,373 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Id da tarefa.",
+            "description": "Id da tarefa (não-UUID vira 404).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sucesso, sem corpo JSON (Express responde o texto \"OK\")."
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Biblioteca (`LIBRARY_TASK_READ_ONLY`) ou tarefa que o educador não pode usar (`UNAUTHORIZED`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "LIBRARY_TASK_READ_ONLY": {
+                    "value": {
+                      "message": "LIBRARY_TASK_READ_ONLY"
+                    }
+                  },
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tarefa inexistente ou id inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "TASK_NOT_FOUND": {
+                    "value": {
+                      "message": "TASK_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Regra de uso: biblioteca é de todos; tarefa com dono, só do dono; tarefa antiga sem dono conta como dos donos dos cadernos/grupos em que está e, fora de qualquer caderno/grupo (legado avulso), é de todos."
+      }
+    },
+    "/task/catalog": {
+      "get": {
+        "tags": [
+          "Task"
+        ],
+        "summary": "Catálogo de atividades: biblioteca + tarefas do educador.",
+        "description": "Mais recentes primeiro, paginado por cursor. `search` ignora acento e maiúscula e procura em prompt, theme, título do conteúdo e rótulo da habilidade. As tarefas `EDUCATOR` seguem a mesma regra de `GET /task/` (inclui o legado avulso).",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Habilidade ou tema.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "INTERACTIVE",
+                "PRINTABLE"
+              ]
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "multipleChoice",
+                "multipleChoiceWithMedia",
+                "wordBuilder",
+                "colorMatch",
+                "memoryGame",
+                "printable"
+              ]
+            }
+          },
+          {
+            "name": "skill",
+            "in": "query",
+            "required": false,
+            "description": "Código da habilidade.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "reading",
+                "writing",
+                "vocabulary",
+                "comprehension"
+              ]
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Ausente = os dois.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "EDUCATOR",
+                "LIBRARY"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "`nextCursor` da página anterior.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskCatalogPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validação Zod ou `INVALID_CURSOR`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                },
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "message": "Bad Request",
+                      "errors": [
+                        {
+                          "message": "Required",
+                          "field": "limit"
+                        }
+                      ]
+                    }
+                  },
+                  "INVALID_CURSOR": {
+                    "value": {
+                      "message": "INVALID_CURSOR"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/task/skills": {
+      "get": {
+        "tags": [
+          "Task"
+        ],
+        "summary": "Catálogo fixo de habilidades (seed).",
+        "responses": {
+          "200": {
+            "description": "Sucesso, na ordem do catálogo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskSkill"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/task/recommended": {
+      "get": {
+        "tags": [
+          "Task"
+        ],
+        "summary": "Até 6 atividades recomendadas para o aluno (regra, sem IA).",
+        "description": "Pontua biblioteca + tarefas do educador pelas habilidades ligadas às `learningTopics` do aluno e pela categoria de menor acerto nas últimas 5 sessões; tira as respondidas nas 3 últimas sessões. Só o dono atual do aluno.",
+        "parameters": [
+          {
+            "name": "studentId",
+            "in": "query",
+            "required": true,
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -2558,10 +3096,21 @@
         ],
         "responses": {
           "200": {
-            "description": "Sucesso, sem corpo JSON (Express responde o texto \"OK\")."
+            "description": "Sucesso (0 a 6 itens).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "maxItems": 6,
+                  "items": {
+                    "$ref": "#/components/schemas/RecommendedTask"
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`).",
+            "description": "Validação Zod.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2574,7 +3123,7 @@
                       "errors": [
                         {
                           "message": "Required",
-                          "field": "id"
+                          "field": "studentId"
                         }
                       ]
                     }
@@ -2610,26 +3159,154 @@
               }
             }
           },
+          "403": {
+            "description": "Aluno de outro educador.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Aluno inexistente.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "STUDENT_NOT_FOUND": {
+                    "value": {
+                      "message": "STUDENT_NOT_FOUND"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "500": {
-            "description": "`TASK_NOT_FOUND`, `DELETE_TASK_FAILED`. Qualquer exceção não tratada também cai aqui com `An unexpected error occurred`.",
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InternalError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/task/{id}/duplicate": {
+      "post": {
+        "tags": [
+          "Task"
+        ],
+        "summary": "Duplica uma tarefa como cópia editável do educador.",
+        "description": "Duplica o que o educador pode usar (biblioteca inclusive). A cópia tem id novo e `source: EDUCATOR`. Regra de uso: biblioteca é de todos; tarefa com dono, só do dono; tarefa antiga sem dono conta como dos donos dos cadernos/grupos em que está e, fora de qualquer caderno/grupo (legado avulso), é de todos.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Id da tarefa (não-UUID vira 404).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Cópia criada.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token ausente, inválido ou de educador inexistente (authMiddleware).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "Missing or invalid token": {
+                    "value": {
+                      "message": "Missing or invalid token"
+                    }
+                  },
+                  "Invalid or expired token": {
+                    "value": {
+                      "message": "Invalid or expired token"
+                    }
+                  },
+                  "Educator not found": {
+                    "value": {
+                      "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Tarefa que o educador não pode usar.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tarefa inexistente ou id inválido.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 },
                 "examples": {
                   "TASK_NOT_FOUND": {
                     "value": {
-                      "message": "TASK_NOT_FOUND",
-                      "error": "Error not specified."
-                    }
-                  },
-                  "DELETE_TASK_FAILED": {
-                    "value": {
-                      "message": "DELETE_TASK_FAILED",
-                      "error": "Error not specified."
+                      "message": "TASK_NOT_FOUND"
                     }
                   }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
                 }
               }
             }
@@ -2647,16 +3324,15 @@
         "tags": [
           "Task"
         ],
-        "summary": "Detalha uma tarefa.",
+        "summary": "Detalha uma tarefa (inclusive da biblioteca), com content.",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Id da tarefa.",
+            "description": "Id da tarefa (não-UUID vira 404).",
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "string"
             }
           }
         ],
@@ -2667,29 +3343,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Task"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationError"
-                },
-                "examples": {
-                  "validation": {
-                    "value": {
-                      "message": "Bad Request",
-                      "errors": [
-                        {
-                          "message": "Required",
-                          "field": "id"
-                        }
-                      ]
-                    }
-                  }
                 }
               }
             }
@@ -2721,26 +3374,29 @@
               }
             }
           },
-          "500": {
-            "description": "`TASK_NOT_FOUND`, `GET_TASK_FAILED`. Qualquer exceção não tratada também cai aqui com `An unexpected error occurred`.",
+          "404": {
+            "description": "Tarefa inexistente ou id inválido.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/InternalError"
+                  "$ref": "#/components/schemas/Error"
                 },
                 "examples": {
                   "TASK_NOT_FOUND": {
                     "value": {
-                      "message": "TASK_NOT_FOUND",
-                      "error": "Error not specified."
-                    }
-                  },
-                  "GET_TASK_FAILED": {
-                    "value": {
-                      "message": "GET_TASK_FAILED",
-                      "error": "Error not specified."
+                      "message": "TASK_NOT_FOUND"
                     }
                   }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Exceção não tratada (`An unexpected error occurred`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InternalError"
                 }
               }
             }
@@ -2949,11 +3605,18 @@
             }
           },
           "400": {
-            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`).",
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`). `PRINTABLE_NOT_PLAYABLE`: atividade imprimível não é jogada.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ValidationError"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
                 },
                 "examples": {
                   "validation": {
@@ -2965,6 +3628,11 @@
                           "field": "name"
                         }
                       ]
+                    }
+                  },
+                  "PRINTABLE_NOT_PLAYABLE": {
+                    "value": {
+                      "message": "PRINTABLE_NOT_PLAYABLE"
                     }
                   }
                 }
@@ -2992,6 +3660,23 @@
                   "Educator not found": {
                     "value": {
                       "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: alguma tarefa é de outro educador (ou antiga em caderno/grupo de outro). Biblioteca e legado avulso são permitidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
                     }
                   }
                 }
@@ -3135,7 +3820,7 @@
             "description": "Sucesso, sem corpo JSON (Express responde o texto \"OK\")."
           },
           "400": {
-            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `INVALID_TASK_GROUP_ID`, `INVALID_TASK_GROUP_DATA`.",
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `INVALID_TASK_GROUP_ID`, `INVALID_TASK_GROUP_DATA`. `PRINTABLE_NOT_PLAYABLE`: atividade imprimível não é jogada.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3168,6 +3853,11 @@
                   "INVALID_TASK_GROUP_DATA": {
                     "value": {
                       "message": "INVALID_TASK_GROUP_DATA"
+                    }
+                  },
+                  "PRINTABLE_NOT_PLAYABLE": {
+                    "value": {
+                      "message": "PRINTABLE_NOT_PLAYABLE"
                     }
                   }
                 }
@@ -3202,7 +3892,7 @@
             }
           },
           "403": {
-            "description": "`NOT_GROUP_OWNER`: o grupo pertence a outro educador.",
+            "description": "`NOT_GROUP_OWNER`: o grupo pertence a outro educador. `UNAUTHORIZED`: alguma tarefa é de outro educador (ou antiga em caderno/grupo de outro).",
             "content": {
               "application/json": {
                 "schema": {
@@ -3212,6 +3902,11 @@
                   "NOT_GROUP_OWNER": {
                     "value": {
                       "message": "NOT_GROUP_OWNER"
+                    }
+                  },
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
                     }
                   }
                 }
@@ -3539,11 +4234,18 @@
             }
           },
           "400": {
-            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`).",
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`). `PRINTABLE_NOT_PLAYABLE`: atividade imprimível não é jogada.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ValidationError"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
                 },
                 "examples": {
                   "validation": {
@@ -3555,6 +4257,11 @@
                           "field": "tasks"
                         }
                       ]
+                    }
+                  },
+                  "PRINTABLE_NOT_PLAYABLE": {
+                    "value": {
+                      "message": "PRINTABLE_NOT_PLAYABLE"
                     }
                   }
                 }
@@ -3582,6 +4289,23 @@
                   "Educator not found": {
                     "value": {
                       "message": "Educator not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`UNAUTHORIZED`: alguma tarefa é de outro educador (ou antiga em caderno/grupo de outro). Biblioteca e legado avulso são permitidos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "UNAUTHORIZED": {
+                    "value": {
+                      "message": "UNAUTHORIZED"
                     }
                   }
                 }
@@ -4224,7 +4948,7 @@
             }
           },
           "400": {
-            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `SESSION_ALREADY_FINISHED`, `TASK_NOT_IN_NOTEBOOK`, `TASK_ALREADY_ANSWERED`.",
+            "description": "Falha de validação Zod (`message: \"Bad Request\"` + `errors[]`), ou erro de negócio: `SESSION_ALREADY_FINISHED`, `TASK_NOT_IN_NOTEBOOK`, `TASK_ALREADY_ANSWERED`. `PRINTABLE_NOT_PLAYABLE`: atividade imprimível não é jogada.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4262,6 +4986,11 @@
                   "TASK_ALREADY_ANSWERED": {
                     "value": {
                       "message": "TASK_ALREADY_ANSWERED"
+                    }
+                  },
+                  "PRINTABLE_NOT_PLAYABLE": {
+                    "value": {
+                      "message": "PRINTABLE_NOT_PLAYABLE"
                     }
                   }
                 }
@@ -13589,37 +14318,93 @@
             "type": "string",
             "enum": [
               "multipleChoice",
-              "multipleChoiceWithMedia"
+              "multipleChoiceWithMedia",
+              "wordBuilder",
+              "colorMatch",
+              "memoryGame",
+              "printable"
             ]
           },
+          "format": {
+            "type": "string",
+            "enum": [
+              "INTERACTIVE",
+              "PRINTABLE"
+            ],
+            "description": "Derivado do tipo: `printable` é PRINTABLE; os demais, INTERACTIVE."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "EDUCATOR",
+              "LIBRARY"
+            ],
+            "description": "LIBRARY = atividade pronta (somente leitura). Tarefas antigas vêm EDUCATOR."
+          },
+          "educatorId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Dono da tarefa. Ausente na biblioteca e nas tarefas antigas."
+          },
           "prompt": {
-            "type": "string"
+            "type": "string",
+            "description": "Enunciado; nos tipos novos, a instrução à criança."
           },
           "alternatives": {
             "type": "array",
+            "description": "Só múltipla escolha; vazio nos tipos novos.",
             "items": {
               "$ref": "#/components/schemas/TaskAlternative"
             }
           },
-          "createdAt": {
+          "skills": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "string"
+            },
+            "description": "Códigos de `GET /task/skills`."
+          },
+          "theme": {
             "type": "string",
-            "format": "date-time"
+            "maxLength": 60
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "mint",
+              "peach",
+              "lavender",
+              "yellow"
+            ],
+            "description": "Cor da miniatura."
+          },
+          "content": {
+            "$ref": "#/components/schemas/TaskContent"
           },
           "imageFile": {
             "type": "string",
-            "nullable": true
+            "description": "Só multipleChoiceWithMedia."
           },
           "audioFile": {
             "type": "string",
-            "nullable": true
+            "description": "Só multipleChoiceWithMedia."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
           }
         },
         "required": [
           "id",
           "category",
           "type",
+          "format",
+          "source",
           "prompt",
           "alternatives",
+          "skills",
+          "tone",
           "createdAt"
         ]
       },
@@ -13664,7 +14449,7 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "description": "Id da tarefa (não-UUID vira 404)."
           },
           "category": {
             "type": "string",
@@ -13679,8 +14464,13 @@
             "type": "string",
             "enum": [
               "multipleChoice",
-              "multipleChoiceWithMedia"
-            ]
+              "multipleChoiceWithMedia",
+              "wordBuilder",
+              "colorMatch",
+              "memoryGame",
+              "printable"
+            ],
+            "description": "Só troca entre `multipleChoice` e `multipleChoiceWithMedia`; outra troca dá TYPE_CHANGE_NOT_ALLOWED."
           },
           "prompt": {
             "type": "string",
@@ -13693,10 +14483,35 @@
             }
           },
           "imageFile": {
-            "type": "string"
+            "type": "string",
+            "description": "Múltipla escolha com mídia: URL de `POST /task/upload-media` (senão INVALID_MEDIA_URL)."
           },
           "audioFile": {
-            "type": "string"
+            "type": "string",
+            "description": "Múltipla escolha com mídia: URL de `POST /task/upload-media` (senão INVALID_MEDIA_URL)."
+          },
+          "content": {
+            "$ref": "#/components/schemas/TaskContent"
+          },
+          "skills": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "string"
+            }
+          },
+          "theme": {
+            "type": "string",
+            "maxLength": 60
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "mint",
+              "peach",
+              "lavender",
+              "yellow"
+            ]
           }
         },
         "required": [
@@ -17837,6 +18652,407 @@
         },
         "required": [
           "updated"
+        ]
+      },
+      "TaskFieldErrors": {
+        "type": "object",
+        "description": "Erro de conteúdo com o campo exato (`content.word`, `content.pairs.0.colorHex`, `content.items.2.imageUrl`).",
+        "properties": {
+          "message": {
+            "type": "string",
+            "enum": [
+              "INVALID_CONTENT",
+              "INVALID_MEDIA_URL"
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "field",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "message",
+          "errors"
+        ]
+      },
+      "WordBuilderContent": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "wordBuilder"
+            ]
+          },
+          "word": {
+            "type": "string",
+            "description": "2 a 12 letras, sem espaço; acento permitido. O servidor grava em maiúsculas.",
+            "example": "PÃO"
+          },
+          "distractors": {
+            "type": "array",
+            "maxItems": 6,
+            "items": {
+              "type": "string",
+              "description": "Uma letra.",
+              "example": "X"
+            }
+          },
+          "hintImageUrl": {
+            "type": "string",
+            "description": "URL de `POST /task/upload-media`."
+          },
+          "hintAudioUrl": {
+            "type": "string",
+            "description": "URL de `POST /task/upload-media`."
+          }
+        },
+        "required": [
+          "kind",
+          "word"
+        ]
+      },
+      "ColorMatchContent": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "colorMatch"
+            ]
+          },
+          "pairs": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 6,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "description": "Único no conteúdo."
+                },
+                "word": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20
+                },
+                "colorHex": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$",
+                  "example": "#1E63D6"
+                }
+              },
+              "required": [
+                "id",
+                "word",
+                "colorHex"
+              ]
+            },
+            "description": "Cada `colorHex` aparece uma vez só."
+          }
+        },
+        "required": [
+          "kind",
+          "pairs"
+        ]
+      },
+      "MemoryGameContent": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "memoryGame"
+            ]
+          },
+          "cards": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 8,
+            "description": "Cada carta vira um par. Precisa de `label` ou `imageUrl`; não pode haver duas cartas com o mesmo `label` (sem acento/maiúscula) e a mesma imagem.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "imageUrl": {
+                  "type": "string",
+                  "description": "URL de `POST /task/upload-media`."
+                }
+              },
+              "required": [
+                "id"
+              ]
+            }
+          }
+        },
+        "required": [
+          "kind",
+          "cards"
+        ]
+      },
+      "PrintableContent": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "printable"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "instructions": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "layout": {
+            "type": "string",
+            "enum": [
+              "LIST",
+              "GRID",
+              "SEQUENCE"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "description": "Cada item precisa de `text` ou `imageUrl`.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "imageUrl": {
+                  "type": "string",
+                  "description": "URL de `POST /task/upload-media`."
+                },
+                "answerLines": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 5
+                }
+              },
+              "required": [
+                "id"
+              ]
+            }
+          }
+        },
+        "required": [
+          "kind",
+          "title",
+          "instructions",
+          "layout",
+          "items"
+        ]
+      },
+      "TaskContent": {
+        "description": "Obrigatório nos tipos novos, com `kind` igual a `type`; ausente na múltipla escolha.",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/WordBuilderContent"
+          },
+          {
+            "$ref": "#/components/schemas/ColorMatchContent"
+          },
+          {
+            "$ref": "#/components/schemas/MemoryGameContent"
+          },
+          {
+            "$ref": "#/components/schemas/PrintableContent"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "kind"
+        }
+      },
+      "TaskSkill": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "CONSCIENCIA_FONOLOGICA"
+          },
+          "label": {
+            "type": "string",
+            "example": "Consciência fonológica"
+          },
+          "learningTopics": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Temas de aprendizagem ligados à habilidade (casam com `Student.learningTopics`, sem acento/maiúscula)."
+          }
+        },
+        "required": [
+          "code",
+          "label",
+          "learningTopics"
+        ]
+      },
+      "TaskSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "multipleChoice",
+              "multipleChoiceWithMedia",
+              "wordBuilder",
+              "colorMatch",
+              "memoryGame",
+              "printable"
+            ]
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "INTERACTIVE",
+              "PRINTABLE"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "EDUCATOR",
+              "LIBRARY"
+            ]
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "reading",
+              "writing",
+              "vocabulary",
+              "comprehension"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "prompt (múltipla escolha), palavra (wordBuilder), \"Associe as cores\", \"Memória visual\" ou título do imprimível."
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "label"
+              ]
+            }
+          },
+          "theme": {
+            "type": "string"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "mint",
+              "peach",
+              "lavender",
+              "yellow"
+            ]
+          },
+          "thumbnailUrl": {
+            "type": "string",
+            "description": "Primeira imagem do conteúdo (ou imageFile da múltipla escolha com mídia)."
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "format",
+          "source",
+          "category",
+          "title",
+          "skills",
+          "tone"
+        ]
+      },
+      "RecommendedTask": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TaskSummary"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "maxLength": 120
+              }
+            },
+            "required": [
+              "reason"
+            ]
+          }
+        ]
+      },
+      "TaskCatalogPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskSummary"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "description": "Ausente na última página."
+          }
+        },
+        "required": [
+          "items"
         ]
       }
     }
