@@ -1,7 +1,8 @@
 import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { AnamneseResponseRepository } from "../../../../../domain/repositories/anamnese-response-repository";
 import { AnamneseTemplateRepository } from "../../../../../domain/repositories/anamnese-template-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
+import { loadAccessibleResponse } from "../response-access";
 import { AiClinicalService } from "../../../../../domain/services/ai-clinical-service";
 import { AnamneseContextBuilder } from "../../../../services/anamnese-context-builder";
 import { callClinicalAi, clipAiText } from "../../../../services/clinical-ai-call";
@@ -19,28 +20,24 @@ export class GenerateAnamneseSummaryUseCase {
   constructor(
     private responseRepository: AnamneseResponseRepository,
     private templateRepository: AnamneseTemplateRepository,
-    private studentRepository: StudentRepository,
+    private studentAccess: StudentAccessService,
     private anamneseBuilder: AnamneseContextBuilder,
     private aiClinicalService: AiClinicalService
   ) {}
 
   async execute(request: GenerateAnamneseSummaryUseCaseRequest) {
-    if (!Uuid.isValid(request.responseId)) return failure("RESPONSE_NOT_FOUND");
+    // Mesmo critério de acesso da leitura da resposta (AS-01, EQ-11).
+    const access = await loadAccessibleResponse(
+      this.responseRepository,
+      this.studentAccess,
+      request.responseId,
+      request.educatorId
+    );
+    if (!access.ok) return access;
+    const { response, student } = access.value;
 
-    const response = await this.responseRepository.findById(new Uuid(request.responseId));
-    if (!response) return failure("RESPONSE_NOT_FOUND");
-
-    // Mesmo critério de dono da leitura da resposta (AS-01).
-    if (response.educatorId.value !== request.educatorId.value) {
-      return failure("UNAUTHORIZED");
-    }
-
-    const [template, student] = await Promise.all([
-      this.templateRepository.findById(response.templateId),
-      this.studentRepository.getById(response.studentId),
-    ]);
+    const template = await this.templateRepository.findById(response.templateId);
     if (!template) return failure("TEMPLATE_NOT_FOUND");
-    if (!student) return failure("STUDENT_NOT_FOUND");
 
     // Respostas do tipo arquivo não vão ao provedor (AS-03).
     const anamnese = this.anamneseBuilder.buildFromResponse(template, response, {

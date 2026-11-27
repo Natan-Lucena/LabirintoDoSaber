@@ -43,7 +43,7 @@ describe("DeleteTaskNotebookUseCase", () => {
     (repository.getById as any).mockResolvedValue(notebook);
 
     const result = await useCase.execute({
-      taskNotebookId: notebook.id,
+      taskNotebookId: notebook.id.value,
       educatorId: owner.id,
     });
 
@@ -56,7 +56,7 @@ describe("DeleteTaskNotebookUseCase", () => {
     (repository.getById as any).mockResolvedValue(notebook);
 
     const result = await useCase.execute({
-      taskNotebookId: notebook.id,
+      taskNotebookId: notebook.id.value,
       educatorId: owner.id,
     });
 
@@ -68,7 +68,7 @@ describe("DeleteTaskNotebookUseCase", () => {
     (repository.getById as any).mockResolvedValue(null);
 
     const result = await useCase.execute({
-      taskNotebookId: Uuid.random(),
+      taskNotebookId: Uuid.random().value,
       educatorId: owner.id,
     });
 
@@ -76,11 +76,18 @@ describe("DeleteTaskNotebookUseCase", () => {
     expect(repository.delete).not.toHaveBeenCalled();
   });
 
+  it("devolve TASK_NOTEBOOK_NOT_FOUND sem consultar o banco quando o id não é UUID", async () => {
+    const result = await useCase.execute({ taskNotebookId: "nao-e-uuid", educatorId: owner.id });
+
+    expect(result).toEqual({ ok: false, error: "TASK_NOTEBOOK_NOT_FOUND" });
+    expect(repository.getById).not.toHaveBeenCalled();
+  });
+
   it("devolve DELETE_TASK_NOTEBOOK_FAILED quando o repositório falha", async () => {
     (repository.getById as any).mockRejectedValue(new Error("db"));
 
     const result = await useCase.execute({
-      taskNotebookId: Uuid.random(),
+      taskNotebookId: Uuid.random().value,
       educatorId: owner.id,
     });
 

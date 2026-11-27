@@ -6,6 +6,14 @@ import { StudentRepository } from "../../../../../domain/repositories/student-re
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
 import { GenerateStudentAnalysisUseCase } from "./generate-student-analisys-use-case";
+import { makeStudent as makeRealStudent } from "../../../session-evolution/use-cases/test-fixtures";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
+
+const OWNER_ID = Uuid.random();
 
 // IDs fixos
 const ID = {
@@ -23,6 +31,7 @@ const ID = {
 
 const makeStudent = (studentId: string) => ({
   id: new Uuid(studentId),
+  educatorId: OWNER_ID,
 });
 
 const makeSession = (
@@ -85,18 +94,52 @@ describe("GenerateStudentAnalysisUseCase", () => {
   let studentRepo: StudentRepository;
   let sessionRepo: TaskNotebookSessionRepository;
   let taskRepo: TaskRepository;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let useCase: GenerateStudentAnalysisUseCase;
 
   beforeEach(() => {
     studentRepo = mockStudentRepository();
     sessionRepo = mockSessionRepository();
     taskRepo = mockTaskRepository();
+    shareRepository = makeShareRepository();
 
     useCase = new GenerateStudentAnalysisUseCase(
       studentRepo,
       sessionRepo,
       taskRepo,
+      makeStudentAccess(studentRepo, shareRepository),
     );
+  });
+
+  describe("access to the student (EQ-11)", () => {
+    it("should return UNAUTHORIZED for an educator without access", async () => {
+      (studentRepo.getById as any).mockResolvedValue(makeStudent(ID.student));
+
+      const result = await useCase.execute({
+        studentId: ID.student,
+        educatorId: Uuid.random(),
+      });
+
+      expect(result).toEqual(failure("UNAUTHORIZED"));
+      expect(sessionRepo.listByStudentId).not.toHaveBeenCalled();
+    });
+
+    it("should analyze for an educator the student is shared with", async () => {
+      const student = makeRealStudent(OWNER_ID);
+      const colleagueId = Uuid.random();
+      shareRepository.store.push(shareStudent(student, colleagueId));
+      (studentRepo.getById as any).mockResolvedValue(student);
+      (sessionRepo.listByStudentId as any).mockResolvedValue([]);
+
+      const result = await useCase.execute({
+        studentId: student.id.value,
+        educatorId: colleagueId,
+      });
+
+      expect(result.ok).toBe(true);
+      // Uma leitura do aluno só: a checagem de acesso já o traz.
+      expect(studentRepo.getById).toHaveBeenCalledTimes(1);
+    });
   });
 
   // --- cenários base -------------------------------------------
@@ -104,7 +147,7 @@ describe("GenerateStudentAnalysisUseCase", () => {
   it("should fail if student is not found", async () => {
     (studentRepo.getById as any).mockResolvedValue(null);
 
-    const result = await useCase.execute({ studentId: ID.student });
+    const result = await useCase.execute({ educatorId: OWNER_ID, studentId: ID.student });
 
     expect(result).toEqual(failure("STUDENT_NOT_FOUND"));
   });
@@ -113,7 +156,7 @@ describe("GenerateStudentAnalysisUseCase", () => {
     (studentRepo.getById as any).mockResolvedValue(makeStudent(ID.student));
     (sessionRepo.listByStudentId as any).mockResolvedValue([]);
 
-    const result = await useCase.execute({ studentId: ID.student });
+    const result = await useCase.execute({ educatorId: OWNER_ID, studentId: ID.student });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("Expected result to be ok");
@@ -147,7 +190,7 @@ describe("GenerateStudentAnalysisUseCase", () => {
       [ID.t3]: makeTask(ID.t3, TaskCategory.Writing),
     });
 
-    const result = await useCase.execute({ studentId: ID.student });
+    const result = await useCase.execute({ educatorId: OWNER_ID, studentId: ID.student });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("Expected result to be ok");
@@ -182,7 +225,7 @@ describe("GenerateStudentAnalysisUseCase", () => {
       // ID.missing propositalmente ausente do catálogo
     });
 
-    const result = await useCase.execute({ studentId: ID.student });
+    const result = await useCase.execute({ educatorId: OWNER_ID, studentId: ID.student });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("Expected result to be ok");
@@ -212,7 +255,7 @@ describe("GenerateStudentAnalysisUseCase", () => {
       [ID.t3]: makeTask(ID.t3, TaskCategory.Comprehension),
     });
 
-    const result = await useCase.execute({ studentId: ID.student });
+    const result = await useCase.execute({ educatorId: OWNER_ID, studentId: ID.student });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("Expected result to be ok");
@@ -252,7 +295,7 @@ describe("GenerateStudentAnalysisUseCase", () => {
         [ID.t2]: makeTask(ID.t2, TaskCategory.Writing),
       });
 
-      const result = await useCase.execute({ studentId: ID.student });
+      const result = await useCase.execute({ educatorId: OWNER_ID, studentId: ID.student });
 
       expect(result.ok).toBe(true);
 
@@ -277,7 +320,7 @@ describe("GenerateStudentAnalysisUseCase", () => {
         [ID.t1]: makeTask(ID.t1, TaskCategory.Reading),
       });
 
-      await useCase.execute({ studentId: ID.student });
+      await useCase.execute({ educatorId: OWNER_ID, studentId: ID.student });
 
       const calledWith = (taskRepo.getByIds as any).mock.calls[0][0] as Uuid[];
       const uniqueIds = new Set(calledWith.map((id) => id.value));
@@ -303,7 +346,7 @@ describe("GenerateStudentAnalysisUseCase", () => {
         [ID.t2]: makeTask(ID.t2, TaskCategory.Writing),
       });
 
-      const result = await useCase.execute({ studentId: ID.student });
+      const result = await useCase.execute({ educatorId: OWNER_ID, studentId: ID.student });
 
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error("Expected result to be ok");
@@ -345,7 +388,7 @@ describe("GenerateStudentAnalysisUseCase", () => {
     });
 
     it("should consider only the N most recent sessions when limit is given", async () => {
-      const result = await useCase.execute({ studentId: ID.student, limit: 2 });
+      const result = await useCase.execute({ educatorId: OWNER_ID, studentId: ID.student, limit: 2 });
 
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error("Expected result to be ok");
@@ -361,7 +404,7 @@ describe("GenerateStudentAnalysisUseCase", () => {
     });
 
     it("should return all sessions when limit exceeds total count", async () => {
-      const result = await useCase.execute({ studentId: ID.student, limit: 10 });
+      const result = await useCase.execute({ educatorId: OWNER_ID, studentId: ID.student, limit: 10 });
 
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error("Expected result to be ok");
@@ -373,7 +416,7 @@ describe("GenerateStudentAnalysisUseCase", () => {
     it("should return zeros when limit is given but no sessions exist", async () => {
       (sessionRepo.listByStudentId as any).mockResolvedValue([]);
 
-      const result = await useCase.execute({ studentId: ID.student, limit: 5 });
+      const result = await useCase.execute({ educatorId: OWNER_ID, studentId: ID.student, limit: 5 });
 
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error("Expected result to be ok");
@@ -411,6 +454,7 @@ describe("GenerateStudentAnalysisUseCase", () => {
 
     it("should filter sessions by startDate (inclusive)", async () => {
       const result = await useCase.execute({
+        educatorId: OWNER_ID,
         studentId: ID.student,
         startDate: new Date("2026-03-01T00:00:00Z"),
       });
@@ -428,6 +472,7 @@ describe("GenerateStudentAnalysisUseCase", () => {
 
     it("should filter sessions by endDate (inclusive)", async () => {
       const result = await useCase.execute({
+        educatorId: OWNER_ID,
         studentId: ID.student,
         endDate: new Date("2026-03-31T23:59:59Z"),
       });
@@ -445,6 +490,7 @@ describe("GenerateStudentAnalysisUseCase", () => {
 
     it("should filter sessions by startDate and endDate window", async () => {
       const result = await useCase.execute({
+        educatorId: OWNER_ID,
         studentId: ID.student,
         startDate: new Date("2026-02-01T00:00:00Z"),
         endDate: new Date("2026-04-30T23:59:59Z"),
@@ -463,6 +509,7 @@ describe("GenerateStudentAnalysisUseCase", () => {
 
     it("should return zeros when no sessions fall within the date window", async () => {
       const result = await useCase.execute({
+        educatorId: OWNER_ID,
         studentId: ID.student,
         startDate: new Date("2025-01-01T00:00:00Z"),
         endDate: new Date("2025-12-31T23:59:59Z"),
@@ -527,7 +574,7 @@ describe("GenerateStudentAnalysisUseCase", () => {
         [ID.t1]: makeTask(ID.t1, TaskCategory.Reading),
       });
 
-      const result = await useCase.execute({ studentId: ID.student });
+      const result = await useCase.execute({ educatorId: OWNER_ID, studentId: ID.student });
 
       expect(result.ok).toBe(true);
       if (!result.ok) throw new Error("Expected result to be ok");

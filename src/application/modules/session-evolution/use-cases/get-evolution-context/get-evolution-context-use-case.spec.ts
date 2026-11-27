@@ -8,7 +8,19 @@ import { PlanRepository } from "../../../../../domain/repositories/plan-reposito
 import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 import { makeAnswer, makePdi, makePe, makeSession, makeStudent } from "../test-fixtures";
+import { ActivityResult } from "../../../../../domain/entities/activity-result";
+import { Task } from "../../../../../domain/entities/task";
+import { ActivityResultRepository } from "../../../../../domain/repositories/activity-result-repository";
+import {
+  makeTaskRepository,
+  makeWordBuilderTask,
+} from "../../../task/use-cases/test-fixtures";
 
 describe("GetEvolutionContextUseCase", () => {
   const educatorId = Uuid.random();
@@ -18,8 +30,11 @@ describe("GetEvolutionContextUseCase", () => {
   let session: TaskNotebookSession;
   let sessionRepository: TaskNotebookSessionRepository;
   let studentRepository: StudentRepository;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let planRepository: PlanRepository;
   let evolutionRepository: SessionEvolutionRepository;
+  let activityResultRepository: ActivityResultRepository;
+  let taskRepository: ReturnType<typeof makeTaskRepository>;
   let useCase: GetEvolutionContextUseCase;
 
   beforeEach(() => {
@@ -46,11 +61,19 @@ describe("GetEvolutionContextUseCase", () => {
       findBySessionId: vi.fn().mockResolvedValue(null),
     } as unknown as SessionEvolutionRepository;
 
+    activityResultRepository = {
+      listBySessionId: vi.fn().mockResolvedValue([]),
+    } as unknown as ActivityResultRepository;
+    taskRepository = makeTaskRepository();
+
+    shareRepository = makeShareRepository();
     useCase = new GetEvolutionContextUseCase(
       sessionRepository,
-      studentRepository,
+      makeStudentAccess(studentRepository, shareRepository),
       planRepository,
-      evolutionRepository
+      evolutionRepository,
+      activityResultRepository,
+      taskRepository
     );
   });
 
@@ -80,12 +103,85 @@ describe("GetEvolutionContextUseCase", () => {
     expect(context.existingEvolutionId).toBeUndefined();
   });
 
+  describe("activity results (RS-06)", () => {
+    const makeResult = (task: Task, completed: boolean, correct: boolean) => {
+      const created = ActivityResult.create({
+        sessionId: session.id,
+        task,
+        completed,
+        correct,
+        attempts: 3,
+        errors: 2,
+        durationMs: 20000,
+      });
+      if (!created.ok) throw new Error(String(created.error));
+      return created.value;
+    };
+
+    it("BE-RS-03: should list the results with the task title and keep the accuracy", async () => {
+      const bola = makeWordBuilderTask();
+      const pato = makeWordBuilderTask({ content: { kind: "wordBuilder", word: "PATO" } });
+      const results = [makeResult(bola, true, true), makeResult(pato, false, false)];
+      (activityResultRepository.listBySessionId as any).mockResolvedValue(results);
+      taskRepository.getByIds.mockResolvedValue([pato, bola]);
+
+      const context = ((await execute()) as any).value;
+
+      expect(activityResultRepository.listBySessionId).toHaveBeenCalledWith(session.id);
+      expect(taskRepository.getByIds).toHaveBeenCalledTimes(1);
+      expect(context.activityResults).toEqual([
+        {
+          taskId: bola.id.value,
+          title: "BOLA",
+          taskType: "wordBuilder",
+          completed: true,
+          correct: true,
+          attempts: 3,
+          errors: 2,
+        },
+        {
+          taskId: pato.id.value,
+          title: "PATO",
+          taskType: "wordBuilder",
+          completed: false,
+          correct: false,
+          attempts: 3,
+          errors: 2,
+        },
+      ]);
+      // RS-05: o accuracy da sessão continua só das respostas de múltipla escolha.
+      expect(context.session.answeredCount).toBe(3);
+      expect(context.session.correctCount).toBe(2);
+    });
+
+    it("should leave title absent when the task was deleted", async () => {
+      const deleted = makeWordBuilderTask();
+      (activityResultRepository.listBySessionId as any).mockResolvedValue([
+        makeResult(deleted, true, false),
+      ]);
+
+      const context = ((await execute()) as any).value;
+
+      expect(context.activityResults).toHaveLength(1);
+      expect(context.activityResults[0].title).toBeUndefined();
+      expect(JSON.parse(JSON.stringify(context.activityResults[0]))).not.toHaveProperty(
+        "title"
+      );
+    });
+
+    it("should return an empty list without querying tasks when there are no results", async () => {
+      const context = ((await execute()) as any).value;
+
+      expect(context.activityResults).toEqual([]);
+      expect(taskRepository.getByIds).not.toHaveBeenCalled();
+    });
+  });
+
   it("should search only the ACTIVE plans of the student", async () => {
     await execute();
 
     expect(planRepository.search).toHaveBeenCalledWith({
-      educatorId,
-      studentId: student.id,
+      studentIds: [student.id],
       status: PlanStatus.ACTIVE,
     });
   });
@@ -172,6 +268,22 @@ describe("GetEvolutionContextUseCase", () => {
 
     (sessionRepository.getById as any).mockResolvedValue(null);
     expect(await execute()).toEqual({ ok: false, error: "SESSION_NOT_FOUND" });
+  });
+
+  it("should give the context to a colleague the student is shared with (EQ-11)", async () => {
+    const colleagueId = Uuid.random();
+    await shareRepository.create(shareStudent(student, colleagueId));
+
+    const result = await execute({ educatorId: colleagueId });
+
+    expect(result.ok).toBe(true);
+    expect((result as any).value.session.studentName).toBe("Ana");
+
+    await shareRepository.delete(student.id, colleagueId);
+    expect(await execute({ educatorId: colleagueId })).toEqual({
+      ok: false,
+      error: "UNAUTHORIZED",
+    });
   });
 
   it("should return UNAUTHORIZED for another educator", async () => {

@@ -1,7 +1,7 @@
 import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { ScaleApplicationRepository } from "../../../../../domain/repositories/scale-application-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
-import { loadOwnedApplication } from "../application-access";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
+import { loadAccessibleApplication } from "../application-access";
 
 export interface DeleteScaleApplicationUseCaseRequest {
   educatorId: Uuid;
@@ -11,13 +11,13 @@ export interface DeleteScaleApplicationUseCaseRequest {
 export class DeleteScaleApplicationUseCase {
   constructor(
     private applicationRepository: ScaleApplicationRepository,
-    private studentRepository: StudentRepository
+    private studentAccess: StudentAccessService
   ) {}
 
   async execute(request: DeleteScaleApplicationUseCaseRequest) {
-    const access = await loadOwnedApplication(
+    const access = await loadAccessibleApplication(
       this.applicationRepository,
-      this.studentRepository,
+      this.studentAccess,
       request.applicationId,
       request.educatorId
     );

@@ -10,9 +10,9 @@ import {
   SessionEvolutionAlreadyExistsError,
   SessionEvolutionRepository,
 } from "../../../../../domain/repositories/session-evolution-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
-import { applyGoalChanges, loadOwnedSession } from "../evolution-access";
+import { applyGoalChanges, loadAccessibleSession } from "../evolution-access";
 
 export interface CreateSessionEvolutionUseCaseRequest {
   educatorId: Uuid;
@@ -30,15 +30,15 @@ const alreadyExists = (evolutionId?: string) =>
 export class CreateSessionEvolutionUseCase {
   constructor(
     private sessionRepository: TaskNotebookSessionRepository,
-    private studentRepository: StudentRepository,
+    private studentAccess: StudentAccessService,
     private planRepository: PlanRepository,
     private evolutionRepository: SessionEvolutionRepository
   ) {}
 
   async execute(request: CreateSessionEvolutionUseCaseRequest) {
-    const access = await loadOwnedSession(
+    const access = await loadAccessibleSession(
       this.sessionRepository,
-      this.studentRepository,
+      this.studentAccess,
       request.sessionId,
       request.educatorId
     );
@@ -57,11 +57,9 @@ export class CreateSessionEvolutionUseCase {
       const found = Uuid.isValid(request.planId)
         ? await this.planRepository.findById(new Uuid(request.planId))
         : null;
-      if (
-        !found ||
-        found.studentId.value !== session.studentId.value ||
-        found.educatorId.value !== request.educatorId.value
-      ) {
+      // Qualquer plano do aluno serve, inclusive o do dono usado pelo
+      // compartilhado (EQ-11); a evolução grava o autor (EQ-12).
+      if (!found || found.studentId.value !== session.studentId.value) {
         return failure("INVALID_PLAN");
       }
       // Plano encerrado: com goalUpdates a evolução inteira falha com 409

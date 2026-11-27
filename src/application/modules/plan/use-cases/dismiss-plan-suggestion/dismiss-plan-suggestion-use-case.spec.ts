@@ -9,6 +9,11 @@ import {
 } from "../../../../../domain/entities/plan-suggestion";
 import { Gender, Student } from "../../../../../domain/entities/student";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 import { PlanSuggestionRepository } from "../../../../../domain/repositories/plan-suggestion-repository";
 
 describe("DismissPlanSuggestionUseCase", () => {
@@ -29,6 +34,7 @@ describe("DismissPlanSuggestionUseCase", () => {
   let suggestion: PlanSuggestion;
   let suggestionRepository: PlanSuggestionRepository;
   let studentRepository: StudentRepository;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let useCase: DismissPlanSuggestionUseCase;
 
   beforeEach(() => {
@@ -62,7 +68,11 @@ describe("DismissPlanSuggestionUseCase", () => {
       getById: vi.fn().mockResolvedValue(student),
     } as unknown as StudentRepository;
 
-    useCase = new DismissPlanSuggestionUseCase(suggestionRepository, studentRepository);
+    shareRepository = makeShareRepository();
+    useCase = new DismissPlanSuggestionUseCase(
+      suggestionRepository,
+      makeStudentAccess(studentRepository, shareRepository)
+    );
   });
 
   it("dismisses the suggestion", async () => {
@@ -117,6 +127,47 @@ describe("DismissPlanSuggestionUseCase", () => {
     expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
     expect(suggestionRepository.save).not.toHaveBeenCalled();
     expect(suggestion.status).toBe(SuggestionStatus.PENDING);
+  });
+
+  it("lets a colleague dismiss his own suggestion on a student shared with him (EQ-11)", async () => {
+    const colleagueId = Uuid.random();
+    await shareRepository.create(shareStudent(student, colleagueId));
+    const plan = Plan.create({
+      educatorId: colleagueId,
+      studentId: student.id,
+      type: PlanType.PDI,
+      source: PlanSource.MANUAL,
+      title: "PDI",
+      generalObjective: "Objetivo",
+      startDate: "2026-01-01",
+      endDate: "2026-06-30",
+      goals: [{ description: "Meta" }],
+    });
+    if (!plan.ok) throw new Error(plan.error);
+    const created = PlanSuggestion.create(plan.value, {
+      kind: SuggestionKind.ADD_GOAL,
+      text: "Incluir meta.",
+      proposedChange: { description: "Nova meta" },
+    });
+    if (!created.ok) throw new Error(created.error);
+    suggestion = created.value;
+
+    const result = await useCase.execute({
+      educatorId: colleagueId,
+      suggestionId: suggestion.id.value,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(suggestion.status).toBe(SuggestionStatus.DISMISSED);
+
+    // Depois de desfeito o compartilhamento, o colega perde o acesso.
+    await shareRepository.delete(student.id, colleagueId);
+    suggestion = created.value;
+    const after = await useCase.execute({
+      educatorId: colleagueId,
+      suggestionId: suggestion.id.value,
+    });
+    expect(after).toEqual({ ok: false, error: "UNAUTHORIZED" });
   });
 
   it("returns SUGGESTION_NOT_FOUND", async () => {

@@ -2,29 +2,46 @@ import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
 import { Task } from "../../../../../domain/entities/task";
+import { timeToAnswerInMs } from "../../../../../domain/entities/task-notebook-session";
 import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
+import { ActivityResultRepository } from "../../../../../domain/repositories/activity-result-repository";
+import { summarizeActivityResults } from "../../../../../domain/entities/activity-result";
+import { mapActivityResultToResponse } from "../../../../../infraestructure/mappers/map-activity-result";
+import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
+import { loadAccessibleSession } from "../../../session-evolution/use-cases/evolution-access";
+import { loadAuthorNames } from "../../../../services/author-names";
 
 export interface GeneratorReportTaskNotebookSessionUseCaseRequest {
   sessionId: string;
+  educatorId: Uuid;
 }
 
 export class GeneratorReportTaskNotebookSessionUseCase {
   constructor(
     private sessionRepository: TaskNotebookSessionRepository,
+    private studentAccess: StudentAccessService,
     private taskRepository: TaskRepository,
-    private evolutionRepository: SessionEvolutionRepository
+    private evolutionRepository: SessionEvolutionRepository,
+    private activityResultRepository: ActivityResultRepository,
+    private educatorRepository: EducatorRepository
   ) {}
 
   async execute(request: GeneratorReportTaskNotebookSessionUseCaseRequest) {
-    const sessionId = new Uuid(request.sessionId);
-
-    const session = await this.sessionRepository.getById(sessionId);
-
-    if (!session) {
-      return failure("SESSION_NOT_FOUND");
-    }
+    // RS-08: só quem acessa o aluno (dono ou compartilhado) lê o relatório.
+    const access = await loadAccessibleSession(
+      this.sessionRepository,
+      this.studentAccess,
+      request.sessionId,
+      request.educatorId
+    );
+    if (!access.ok) return access;
+    const { session } = access.value;
 
     const evolution = await this.evolutionRepository.findBySessionId(session.id);
+    // RS-05: os resultados de jogo ficam fora das estatísticas abaixo, que
+    // usam só as respostas de múltipla escolha.
+    const activityResults = await this.activityResultRepository.listBySessionId(session.id);
 
     const uniqueTaskIds = new Map<string, Uuid>();
     for (const answer of session.answers) {
@@ -44,17 +61,21 @@ export class GeneratorReportTaskNotebookSessionUseCase {
 
     const totalQuestions = session.answers.length;
 
+    // Sessão sem respostas (por exemplo, só jogos): null, nunca NaN.
+    // Tempos em milissegundos, com as respostas antigas normalizadas (PP-08).
     const averageTimePerQuestion =
-      session.answers.reduce((acc, curr) => acc + curr.timeToAnswer, 0) /
-      totalQuestions; // milissegundos (timeToAnswer cru)
+      totalQuestions > 0
+        ? session.answers.reduce((acc, curr) => acc + timeToAnswerInMs(curr), 0) /
+          totalQuestions
+        : null;
 
     const correctTimes = session.answers
       .filter((a) => a.isCorrect)
-      .map((a) => a.timeToAnswer);
+      .map(timeToAnswerInMs);
 
     const incorrectTimes = session.answers
       .filter((a) => !a.isCorrect)
-      .map((a) => a.timeToAnswer);
+      .map(timeToAnswerInMs);
 
     const averageCorrectTime =
       correctTimes.length > 0
@@ -115,8 +136,16 @@ export class GeneratorReportTaskNotebookSessionUseCase {
       percentageByType[type] = total > 0 ? (correct / total) * 100 : null; // porcentagem
     }
 
+    // EQ-12: quem conduziu, quando não é quem lê.
+    const authorNames = await loadAuthorNames(
+      this.educatorRepository,
+      [session.educatorId],
+      request.educatorId
+    );
+
     return success({
       sessionName: session.name,
+      authorName: authorNames.get(session.educatorId.value),
       totalTimeSession,
       totalQuestions,
       averageTimePerQuestion,
@@ -126,6 +155,8 @@ export class GeneratorReportTaskNotebookSessionUseCase {
       percentageByType,
       observation: session.observation ?? null,
       evolutionId: evolution?.id.value,
+      activitySummary: summarizeActivityResults(activityResults),
+      activityResults: activityResults.map(mapActivityResultToResponse),
     });
   }
 }

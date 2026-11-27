@@ -18,6 +18,8 @@ import { AwsS3FileStorage } from "../services/file-storage-impl";
 import { AnamneseTemplateRepositoryImpl } from "../repositories/prisma/anamnese-template-repository-impl";
 import { AnamneseResponseRepositoryImpl } from "../repositories/prisma/anamnese-response-repository-impl";
 import { AppointmentRepositoryImpl } from "../repositories/prisma/appointment-repository-impl";
+import { AppointmentSeriesRepositoryImpl } from "../repositories/prisma/appointment-series-repository-impl";
+import { AppointmentSeriesRepository } from "../../domain/repositories/appointment-series-repository";
 import { QStashAppointmentSchedulerImpl } from "../services/qstash-appointment-scheduler-impl";
 import { AppointmentRepository } from "../../domain/repositories/appointment-repository";
 import { AiTaskGeneratorService } from "../../domain/services/ai-task-generator-service";
@@ -46,6 +48,33 @@ import { NotificationRepository } from "../../domain/repositories/notification-r
 import { NotificationRepositoryImpl } from "../repositories/prisma/notification-repository-impl";
 import { TaskSkillRepository } from "../../domain/repositories/task-skill-repository";
 import { TaskSkillRepositoryImpl } from "../repositories/prisma/task-skill-repository-impl";
+import { ActivityResultRepository } from "../../domain/repositories/activity-result-repository";
+import { ActivityResultRepositoryImpl } from "../repositories/prisma/activity-result-repository-impl";
+import { ClinicRepository } from "../../domain/repositories/clinic-repository";
+import { ClinicRepositoryImpl } from "../repositories/prisma/clinic-repository-impl";
+import { ClinicMemberRepository } from "../../domain/repositories/clinic-member-repository";
+import { ClinicMemberRepositoryImpl } from "../repositories/prisma/clinic-member-repository-impl";
+import { ClinicInviteRepository } from "../../domain/repositories/clinic-invite-repository";
+import { ClinicInviteRepositoryImpl } from "../repositories/prisma/clinic-invite-repository-impl";
+import { RateLimitRepository } from "../../domain/repositories/rate-limit-repository";
+import { RateLimitRepositoryImpl } from "../repositories/prisma/rate-limit-repository-impl";
+import { ClinicDepartureService } from "../../domain/services/clinic-departure-service";
+import { ClinicDepartureServiceImpl } from "../services/clinic-departure-service-impl";
+import { StudentShareRepository } from "../../domain/repositories/student-share-repository";
+import { StudentShareRepositoryImpl } from "../repositories/prisma/student-share-repository-impl";
+import { StudentAccessService } from "../../domain/services/student-access-service";
+import { PushTokenRepository } from "../../domain/repositories/push-token-repository";
+import { PushTokenRepositoryImpl } from "../repositories/prisma/push-token-repository-impl";
+import { NotificationPreferencesRepository } from "../../domain/repositories/notification-preferences-repository";
+import { NotificationPreferencesRepositoryImpl } from "../repositories/prisma/notification-preferences-repository-impl";
+import { PushDispatchRepository } from "../../domain/repositories/push-dispatch-repository";
+import { PushDispatchRepositoryImpl } from "../repositories/prisma/push-dispatch-repository-impl";
+import { PushReceiptRepository } from "../../domain/repositories/push-receipt-repository";
+import { PushReceiptRepositoryImpl } from "../repositories/prisma/push-receipt-repository-impl";
+import { PushSender } from "../../domain/services/push-sender";
+import { ExpoPushSenderImpl } from "../services/expo-push-sender-impl";
+import { HelpTutorialRepository } from "../../domain/repositories/help-tutorial-repository";
+import { HelpTutorialRepositoryImpl } from "../repositories/prisma/help-tutorial-repository-impl";
 
 const prismaClient = new PrismaClient();
 
@@ -117,6 +146,10 @@ export const makeAppointmentRepository = (): AppointmentRepository => {
   return new AppointmentRepositoryImpl(prismaClient);
 };
 
+export const makeAppointmentSeriesRepository = (): AppointmentSeriesRepository => {
+  return new AppointmentSeriesRepositoryImpl(prismaClient);
+};
+
 export const makeAppointmentSchedulerService = (repo: AppointmentRepository) => {
   return new QStashAppointmentSchedulerImpl(repo);
 };
@@ -171,4 +204,67 @@ export const makeNotificationRepository = (): NotificationRepository => {
 
 export const makeTaskSkillRepository = (): TaskSkillRepository => {
   return new TaskSkillRepositoryImpl(prismaClient);
+};
+
+export const makeActivityResultRepository = (): ActivityResultRepository => {
+  return new ActivityResultRepositoryImpl(prismaClient);
+};
+
+export const makeClinicRepository = (): ClinicRepository => {
+  return new ClinicRepositoryImpl(prismaClient);
+};
+
+export const makeClinicMemberRepository = (): ClinicMemberRepository => {
+  return new ClinicMemberRepositoryImpl(prismaClient);
+};
+
+export const makeClinicInviteRepository = (): ClinicInviteRepository => {
+  return new ClinicInviteRepositoryImpl(prismaClient);
+};
+
+export const makeRateLimitRepository = (): RateLimitRepository => {
+  return new RateLimitRepositoryImpl(prismaClient);
+};
+
+export const makeStudentShareRepository = (): StudentShareRepository => {
+  return new StudentShareRepositoryImpl(prismaClient);
+};
+
+// Ponto único da regra "dono ou compartilhado" (EQ-11).
+export const makeStudentAccessService = (): StudentAccessService => {
+  return new StudentAccessService(
+    new StudentRepositoryImpl(prismaClient),
+    makeStudentShareRepository()
+  );
+};
+
+export const makeClinicDepartureService = (): ClinicDepartureService => {
+  return new ClinicDepartureServiceImpl(
+    new StudentRepositoryImpl(prismaClient),
+    makeStudentShareRepository()
+  );
+};
+
+export const makePushTokenRepository = (): PushTokenRepository => {
+  return new PushTokenRepositoryImpl(prismaClient);
+};
+
+export const makeNotificationPreferencesRepository = (): NotificationPreferencesRepository => {
+  return new NotificationPreferencesRepositoryImpl(prismaClient);
+};
+
+export const makePushDispatchRepository = (): PushDispatchRepository => {
+  return new PushDispatchRepositoryImpl(prismaClient);
+};
+
+export const makePushReceiptRepository = (): PushReceiptRepository => {
+  return new PushReceiptRepositoryImpl(prismaClient);
+};
+
+export const makePushSender = (): PushSender => {
+  return new ExpoPushSenderImpl();
+};
+
+export const makeHelpTutorialRepository = (): HelpTutorialRepository => {
+  return new HelpTutorialRepositoryImpl(prismaClient);
 };

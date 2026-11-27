@@ -1,0 +1,73 @@
+[
+  {
+    "key": "conheca-o-labirinto",
+    "order": 1,
+    "title": "Conheça o Labirinto do Saber",
+    "description": "Um passeio pelas telas principais: pacientes, agenda, atividades e notificações.",
+    "durationSeconds": 90,
+    "featured": true,
+    "steps": [
+      "Na tela inicial você vê os atendimentos do dia e as pendências dos seus pacientes.",
+      "Em Pacientes ficam o cadastro, a anamnese, o plano e o histórico de cada criança.",
+      "Na Agenda você marca, remarca e acompanha os atendimentos.",
+      "Em Atividades você monta cadernos com atividades prontas, suas ou geradas com ajuda da IA.",
+      "O sino mostra lembretes como evoluções pendentes e revisões de plano."
+    ]
+  },
+  {
+    "key": "cadastrar-paciente",
+    "order": 2,
+    "title": "Cadastrar um paciente",
+    "description": "Como criar o cadastro de uma criança e preencher a anamnese inicial.",
+    "durationSeconds": 75,
+    "featured": false,
+    "steps": [
+      "Abra Pacientes e toque em Novo paciente.",
+      "Preencha os dados básicos e os temas de aprendizagem que você vai trabalhar.",
+      "Salve o cadastro; o paciente aparece na sua lista como ativo.",
+      "Na ficha do paciente, abra Anamnese e escolha um modelo para começar a entrevista."
+    ]
+  },
+  {
+    "key": "agendar-atendimento",
+    "order": 3,
+    "title": "Agendar atendimentos",
+    "description": "Marque um atendimento avulso ou uma série semanal ou quinzenal.",
+    "durationSeconds": 60,
+    "featured": false,
+    "steps": [
+      "Na Agenda, toque em Novo atendimento e escolha o paciente.",
+      "Defina a data e o horário; para repetir, escolha semanal ou quinzenal.",
+      "Confirme. Horários em conflito são avisados antes de salvar.",
+      "Para remarcar ou cancelar, toque no atendimento e escolha a ação."
+    ]
+  },
+  {
+    "key": "aplicar-caderno",
+    "order": 4,
+    "title": "Aplicar um caderno de atividades",
+    "description": "Monte um caderno, aplique na sessão e registre a evolução depois.",
+    "durationSeconds": 90,
+    "featured": false,
+    "steps": [
+      "Em Atividades, crie um caderno e adicione atividades da biblioteca ou suas.",
+      "Na sessão, abra o caderno e toque em Iniciar sessão com o paciente.",
+      "A criança responde no aparelho; ao final, toque em Finalizar.",
+      "Registre a evolução da sessão para acompanhar o progresso no plano."
+    ]
+  },
+  {
+    "key": "notificacoes-e-push",
+    "order": 5,
+    "title": "Notificações e avisos no celular",
+    "description": "Escolha quais lembretes chegam como aviso no celular, uma vez por dia.",
+    "durationSeconds": 45,
+    "featured": false,
+    "steps": [
+      "Permita as notificações do app quando o celular perguntar.",
+      "Abra Configurações e depois Notificações.",
+      "Ligue ou desligue os avisos no celular e escolha os tipos de lembrete.",
+      "Os lembretes continuam todos na lista do sino, mesmo os que não viram aviso."
+    ]
+  }
+]

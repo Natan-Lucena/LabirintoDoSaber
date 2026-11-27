@@ -6,6 +6,7 @@ import { Task, TaskCategory } from "../../../../../domain/entities/task";
 import { TaskNotebookSession } from "../../../../../domain/entities/task-notebook-session";
 import { Student } from "../../../../../domain/entities/student";
 import { dateInSaoPaulo } from "../../../../../domain/utils/date-only";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 
 export interface GenerateStudentAnalysisUseCaseRequest {
   studentId: string;
@@ -15,6 +16,11 @@ export interface GenerateStudentAnalysisUseCaseRequest {
   // Só sessões finalizadas entre as datas (AAAA-MM-DD, inclusivas, em
   // America/Sao_Paulo). Quando vem, substitui limit e startDate/endDate.
   finishedBetween?: { from: string; to: string };
+}
+
+export interface GenerateStudentAnalysisExecuteRequest
+  extends GenerateStudentAnalysisUseCaseRequest {
+  educatorId: Uuid;
 }
 
 export interface CategoryAccuracyResult {
@@ -81,10 +87,19 @@ export class GenerateStudentAnalysisUseCase {
     private studentRepository: StudentRepository,
     private taskNotebookSessionRepository: TaskNotebookSessionRepository,
     private taskRepository: TaskRepository,
+    private studentAccess: StudentAccessService,
   ) {}
 
-  async execute(request: GenerateStudentAnalysisUseCaseRequest) {
-    const raw = await this.loadAnalysisData(request);
+  // Rota HTTP: só quem acessa o aluno (dono ou compartilhado, EQ-11).
+  async execute(request: GenerateStudentAnalysisExecuteRequest) {
+    if (!Uuid.isValid(request.studentId)) return failure("STUDENT_NOT_FOUND" as const);
+    const access = await this.studentAccess.assertStudentAccess(
+      new Uuid(request.studentId),
+      request.educatorId,
+    );
+    if (!access.ok) return access;
+
+    const raw = await this.aggregate(access.value, request);
     if (!raw.ok) return raw;
 
     const { categories, total, sessions } = raw.value;
@@ -94,6 +109,8 @@ export class GenerateStudentAnalysisUseCase {
   // Faz todo o trabalho de busca/agregação e expõe também o Student e o
   // Map de tasks já resolvidos, para quem precisar deles sem refazer as
   // mesmas queries (ex: montar o prompt da análise por IA).
+  // NÃO confere o acesso ao aluno: quem chama (plano, relatório, análise por
+  // IA) já conferiu com o StudentAccessService antes.
   async loadAnalysisData(request: GenerateStudentAnalysisUseCaseRequest) {
     const student = await this.studentRepository.getById(
       new Uuid(request.studentId),
@@ -103,6 +120,13 @@ export class GenerateStudentAnalysisUseCase {
       return failure("STUDENT_NOT_FOUND");
     }
 
+    return this.aggregate(student, request);
+  }
+
+  private async aggregate(
+    student: Student,
+    request: GenerateStudentAnalysisUseCaseRequest,
+  ) {
     const allSessions = await this.taskNotebookSessionRepository.listByStudentId(
       new Uuid(request.studentId),
     );

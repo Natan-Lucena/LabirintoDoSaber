@@ -40,6 +40,8 @@ export class CreatePlanController extends BaseController {
           return this.notFound(res, result.error);
         case "UNAUTHORIZED":
           return this.forbidden(res, result.error);
+        case "STUDENT_ARCHIVED":
+          return this.conflict(res, result.error);
         default:
           return this.clientError(res, result.error);
       }

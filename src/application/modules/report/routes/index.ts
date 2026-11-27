@@ -8,6 +8,7 @@ import {
   makeScaleApplicationRepository,
   makeScaleTemplateRepository,
   makeSessionEvolutionRepository,
+  makeStudentAccessService,
   makeStudentRepository,
   makeTaskNotebookSessionRepository,
   makeTaskRepository,
@@ -32,13 +33,15 @@ const reportRouter = Router();
 
 const educatorRepository = makeEducatorRepository({ isMock: false });
 const studentRepository = makeStudentRepository({ isMock: false });
+const studentAccess = makeStudentAccessService();
 const reportRepository = makeReportRepository();
 
 const contentBuilder = new ReportContentBuilder({
   analysisUseCase: new GenerateStudentAnalysisUseCase(
     studentRepository,
     makeTaskNotebookSessionRepository(),
-    makeTaskRepository({ isMock: false })
+    makeTaskRepository({ isMock: false }),
+    makeStudentAccessService()
   ),
   evolutionRepository: makeSessionEvolutionRepository(),
   planRepository: makePlanRepository(),
@@ -50,14 +53,22 @@ const contentBuilder = new ReportContentBuilder({
 const getReportOptionsUseCase = new GetReportOptionsUseCase();
 const createReportUseCase = new CreateReportUseCase(
   reportRepository,
-  studentRepository,
+  studentAccess,
   contentBuilder,
   makeAiClinicalService()
 );
-const listReportsUseCase = new ListReportsUseCase(reportRepository, studentRepository);
-const getReportUseCase = new GetReportUseCase(reportRepository, studentRepository);
-const shareReportUseCase = new ShareReportUseCase(reportRepository, studentRepository);
-const deleteReportUseCase = new DeleteReportUseCase(reportRepository, studentRepository);
+const listReportsUseCase = new ListReportsUseCase(
+  reportRepository,
+  studentAccess,
+  educatorRepository
+);
+const getReportUseCase = new GetReportUseCase(
+  reportRepository,
+  studentAccess,
+  educatorRepository
+);
+const shareReportUseCase = new ShareReportUseCase(reportRepository, studentAccess);
+const deleteReportUseCase = new DeleteReportUseCase(reportRepository, studentAccess);
 
 const authMiddleware = makeAuthMiddleware(educatorRepository);
 

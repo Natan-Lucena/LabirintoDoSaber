@@ -3,8 +3,7 @@ import { ScaleApplication } from "../../../../../domain/entities/scale-applicati
 import { AppointmentRepository } from "../../../../../domain/repositories/appointment-repository";
 import { ScaleApplicationRepository } from "../../../../../domain/repositories/scale-application-repository";
 import { ScaleTemplateRepository } from "../../../../../domain/repositories/scale-template-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
-import { assertStudentOwnership } from "../../../plan/use-cases/plan-access";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { ScaleApplicationView } from "../application-access";
 
 export interface StartScaleApplicationUseCaseRequest {
@@ -18,18 +17,18 @@ export class StartScaleApplicationUseCase {
   constructor(
     private applicationRepository: ScaleApplicationRepository,
     private templateRepository: ScaleTemplateRepository,
-    private studentRepository: StudentRepository,
+    private studentAccess: StudentAccessService,
     private appointmentRepository: AppointmentRepository
   ) {}
 
   async execute(request: StartScaleApplicationUseCaseRequest) {
-    const ownership = await assertStudentOwnership(
-      this.studentRepository,
+    // Arquivado não recebe aplicação nova (PA-04).
+    const access = await this.studentAccess.assertActiveStudentAccess(
       new Uuid(request.studentId),
       request.educatorId
     );
-    if (!ownership.ok) return ownership;
-    const student = ownership.value;
+    if (!access.ok) return access;
+    const student = access.value;
 
     const template = await this.templateRepository.findById(new Uuid(request.templateId));
     if (!template) return failure("SCALE_NOT_FOUND");
@@ -62,11 +61,8 @@ export class StartScaleApplicationUseCase {
 
     if (appointmentId) {
       const appointment = await this.appointmentRepository.findById(appointmentId);
-      if (
-        !appointment ||
-        appointment.educatorId.value !== request.educatorId.value ||
-        appointment.studentId.value !== student.id.value
-      ) {
+      // Qualquer atendimento do aluno: o compartilhado usa os do dono (EQ-11).
+      if (!appointment || appointment.studentId.value !== student.id.value) {
         return failure("INVALID_APPOINTMENT");
       }
     }

@@ -18,6 +18,11 @@ import {
 import { Gender, Student } from "../../../../../domain/entities/student";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 import { PlanSuggestionRepository } from "../../../../../domain/repositories/plan-suggestion-repository";
 
 describe("AcceptPlanSuggestionUseCase", () => {
@@ -39,6 +44,7 @@ describe("AcceptPlanSuggestionUseCase", () => {
   let suggestion: PlanSuggestion;
   let planRepository: PlanRepository;
   let suggestionRepository: PlanSuggestionRepository;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let useCase: AcceptPlanSuggestionUseCase;
 
   const suggest = (input: CreatePlanSuggestionProps) => {
@@ -91,9 +97,10 @@ describe("AcceptPlanSuggestionUseCase", () => {
       }),
     } as unknown as PlanSuggestionRepository;
 
+    shareRepository = makeShareRepository();
     useCase = new AcceptPlanSuggestionUseCase(
       planRepository,
-      studentRepository,
+      makeStudentAccess(studentRepository, shareRepository),
       suggestionRepository
     );
   });
@@ -263,5 +270,50 @@ describe("AcceptPlanSuggestionUseCase", () => {
 
     expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
     expect(suggestion.status).toBe(SuggestionStatus.PENDING);
+  });
+
+  it("lets a colleague accept his suggestion on the owner plan of a shared student (EQ-11)", async () => {
+    const colleagueId = Uuid.random();
+    await shareRepository.create(shareStudent(student, colleagueId));
+    const created = PlanSuggestion.create(plan, {
+      kind: SuggestionKind.UPDATE_GOAL_STATUS,
+      goalId: plan.goals[0].id.value,
+      text: "A meta foi atingida nas últimas sessões.",
+      proposedChange: { status: GoalStatus.ACHIEVED },
+      educatorId: colleagueId,
+    });
+    if (!created.ok) throw new Error(created.error);
+    suggestion = created.value;
+
+    const result = await useCase.execute({
+      educatorId: colleagueId,
+      suggestionId: suggestion.id.value,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(plan.goals[0].status).toBe(GoalStatus.ACHIEVED);
+    expect(suggestion.status).toBe(SuggestionStatus.ACCEPTED);
+  });
+
+  it("returns UNAUTHORIZED to a colleague after the share is undone", async () => {
+    const colleagueId = Uuid.random();
+    await shareRepository.create(shareStudent(student, colleagueId));
+    await shareRepository.delete(student.id, colleagueId);
+    const created = PlanSuggestion.create(plan, {
+      kind: SuggestionKind.ADD_GOAL,
+      text: "Incluir meta.",
+      proposedChange: { description: "Nova meta" },
+      educatorId: colleagueId,
+    });
+    if (!created.ok) throw new Error(created.error);
+    suggestion = created.value;
+
+    const result = await useCase.execute({
+      educatorId: colleagueId,
+      suggestionId: suggestion.id.value,
+    });
+
+    expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
+    expect(planRepository.save).not.toHaveBeenCalled();
   });
 });

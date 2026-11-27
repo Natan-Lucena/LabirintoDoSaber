@@ -19,6 +19,7 @@ export class AppointmentRepositoryImpl implements AppointmentRepository {
       update: {
         educatorId: appointment.educatorId.value,
         studentId: appointment.studentId.value,
+        seriesId: appointment.seriesId?.value ?? null,
         scheduledAt: appointment.scheduledAt,
         observation: appointment.observation ?? null,
         type: appointment.type ?? null,
@@ -31,6 +32,7 @@ export class AppointmentRepositoryImpl implements AppointmentRepository {
         id: appointment.id.value,
         educatorId: appointment.educatorId.value,
         studentId: appointment.studentId.value,
+        seriesId: appointment.seriesId?.value ?? null,
         scheduledAt: appointment.scheduledAt,
         observation: appointment.observation ?? null,
         type: appointment.type ?? null,
@@ -62,6 +64,14 @@ export class AppointmentRepositoryImpl implements AppointmentRepository {
 
     if (params.studentId) {
       where.studentId = params.studentId.value;
+    }
+
+    if (params.studentIds) {
+      where.studentId = { in: params.studentIds.map((id) => id.value) };
+    }
+
+    if (params.seriesId) {
+      where.seriesId = params.seriesId.value;
     }
 
     if (params.status) {
@@ -113,6 +123,32 @@ export class AppointmentRepositoryImpl implements AppointmentRepository {
     return entities;
   }
 
+  async findNextPendingByStudentIds(studentIds: Uuid[], after: Date): Promise<Appointment[]> {
+    if (studentIds.length === 0) return [];
+
+    // Id do próximo PENDING de cada aluno, pelo índice
+    // [studentId, status, scheduledAt].
+    const next = (await this.prismaService.appointment.aggregateRaw({
+      pipeline: [
+        {
+          $match: {
+            studentId: { $in: studentIds.map((id) => id.value) },
+            status: "PENDING",
+            scheduledAt: { $gt: { $date: after.toISOString() } },
+          },
+        },
+        { $sort: { studentId: 1, scheduledAt: 1 } },
+        { $group: { _id: "$studentId", appointmentId: { $first: "$_id" } } },
+      ],
+    })) as unknown as { appointmentId: string }[];
+    if (next.length === 0) return [];
+
+    const records = await this.prismaService.appointment.findMany({
+      where: { id: { in: next.map((row) => row.appointmentId) } },
+    });
+    return records.map((record) => this.mapToEntity(record));
+  }
+
   async delete(id: Uuid): Promise<void> {
     await this.prismaService.appointment.delete({
       where: { id: id.value },
@@ -123,6 +159,7 @@ export class AppointmentRepositoryImpl implements AppointmentRepository {
     id: string;
     educatorId: string;
     studentId: string;
+    seriesId: string | null;
     scheduledAt: Date;
     observation: string | null;
     type: string | null;
@@ -142,6 +179,7 @@ export class AppointmentRepositoryImpl implements AppointmentRepository {
       id: new Uuid(record.id),
       educatorId: new Uuid(record.educatorId),
       studentId: new Uuid(record.studentId),
+      seriesId: record.seriesId ? new Uuid(record.seriesId) : undefined,
       scheduledAt: record.scheduledAt,
       observation: record.observation ?? undefined,
       type: record.type ?? undefined,

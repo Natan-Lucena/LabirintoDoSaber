@@ -1,13 +1,12 @@
 import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { Task, TaskCategory } from "../../../../../domain/entities/task";
 import { TaskNotebookSession } from "../../../../../domain/entities/task-notebook-session";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
 import { TaskRepository } from "../../../../../domain/repositories/task-repository";
 import { TaskSkillRepository } from "../../../../../domain/repositories/task-skill-repository";
 import { truncateText } from "../../../../../domain/utils/text";
 import { mapTaskSummary } from "../../../../../infraestructure/mappers/map-task";
-import { assertStudentOwnership } from "../../../plan/use-cases/plan-access";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { compareNewestFirst } from "../list-task-catalog/list-task-catalog-use-case";
 
 export interface ListRecommendedTasksUseCaseRequest {
@@ -34,7 +33,7 @@ const CATEGORY_ORDER = Object.values(TaskCategory);
 // últimas sessões.
 export class ListRecommendedTasksUseCase {
   constructor(
-    private studentRepository: StudentRepository,
+    private studentAccess: StudentAccessService,
     private sessionRepository: TaskNotebookSessionRepository,
     private taskRepository: TaskRepository,
     private skillRepository: TaskSkillRepository
@@ -43,13 +42,16 @@ export class ListRecommendedTasksUseCase {
   async execute(request: ListRecommendedTasksUseCaseRequest) {
     if (!Uuid.isValid(request.studentId)) return failure("STUDENT_NOT_FOUND" as const);
 
-    const access = await assertStudentOwnership(
-      this.studentRepository,
+    // Dono ou compartilhado (EQ-11).
+    const access = await this.studentAccess.assertStudentAccess(
       new Uuid(request.studentId),
       request.educatorId
     );
     if (!access.ok) return access;
     const student = access.value;
+
+    // PA-03: arquivado sai da recomendação.
+    if (student.isArchived) return success([]);
 
     const [skills, sessions] = await Promise.all([
       this.skillRepository.listAll(),

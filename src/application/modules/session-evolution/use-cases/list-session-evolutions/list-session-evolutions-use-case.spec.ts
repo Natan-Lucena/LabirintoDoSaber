@@ -8,6 +8,13 @@ import {
 import { Student } from "../../../../../domain/entities/student";
 import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
+import { Educator } from "../../../../../domain/entities/educator";
+import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
 import { makeSession, makeStudent } from "../test-fixtures";
 
 const makeEvolution = (
@@ -41,6 +48,8 @@ describe("ListSessionEvolutionsUseCase", () => {
 
   let evolutionRepository: SessionEvolutionRepository;
   let studentRepository: StudentRepository;
+  let educatorRepository: EducatorRepository;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let useCase: ListSessionEvolutionsUseCase;
 
   beforeEach(() => {
@@ -50,8 +59,17 @@ describe("ListSessionEvolutionsUseCase", () => {
     studentRepository = {
       getById: vi.fn().mockResolvedValue(ana),
       search: vi.fn().mockResolvedValue([ana, bruno]),
+      getByIds: vi.fn().mockResolvedValue([]),
     } as unknown as StudentRepository;
-    useCase = new ListSessionEvolutionsUseCase(evolutionRepository, studentRepository);
+    educatorRepository = {
+      getByIds: vi.fn().mockResolvedValue([]),
+    } as unknown as EducatorRepository;
+    shareRepository = makeShareRepository();
+    useCase = new ListSessionEvolutionsUseCase(
+      evolutionRepository,
+      makeStudentAccess(studentRepository, shareRepository),
+      educatorRepository
+    );
   });
 
   it("should search by the student only, without filtering by the recorded author", async () => {
@@ -116,6 +134,7 @@ describe("ListSessionEvolutionsUseCase", () => {
         criteriaCount: 3,
         achievedCount: 2,
         excerpt: "x".repeat(200),
+        authorName: undefined,
         createdAt: recent.createdAt,
       },
       expect.objectContaining({
@@ -125,6 +144,64 @@ describe("ListSessionEvolutionsUseCase", () => {
         excerpt: "Registro",
       }),
     ]);
+  });
+
+  describe("shared students (EQ-11, EQ-12, EQ-13)", () => {
+    const colleagueId = Uuid.random();
+    const owner = Educator.create({ name: "Dona Marta", email: "m@mail.com", password: "x" });
+    const carla = makeStudent(owner.id, "Carla");
+
+    it("should list the evolutions of a student shared with the educator, with the author's name", async () => {
+      await shareRepository.create(shareStudent(carla, colleagueId));
+      (studentRepository.getById as any).mockResolvedValue(carla);
+      (educatorRepository.getByIds as any).mockResolvedValue([owner]);
+      const byOwner = makeEvolution(carla, owner.id, "2026-11-12T13:00:00.000Z");
+      const byColleague = makeEvolution(carla, colleagueId, "2026-11-05T13:00:00.000Z");
+      (evolutionRepository.search as any).mockResolvedValue([byOwner, byColleague]);
+
+      const result = await useCase.execute({
+        educatorId: colleagueId,
+        studentId: carla.id.value,
+        limit: 50,
+      });
+
+      const summaries = (result as any).value;
+      expect(summaries.map((s: any) => [s.id, s.studentName, s.authorName])).toEqual([
+        [byOwner.id.value, "Carla", "Dona Marta"],
+        [byColleague.id.value, "Carla", undefined],
+      ]);
+      expect((educatorRepository.getByIds as any).mock.calls[0][0]).toEqual([owner.id]);
+    });
+
+    it("should include the shared students when no student is informed", async () => {
+      await shareRepository.create(shareStudent(carla, colleagueId));
+      (studentRepository.search as any).mockResolvedValue([]);
+      (studentRepository.getByIds as any).mockResolvedValue([carla]);
+
+      await useCase.execute({ educatorId: colleagueId, limit: 5 });
+
+      expect(evolutionRepository.search).toHaveBeenCalledWith({
+        studentIds: [carla.id],
+        from: undefined,
+        to: undefined,
+        limit: 5,
+      });
+    });
+
+    it("should return UNAUTHORIZED after the share is undone", async () => {
+      await shareRepository.create(shareStudent(carla, colleagueId));
+      await shareRepository.delete(carla.id, colleagueId);
+      (studentRepository.getById as any).mockResolvedValue(carla);
+
+      const result = await useCase.execute({
+        educatorId: colleagueId,
+        studentId: carla.id.value,
+        limit: 50,
+      });
+
+      expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
+      expect(evolutionRepository.search).not.toHaveBeenCalled();
+    });
   });
 
   it("should return UNAUTHORIZED for a student of another educator", async () => {

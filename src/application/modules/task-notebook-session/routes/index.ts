@@ -13,6 +13,8 @@ import {
   makeAppointmentSchedulerService,
   makeTaskGroupRepository,
   makeSessionEvolutionRepository,
+  makeActivityResultRepository,
+  makeStudentAccessService,
 } from "../../../../infraestructure/factories";
 import { makeAuthMiddleware } from "../../../../infraestructure/middlewares";
 import { StartTaskNotebookSessionUseCase } from "../use-cases/start-task-notebook-session/start-task-session-use-case";
@@ -34,6 +36,8 @@ import { ListStudentAnalysisHistoryController } from "../use-cases/list-student-
 import { SaveStudentAnalysisSnapshotUseCase } from "../use-cases/save-student-analysis-snapshot/save-student-analysis-snapshot-use-case";
 import { SaveStudentAnalysisSnapshotController } from "../use-cases/save-student-analysis-snapshot/save-student-analysis-snapshot-controller";
 import { GenerateStudentAiAnalysisUseCase } from "../use-cases/generate-student-ai-analysis/generate-student-ai-analysis-use-case";
+import { RecordActivityResultUseCase } from "../use-cases/record-activity-result/record-activity-result-use-case";
+import { RecordActivityResultController } from "../use-cases/record-activity-result/record-activity-result-controller";
 import { GenerateStudentAiAnalysisController } from "../use-cases/generate-student-ai-analysis/generate-student-ai-analysis-controller";
 
 const taskNotebookSessionRouter = Router();
@@ -51,24 +55,38 @@ const appointmentRepository = makeAppointmentRepository();
 const schedulerService = makeAppointmentSchedulerService(appointmentRepository);
 const taskGroupRepository = makeTaskGroupRepository();
 const sessionEvolutionRepository = makeSessionEvolutionRepository();
+const activityResultRepository = makeActivityResultRepository();
+// Ponto único da regra "dono ou compartilhado" (EQ-11).
+const studentAccess = makeStudentAccessService();
 const authMiddleware = makeAuthMiddleware(educatorRepository);
 
 const startTaskNotebookSessionUseCase = new StartTaskNotebookSessionUseCase(
   taskNotebookRepository,
   taskSessionRepository,
-  studentRepository,
+  studentAccess,
   appointmentRepository
 );
 
 const answerTaskNotebookSessionUseCase = new AnswerTaskNotebookSessionUseCase(
   taskSessionRepository,
+  studentAccess,
   taskRepository,
   taskNotebookRepository,
   taskGroupRepository
 );
 
+const recordActivityResultUseCase = new RecordActivityResultUseCase(
+  taskSessionRepository,
+  studentAccess,
+  taskRepository,
+  taskNotebookRepository,
+  taskGroupRepository,
+  activityResultRepository
+);
+
 const finishTaskNotebookSessionUseCase = new FinishTaskNotebookSessionUseCase(
   taskSessionRepository,
+  studentAccess,
   appointmentRepository,
   schedulerService
 );
@@ -76,20 +94,27 @@ const finishTaskNotebookSessionUseCase = new FinishTaskNotebookSessionUseCase(
 const listTaskNotebookSessionByStudentIdUseCase =
   new ListTaskNotebookSessionByStudentIdUseCase(
     taskSessionRepository,
-    sessionEvolutionRepository
+    studentAccess,
+    sessionEvolutionRepository,
+    activityResultRepository,
+    educatorRepository
   );
 
 const generateReportTaskNotebookSessionUseCase =
   new GeneratorReportTaskNotebookSessionUseCase(
     taskSessionRepository,
+    studentAccess,
     taskRepository,
-    sessionEvolutionRepository
+    sessionEvolutionRepository,
+    activityResultRepository,
+    educatorRepository
   );
 
 const generateStudentAnalysisUseCase = new GenerateStudentAnalysisUseCase(
   studentRepository,
   taskSessionRepository,
   taskRepository,
+  studentAccess,
 );
 
 const saveStudentAnalysisSnapshotUseCase = new SaveStudentAnalysisSnapshotUseCase(
@@ -98,14 +123,16 @@ const saveStudentAnalysisSnapshotUseCase = new SaveStudentAnalysisSnapshotUseCas
 );
 
 const addObservationTaskNotebookSessionUseCase =
-  new AddObservationTaskNotebookSessionUseCase(taskSessionRepository);
+  new AddObservationTaskNotebookSessionUseCase(taskSessionRepository, studentAccess);
 
 const listStudentAnalysisHistoryUseCase = new ListStudentAnalysisHistoryUseCase(
-  studentAnalysisReportRepository
+  studentAnalysisReportRepository,
+  studentAccess
 );
 
 const generateStudentAiAnalysisUseCase = new GenerateStudentAiAnalysisUseCase(
   generateStudentAnalysisUseCase,
+  studentAccess,
   anamneseTemplateRepository,
   anamneseResponseRepository,
   aiStudentAnalysisService
@@ -124,6 +151,16 @@ taskNotebookSessionRouter.post("/answer", (req: Request, res: Response) => {
     answerTaskNotebookSessionUseCase
   ).execute(req, res);
 });
+
+taskNotebookSessionRouter.post(
+  "/activity-result",
+  (req: Request, res: Response) => {
+    new RecordActivityResultController(recordActivityResultUseCase).execute(
+      req,
+      res
+    );
+  }
+);
 
 taskNotebookSessionRouter.post("/finish", (req: Request, res: Response) => {
   new FinishTaskNotebookController(finishTaskNotebookSessionUseCase).execute(

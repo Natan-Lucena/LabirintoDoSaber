@@ -5,12 +5,18 @@ import {
 
 const EXCERPT_LENGTH = 200;
 
-export function mapSessionEvolutionToResponse(evolution: SessionEvolution) {
+// authorName (EQ-12): só quando o autor não é quem lê; ausente do JSON
+// quando undefined.
+export function mapSessionEvolutionToResponse(
+  evolution: SessionEvolution,
+  authorName?: string
+) {
   return {
     id: evolution.id.value,
     sessionId: evolution.sessionId.value,
     studentId: evolution.studentId.value,
     educatorId: evolution.educatorId.value,
+    authorName,
     appointmentId: evolution.appointmentId?.value,
     planId: evolution.planId?.value,
     planType: evolution.planType,
@@ -40,13 +46,15 @@ export function mapSessionEvolutionToResponse(evolution: SessionEvolution) {
 
 export function mapSessionEvolutionToSummary(
   evolution: SessionEvolution,
-  studentName: string
+  studentName: string,
+  authorName?: string
 ) {
   return {
     id: evolution.id.value,
     sessionId: evolution.sessionId.value,
     studentId: evolution.studentId.value,
     studentName,
+    authorName,
     sessionDate: evolution.sessionDate,
     planTitle: evolution.planTitle,
     criteriaCount: evolution.criteria.length,

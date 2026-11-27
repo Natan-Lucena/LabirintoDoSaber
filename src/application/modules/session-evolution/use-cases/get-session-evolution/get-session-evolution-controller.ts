@@ -29,6 +29,6 @@ export class GetSessionEvolutionController extends BaseController {
       }
     }
 
-    return this.ok(res, mapSessionEvolutionToResponse(result.value));
+    return this.ok(res, mapSessionEvolutionToResponse(result.value.evolution, result.value.authorName));
   }
 }

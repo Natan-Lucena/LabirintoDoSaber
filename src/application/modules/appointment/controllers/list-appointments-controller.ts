@@ -3,6 +3,7 @@ import {
   formatValidationErrors,
 } from "@wave-telecom/framework/controllers";
 import { Request, Response } from "express";
+import { Uuid } from "@wave-telecom/framework/core";
 import { listAppointmentsQuerySchema } from "../schemas/appointment-schemas";
 import { ListAppointmentsUseCase } from "../use-cases/list-appointments/list-appointments-use-case";
 
@@ -25,6 +26,7 @@ export class ListAppointmentsController extends BaseController {
 
     const result = await this.useCase.execute({
       educatorId: educator.id,
+      studentId: validation.data.studentId ? new Uuid(validation.data.studentId) : undefined,
       from: validation.data.from,
       to: validation.data.to,
     });
@@ -33,6 +35,10 @@ export class ListAppointmentsController extends BaseController {
       switch (result.error) {
         case "INVALID_PERIOD":
           return this.clientError(res, result.error);
+        case "STUDENT_NOT_FOUND":
+          return this.notFound(res, result.error);
+        case "UNAUTHORIZED":
+          return this.forbidden(res, result.error);
         default:
           return this.fail(res, "INTERNAL_SERVER_ERROR");
       }

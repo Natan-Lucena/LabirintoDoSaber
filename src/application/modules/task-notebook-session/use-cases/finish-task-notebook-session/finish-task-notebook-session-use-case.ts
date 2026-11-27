@@ -3,26 +3,32 @@ import { TaskNotebookSessionRepository } from "../../../../../domain/repositorie
 import { AppointmentRepository } from "../../../../../domain/repositories/appointment-repository";
 import { AppointmentSchedulerService } from "../../../../../domain/services/appointment-scheduler-service";
 import { AppointmentStatus } from "../../../../../domain/entities/appointment";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
+import { loadAccessibleSession } from "../../../session-evolution/use-cases/evolution-access";
 
 export interface FinishTaskNotebookSessionUseCaseRequest {
   sessionId: string;
+  educatorId: Uuid;
 }
 
 export class FinishTaskNotebookSessionUseCase {
   constructor(
     private sessionRepository: TaskNotebookSessionRepository,
+    private studentAccess: StudentAccessService,
     private appointmentRepository: AppointmentRepository,
     private schedulerService: AppointmentSchedulerService
   ) {}
 
   async execute(request: FinishTaskNotebookSessionUseCaseRequest) {
-    const sessionId = new Uuid(request.sessionId);
-
-    const session = await this.sessionRepository.getById(sessionId);
-
-    if (!session) {
-      return failure("SESSION_NOT_FOUND");
-    }
+    // RS-08: só quem acessa o aluno (dono ou compartilhado) finaliza.
+    const access = await loadAccessibleSession(
+      this.sessionRepository,
+      this.studentAccess,
+      request.sessionId,
+      request.educatorId
+    );
+    if (!access.ok) return access;
+    const { session } = access.value;
 
     if (session.finishedAt) {
       return failure("SESSION_ALREADY_FINISHED");

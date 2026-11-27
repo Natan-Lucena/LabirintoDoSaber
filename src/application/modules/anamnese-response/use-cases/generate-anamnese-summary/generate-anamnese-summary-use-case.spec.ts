@@ -19,6 +19,10 @@ import { AiClinicalService } from "../../../../../domain/services/ai-clinical-se
 import { AnamneseContextBuilder } from "../../../../services/anamnese-context-builder";
 import { mapAnamneseResponse } from "../../../../../infraestructure/mappers/map-anamnese-response";
 import {
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
+import {
   expectNoIdentifiableData,
   makeIdentifiableStudent,
 } from "../../../session-evolution/use-cases/test-fixtures";
@@ -97,6 +101,7 @@ describe("GenerateAnamneseSummaryUseCase", () => {
       findById: vi.fn(async (id: Uuid) => store.get(id.value) ?? null),
       listByStudentId: vi.fn(async () => [...store.values()]),
       existsByTemplateId: vi.fn(),
+      findStudentIdsWithResponses: vi.fn(),
     };
     templateRepository = {
       findById: vi.fn().mockResolvedValue(template),
@@ -116,7 +121,7 @@ describe("GenerateAnamneseSummaryUseCase", () => {
     useCase = new GenerateAnamneseSummaryUseCase(
       responseRepository,
       templateRepository,
-      studentRepository,
+      makeStudentAccess(studentRepository),
       new AnamneseContextBuilder(templateRepository, responseRepository),
       aiService
     );
@@ -193,7 +198,11 @@ describe("GenerateAnamneseSummaryUseCase", () => {
     await generate();
 
     vi.setSystemTime(new Date("2026-11-12T16:00:00.000Z"));
-    const update = new UpdateAnamneseResponseUseCase(templateRepository, responseRepository);
+    const update = new UpdateAnamneseResponseUseCase(
+      templateRepository,
+      responseRepository,
+      makeStudentAccess(studentRepository)
+    );
     const updated = await update.execute({
       responseId: response.id.value,
       educatorId,
@@ -348,5 +357,21 @@ describe("GenerateAnamneseSummaryUseCase", () => {
       ok: false,
       error: "RESPONSE_NOT_FOUND",
     });
+  });
+
+  it("lets a colleague with the shared student generate the summary (EQ-11)", async () => {
+    const colleagueId = Uuid.random();
+    useCase = new GenerateAnamneseSummaryUseCase(
+      responseRepository,
+      templateRepository,
+      makeStudentAccess(studentRepository, [shareStudent(student, colleagueId)]),
+      new AnamneseContextBuilder(templateRepository, responseRepository),
+      aiService
+    );
+
+    const result = await generate(response.id.value, colleagueId);
+
+    expect(result.ok).toBe(true);
+    expect(aiService.anamneseSummary).toHaveBeenCalledTimes(1);
   });
 });

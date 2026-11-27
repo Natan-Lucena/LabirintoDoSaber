@@ -34,6 +34,10 @@ import {
   makeStudent,
   makeStudentRepository,
 } from "../test-fixtures";
+import {
+  makeShareRepository,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -45,6 +49,8 @@ const ago = (ms: number) => new Date(NOW.getTime() - ms);
 describe("GenerateDailyNotificationsUseCase", () => {
   const educatorA = Uuid.random();
   const educatorB = Uuid.random();
+  // Colega com quem o educador A compartilha pacientes.
+  const educatorC = Uuid.random();
 
   let students: Student[];
   let appointments: Appointment[];
@@ -60,6 +66,7 @@ describe("GenerateDailyNotificationsUseCase", () => {
   let scaleApplicationRepository: ScaleApplicationRepository;
   let studentRepository: StudentRepository;
   let notificationRepository: ReturnType<typeof makeNotificationRepository>;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let useCase: GenerateDailyNotificationsUseCase;
 
   const ana = makeStudent(educatorA, "Ana Clara Souza");
@@ -97,26 +104,34 @@ describe("GenerateDailyNotificationsUseCase", () => {
   const application = (
     studentId: Uuid,
     updatedAt: Date,
-    status = ApplicationStatus.DRAFT
+    status = ApplicationStatus.DRAFT,
+    educatorId = educatorA,
+    id = Uuid.random()
   ) =>
     ScaleApplication.fromPersistence({
-      id: Uuid.random(),
+      id,
       templateId: Uuid.random(),
       templateCode: "SNAP-IV",
       templateVersion: 1,
       templateName: "SNAP-IV",
       studentId,
-      educatorId: educatorA,
+      educatorId,
       status,
       answers: [],
       startedAt: updatedAt,
       updatedAt,
     });
 
-  const appointment = (scheduledAt: string, status = AppointmentStatus.PENDING, educatorId = educatorA) =>
+  // Por padrão, um aluno do próprio educador (Ana é do A, Carla é do B).
+  const appointment = (
+    scheduledAt: string,
+    status = AppointmentStatus.PENDING,
+    educatorId = educatorA,
+    studentId = educatorId.value === educatorB.value ? carla.id : ana.id
+  ) =>
     Appointment.create({
       educatorId,
-      studentId: ana.id,
+      studentId,
       scheduledAt: new Date(scheduledAt),
       status,
     });
@@ -185,6 +200,7 @@ describe("GenerateDailyNotificationsUseCase", () => {
 
     studentRepository = makeStudentRepository(() => students);
     notificationRepository = makeNotificationRepository();
+    shareRepository = makeShareRepository();
 
     useCase = new GenerateDailyNotificationsUseCase(
       appointmentRepository,
@@ -193,7 +209,8 @@ describe("GenerateDailyNotificationsUseCase", () => {
       planRepository,
       scaleApplicationRepository,
       studentRepository,
-      notificationRepository
+      notificationRepository,
+      shareRepository
     );
   });
 
@@ -257,6 +274,31 @@ describe("GenerateDailyNotificationsUseCase", () => {
       );
     });
 
+    it("should count only appointments of students the educator still accesses", async () => {
+      appointments = [
+        // Colega C atende a Ana enquanto ela está compartilhada com ele.
+        appointment("2026-11-12T13:00:00.000Z", AppointmentStatus.PENDING, educatorC, ana.id),
+        appointment("2026-11-12T14:00:00.000Z", AppointmentStatus.PENDING, educatorC, bruno.id),
+      ];
+      shareRepository.store.push(shareStudent(ana, educatorC));
+
+      await useCase.execute();
+
+      const [notification] = ofKind(NotificationKind.APPOINTMENTS_TODAY);
+      expect(notification.educatorId.value).toBe(educatorC.value);
+      expect(notification.title).toBe("1 atendimento hoje");
+    });
+
+    it("should not notify an educator who lost the access to every student of the day", async () => {
+      appointments = [
+        appointment("2026-11-12T13:00:00.000Z", AppointmentStatus.PENDING, educatorC, ana.id),
+      ];
+
+      await useCase.execute();
+
+      expect(ofKind(NotificationKind.APPOINTMENTS_TODAY)).toEqual([]);
+    });
+
     it("should not notify when the day has no PENDING appointment", async () => {
       appointments = [
         appointment("2026-11-12T15:00:00.000Z", AppointmentStatus.COMPLETED),
@@ -288,7 +330,7 @@ describe("GenerateDailyNotificationsUseCase", () => {
       expect(notifications[0].body).not.toContain("Clara");
       expect(notifications[0].body).not.toContain("Souza");
       expect(notifications[0].dedupeKey).toBe(
-        `${educatorA.value}:EVOLUTION_PENDING:${pending.id.value}:${TODAY}`
+        `${educatorA.value}:EVOLUTION_PENDING:${pending.id.value}`
       );
     });
 
@@ -324,6 +366,35 @@ describe("GenerateDailyNotificationsUseCase", () => {
 
       expect(ofKind(NotificationKind.EVOLUTION_PENDING)).toEqual([]);
     });
+
+    it("should notify who conducted the session when the student is shared with them (EQ-14)", async () => {
+      shareRepository.store.push(shareStudent(ana, educatorC));
+      sessions = [session(ana.id, educatorC, ago(25 * HOUR))];
+
+      await useCase.execute();
+
+      const notifications = ofKind(NotificationKind.EVOLUTION_PENDING);
+      expect(notifications.map((n) => n.educatorId.value)).toEqual([educatorC.value]);
+    });
+
+    it("should skip the session of a colleague who lost the access (EQ-14)", async () => {
+      sessions = [session(ana.id, educatorC, ago(25 * HOUR))];
+
+      await useCase.execute();
+
+      expect(ofKind(NotificationKind.EVOLUTION_PENDING)).toEqual([]);
+    });
+
+    it("should load the shares in a single batch", async () => {
+      sessions = [
+        session(ana.id, educatorC, ago(25 * HOUR)),
+        session(bruno.id, educatorC, ago(26 * HOUR)),
+      ];
+
+      await useCase.execute();
+
+      expect(shareRepository.listByStudentIds).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("PLAN_REVIEW_DUE", () => {
@@ -346,8 +417,18 @@ describe("GenerateDailyNotificationsUseCase", () => {
       expect(notifications[0].body).toBe("A revisão do plano de Ana vence em 14/11.");
       expect(notifications[1].body).toBe("A revisão do plano de Bruno venceu em 01/11.");
       expect(notifications[0].dedupeKey).toBe(
-        `${educatorA.value}:PLAN_REVIEW_DUE:${dueIn2Days.id.value}:${TODAY}`
+        `${educatorA.value}:PLAN_REVIEW_DUE:${dueIn2Days.id.value}:2026-11-14`
       );
+    });
+
+    it("should notify the owner, not the colleague who wrote the plan (EQ-14)", async () => {
+      shareRepository.store.push(shareStudent(ana, educatorC));
+      plans = [plan(ana.id, educatorC, "2026-11-12")];
+
+      await useCase.execute();
+
+      const [notification] = ofKind(NotificationKind.PLAN_REVIEW_DUE);
+      expect(notification.educatorId.value).toBe(educatorA.value);
     });
 
     it("should notify the current owner of the student", async () => {
@@ -384,8 +465,62 @@ describe("GenerateDailyNotificationsUseCase", () => {
       );
       expect(notifications[1].body).toContain("12 dias");
       expect(notifications[0].dedupeKey).toBe(
-        `${educatorA.value}:SCALE_DRAFT_STALE:${stale.id.value}:${TODAY}`
+        `${educatorA.value}:SCALE_DRAFT_STALE:${stale.id.value}:2026-11-05`
       );
+    });
+  });
+
+  describe("SCALE_DRAFT_STALE once per abandonment (PP-07)", () => {
+    it("should not repeat while the draft stays untouched", async () => {
+      applications = [application(ana.id, ago(8 * DAY))];
+      await useCase.execute();
+      vi.setSystemTime(new Date(NOW.getTime() + 2 * DAY));
+
+      await useCase.execute();
+
+      expect(ofKind(NotificationKind.SCALE_DRAFT_STALE)).toHaveLength(1);
+    });
+
+    it("should notify again when the draft is resumed and abandoned again", async () => {
+      const id = Uuid.random();
+      applications = [application(ana.id, ago(8 * DAY), ApplicationStatus.DRAFT, educatorA, id)];
+      await useCase.execute();
+
+      // Retomada amanhã e parada de novo por 7 dias.
+      applications = [
+        application(ana.id, new Date(NOW.getTime() + DAY), ApplicationStatus.DRAFT, educatorA, id),
+      ];
+      vi.setSystemTime(new Date(NOW.getTime() + 9 * DAY));
+      await useCase.execute();
+
+      expect(ofKind(NotificationKind.SCALE_DRAFT_STALE).map((n) => n.dedupeKey)).toEqual([
+        `${educatorA.value}:SCALE_DRAFT_STALE:${id.value}:2026-11-04`,
+        `${educatorA.value}:SCALE_DRAFT_STALE:${id.value}:2026-11-13`,
+      ]);
+    });
+  });
+
+  describe("SCALE_DRAFT_STALE recipient (EQ-14)", () => {
+    it("should notify the colleague who started the draft while they keep the access", async () => {
+      shareRepository.store.push(shareStudent(ana, educatorC));
+      applications = [application(ana.id, ago(8 * DAY), ApplicationStatus.DRAFT, educatorC)];
+
+      await useCase.execute();
+
+      const notifications = ofKind(NotificationKind.SCALE_DRAFT_STALE);
+      expect(notifications.map((n) => n.educatorId.value)).toEqual([educatorC.value]);
+    });
+
+    it("should skip the draft whose author lost the access", async () => {
+      applications = [
+        application(ana.id, ago(8 * DAY), ApplicationStatus.DRAFT, educatorC),
+        // Carla foi transferida para o B; o rascunho é do A.
+        application(carla.id, ago(8 * DAY)),
+      ];
+
+      await useCase.execute();
+
+      expect(ofKind(NotificationKind.SCALE_DRAFT_STALE)).toEqual([]);
     });
   });
 
@@ -406,15 +541,64 @@ describe("GenerateDailyNotificationsUseCase", () => {
       expect(notificationRepository.store).toHaveLength(4);
     });
 
-    it("should create them again on the next day", async () => {
+    it("should repeat only APPOINTMENTS_TODAY on the next day: one notification per pending item (PP-07)", async () => {
       await useCase.execute();
       vi.setSystemTime(new Date(NOW.getTime() + DAY));
       appointments.push(appointment("2026-11-13T13:00:00.000Z"));
 
       const nextDay = await useCase.execute();
 
-      expect(nextDay.ok && nextDay.value.created).toBe(4);
-      expect(notificationRepository.store).toHaveLength(8);
+      expect(nextDay.ok && nextDay.value.created).toBe(1);
+      expect(notificationRepository.store).toHaveLength(5);
+      expect(
+        notificationRepository.store
+          .filter((n) => n.kind === NotificationKind.APPOINTMENTS_TODAY)
+          .map((n) => n.target?.id)
+      ).toEqual([TODAY, "2026-11-13"]);
+    });
+
+    it("should not repeat a pending item even after it was read", async () => {
+      await useCase.execute();
+      notificationRepository.store.splice(
+        0,
+        notificationRepository.store.length,
+        ...notificationRepository.store.map((n) => n.markRead(NOW))
+      );
+      vi.setSystemTime(new Date(NOW.getTime() + 3 * DAY));
+
+      const later = await useCase.execute();
+
+      // Só o resumo de atendimentos do dia novo; as três pendências já existem.
+      expect(
+        notificationRepository.store
+          .filter((n) => n.kind !== NotificationKind.APPOINTMENTS_TODAY)
+          .map((n) => n.kind)
+          .sort()
+      ).toEqual(
+        [
+          NotificationKind.EVOLUTION_PENDING,
+          NotificationKind.PLAN_REVIEW_DUE,
+          NotificationKind.SCALE_DRAFT_STALE,
+        ].sort()
+      );
+      expect(later.ok && later.value.created).toBe(0);
+    });
+
+    it("should notify again when the plan gets a new review date", async () => {
+      await useCase.execute();
+      const reviewed = plans[0].update({ nextReviewDate: "2026-11-14" });
+      if (!reviewed.ok) throw new Error(String(reviewed.error));
+      plans = [reviewed.value];
+      vi.setSystemTime(new Date(NOW.getTime() + DAY));
+
+      await useCase.execute();
+
+      expect(
+        ofKind(NotificationKind.PLAN_REVIEW_DUE).map((n) => n.dedupeKey)
+      ).toEqual([
+        `${educatorA.value}:PLAN_REVIEW_DUE:${reviewed.value.id.value}:2026-11-13`,
+        `${educatorA.value}:PLAN_REVIEW_DUE:${reviewed.value.id.value}:2026-11-14`,
+      ]);
     });
 
     it("should load the students in a single batch, without one query per educator", async () => {
@@ -452,6 +636,31 @@ describe("GenerateDailyNotificationsUseCase", () => {
       expect(result).toEqual({ ok: true, value: { created: 0, deleted: 1 } });
       expect(notificationRepository.store.map((n) => n.id.value)).toEqual([kept.id.value]);
     });
+
+    it("should notify a pending item again once retention deleted the old notification", async () => {
+      const draft = application(ana.id, ago(100 * DAY));
+      applications = [draft];
+      const old = Notification.scaleDraftStale({
+        educatorId: educatorA,
+        date: "2026-08-13",
+        studentId: ana.id,
+        firstName: "Ana",
+        applicationId: draft.id,
+        templateName: "SNAP-IV",
+        days: 9,
+        updatedAt: draft.updatedAt,
+        now: ago(91 * DAY),
+      });
+      notificationRepository.store.push(old);
+
+      const result = await useCase.execute();
+
+      // Aceito: a pendência que dura mais que a retenção volta uma vez.
+      expect(result).toEqual({ ok: true, value: { created: 1, deleted: 1 } });
+      const [again] = ofKind(NotificationKind.SCALE_DRAFT_STALE);
+      expect(again.dedupeKey).toBe(old.dedupeKey);
+      expect(again.id.value).not.toBe(old.id.value);
+    });
   });
 
   it("should skip notifications of students that no longer exist", async () => {
@@ -462,5 +671,57 @@ describe("GenerateDailyNotificationsUseCase", () => {
     const result = await useCase.execute();
 
     expect(result).toEqual({ ok: true, value: { created: 0, deleted: 0 } });
+  });
+
+  describe("aluno arquivado (PA-03)", () => {
+    it("não gera notificação de evolução, revisão de plano nem rascunho de escala", async () => {
+      const archived = makeStudent(educatorA, "Eva Arquivada");
+      archived.archive(ago(DAY));
+      students.push(archived);
+      sessions = [session(archived.id, educatorA, ago(25 * HOUR))];
+      plans = [plan(archived.id, educatorA, "2026-11-12")];
+      applications = [application(archived.id, ago(8 * DAY))];
+
+      const result = await useCase.execute();
+
+      expect(result).toEqual({ ok: true, value: { created: 0, deleted: 0 } });
+    });
+
+    it("atendimento do dia de aluno arquivado não entra na contagem", async () => {
+      const archived = makeStudent(educatorA, "Eva Arquivada");
+      archived.archive(ago(HOUR));
+      students.push(archived);
+      appointments = [
+        appointment("2026-11-12T13:00:00.000Z"),
+        Appointment.create({
+          educatorId: educatorA,
+          studentId: archived.id,
+          scheduledAt: new Date("2026-11-12T14:00:00.000Z"),
+        }),
+      ];
+
+      await useCase.execute();
+
+      const [notification] = ofKind(NotificationKind.APPOINTMENTS_TODAY);
+      expect(ofKind(NotificationKind.APPOINTMENTS_TODAY)).toHaveLength(1);
+      expect(notification.title).toBe("1 atendimento hoje");
+    });
+
+    it("sem nenhum atendimento de aluno ativo no dia: nenhuma notificação de agenda", async () => {
+      const archived = makeStudent(educatorA, "Eva Arquivada");
+      archived.archive(ago(HOUR));
+      students.push(archived);
+      appointments = [
+        Appointment.create({
+          educatorId: educatorA,
+          studentId: archived.id,
+          scheduledAt: new Date("2026-11-12T14:00:00.000Z"),
+        }),
+      ];
+
+      await useCase.execute();
+
+      expect(ofKind(NotificationKind.APPOINTMENTS_TODAY)).toHaveLength(0);
+    });
   });
 });

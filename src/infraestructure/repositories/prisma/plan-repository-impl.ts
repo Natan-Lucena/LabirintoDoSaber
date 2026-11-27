@@ -70,11 +70,12 @@ export class PlanRepositoryImpl implements PlanRepository {
   }
 
   async search(params: SearchPlanParams): Promise<Plan[]> {
+    if (params.studentIds.length === 0) return [];
+
     const where: Prisma.PlanWhereInput = {
-      educatorId: params.educatorId.value,
+      studentId: { in: params.studentIds.map((id) => id.value) },
     };
 
-    if (params.studentId) where.studentId = params.studentId.value;
     if (params.status) where.status = params.status;
     if (params.type) where.type = params.type;
 
@@ -104,6 +105,35 @@ export class PlanRepositoryImpl implements PlanRepository {
     const records = await this.prismaService.plan.findMany({
       where: { status: PlanStatus.ACTIVE, nextReviewDate: { lte: date } },
       orderBy: [{ nextReviewDate: "asc" }, { id: "asc" }],
+    });
+
+    return records.map((record) => this.mapToEntity(record));
+  }
+
+  async listForOverview(studentIds: Uuid[], reviewDueBy: string): Promise<Plan[]> {
+    if (studentIds.length === 0) return [];
+    const ids = studentIds.map((id) => id.value);
+
+    // Id do PE ACTIVE mais recente de cada aluno, pelo índice
+    // [studentId, type, status].
+    const latestPe = (await this.prismaService.plan.aggregateRaw({
+      pipeline: [
+        { $match: { studentId: { $in: ids }, type: PlanType.PE, status: PlanStatus.ACTIVE } },
+        { $sort: { studentId: 1, sessionDate: -1, createdAt: -1 } },
+        { $group: { _id: "$studentId", planId: { $first: "$_id" } } },
+      ],
+    })) as unknown as { planId: string }[];
+
+    const records = await this.prismaService.plan.findMany({
+      where: {
+        studentId: { in: ids },
+        status: PlanStatus.ACTIVE,
+        OR: [
+          { type: PlanType.PDI },
+          { nextReviewDate: { lte: reviewDueBy } },
+          { id: { in: latestPe.map((row) => row.planId) } },
+        ],
+      },
     });
 
     return records.map((record) => this.mapToEntity(record));

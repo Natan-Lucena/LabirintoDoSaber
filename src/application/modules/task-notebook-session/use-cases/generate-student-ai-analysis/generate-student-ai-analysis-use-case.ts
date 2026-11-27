@@ -1,4 +1,5 @@
-import { failure, success } from "@wave-telecom/framework/core";
+import { failure, success, Uuid } from "@wave-telecom/framework/core";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { AnamneseTemplateRepository } from "../../../../../domain/repositories/anamnese-template-repository";
 import { AnamneseResponseRepository } from "../../../../../domain/repositories/anamnese-response-repository";
 import {
@@ -11,6 +12,7 @@ import { GenerateStudentAnalysisUseCase } from "../generate-student-analisys/gen
 
 export interface GenerateStudentAiAnalysisUseCaseRequest {
   studentId: string;
+  educatorId: Uuid;
   startDate?: Date;
   endDate?: Date;
   limit?: number;
@@ -22,6 +24,7 @@ export class GenerateStudentAiAnalysisUseCase {
 
   constructor(
     private generateStudentAnalysisUseCase: GenerateStudentAnalysisUseCase,
+    private studentAccess: StudentAccessService,
     anamneseTemplateRepository: AnamneseTemplateRepository,
     anamneseResponseRepository: AnamneseResponseRepository,
     private aiStudentAnalysisService: AiStudentAnalysisService
@@ -33,6 +36,14 @@ export class GenerateStudentAiAnalysisUseCase {
   }
 
   async execute(request: GenerateStudentAiAnalysisUseCaseRequest) {
+    // EQ-11: dono ou compartilhado; confere antes de qualquer busca ou IA.
+    if (!Uuid.isValid(request.studentId)) return failure("STUDENT_NOT_FOUND" as const);
+    const access = await this.studentAccess.assertStudentAccess(
+      new Uuid(request.studentId),
+      request.educatorId
+    );
+    if (!access.ok) return access;
+
     // loadAnalysisData já faz, numa única leva, a busca de student +
     // sessões + tasks em lote (também valida o aluno). buildAnamnese não
     // depende de nada disso, então roda em paralelo em vez de esperar.
@@ -58,17 +69,13 @@ export class GenerateStudentAiAnalysisUseCase {
       (session) => {
         let correctAnswers = 0;
         let totalTime = 0;
-        let timedAnswers = 0;
 
         const answers = session.answers.map((answer) => {
           const task = taskById.get(answer.taskId.value);
           if (answer.isCorrect) correctAnswers++;
-          // Respostas antigas (em segundos) ficam sem tempo e fora da média.
+          // Respostas antigas (em segundos) normalizadas para ms (PP-08).
           const timeToAnswer = timeToAnswerInMs(answer);
-          if (timeToAnswer !== undefined) {
-            totalTime += timeToAnswer;
-            timedAnswers++;
-          }
+          totalTime += timeToAnswer;
 
           return {
             taskPrompt: task?.prompt,
@@ -86,7 +93,7 @@ export class GenerateStudentAiAnalysisUseCase {
           totalAnswers: session.answers.length,
           correctAnswers,
           // Em milissegundos; o prompt converte para segundos.
-          averageTimeToAnswer: timedAnswers ? totalTime / timedAnswers : undefined,
+          averageTimeToAnswer: answers.length ? totalTime / answers.length : undefined,
           answers,
         };
       },

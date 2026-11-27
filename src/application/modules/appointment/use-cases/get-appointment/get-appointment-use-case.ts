@@ -1,5 +1,7 @@
-import { failure, success, Uuid } from "@wave-telecom/framework/core";
+import { success, Uuid } from "@wave-telecom/framework/core";
 import { AppointmentRepository } from "../../../../../domain/repositories/appointment-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
+import { loadAccessibleAppointment } from "../appointment-access";
 import { mapAppointmentToResponse } from "../../../../../infraestructure/mappers/map-appointment";
 
 export interface GetAppointmentUseCaseRequest {
@@ -8,14 +10,20 @@ export interface GetAppointmentUseCaseRequest {
 }
 
 export class GetAppointmentUseCase {
-  constructor(private appointmentRepository: AppointmentRepository) {}
+  constructor(
+    private appointmentRepository: AppointmentRepository,
+    private studentAccess: StudentAccessService
+  ) {}
 
   async execute(request: GetAppointmentUseCaseRequest) {
-    const appointment = await this.appointmentRepository.findById(request.id);
-
-    if (!appointment || appointment.educatorId.value !== request.educatorId.value) {
-      return failure("NOT_FOUND");
-    }
+    const loaded = await loadAccessibleAppointment(
+      this.appointmentRepository,
+      this.studentAccess,
+      request.id,
+      request.educatorId
+    );
+    if (!loaded.ok) return loaded;
+    const { appointment } = loaded.value;
 
     return success(mapAppointmentToResponse(appointment));
   }

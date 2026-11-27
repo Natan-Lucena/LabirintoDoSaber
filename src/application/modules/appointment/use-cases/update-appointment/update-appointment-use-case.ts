@@ -1,6 +1,8 @@
 import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { AppointmentStatus } from "../../../../../domain/entities/appointment";
 import { AppointmentRepository } from "../../../../../domain/repositories/appointment-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
+import { loadAccessibleAppointment } from "../appointment-access";
 import { AppointmentSchedulerService } from "../../../../../domain/services/appointment-scheduler-service";
 import { findAppointmentConflict } from "../find-appointment-conflict";
 
@@ -17,15 +19,19 @@ export interface UpdateAppointmentUseCaseRequest {
 export class UpdateAppointmentUseCase {
   constructor(
     private appointmentRepository: AppointmentRepository,
-    private schedulerService: AppointmentSchedulerService
+    private schedulerService: AppointmentSchedulerService,
+    private studentAccess: StudentAccessService
   ) {}
 
   async execute(request: UpdateAppointmentUseCaseRequest) {
-    const appointment = await this.appointmentRepository.findById(request.id);
-
-    if (!appointment || appointment.educatorId.value !== request.educatorId.value) {
-      return failure("NOT_FOUND");
-    }
+    const loaded = await loadAccessibleAppointment(
+      this.appointmentRepository,
+      this.studentAccess,
+      request.id,
+      request.educatorId
+    );
+    if (!loaded.ok) return loaded;
+    const { appointment, student } = loaded.value;
 
     // Reativar (status PENDING) vem antes da edição, para permitir reativar e remarcar
     // na mesma requisição. Nos demais casos a edição vem antes de sair de PENDING.
@@ -60,7 +66,12 @@ export class UpdateAppointmentUseCase {
     const reactivated =
       previousStatus === AppointmentStatus.CANCELLED && updated.status === AppointmentStatus.PENDING;
 
+    // Reativar é um atendimento novo na agenda: aluno arquivado não recebe
+    // (PA-04), inclusive os cancelados ao arquivar (PA-05). Remarcar um PENDING
+    // também: é horário novo na agenda.
     if (updated.status === AppointmentStatus.PENDING && (rescheduled || reactivated)) {
+      if (student.isArchived) return failure("STUDENT_ARCHIVED");
+
       const conflict = await findAppointmentConflict(this.appointmentRepository, updated);
       if (conflict) {
         return failure({
@@ -78,6 +89,12 @@ export class UpdateAppointmentUseCase {
       await this.schedulerService.cancel(updated);
     } else if (reactivated && updated.scheduledAt.getTime() > Date.now()) {
       await this.schedulerService.ensureScheduled(updated);
+    } else if (
+      updated.status === AppointmentStatus.PENDING &&
+      updated.scheduledAt.getTime() !== appointment.scheduledAt.getTime()
+    ) {
+      // PENDING remarcado: o lembrete marcado é do horário antigo.
+      await this.schedulerService.reschedule(updated);
     }
 
     return success(updated);

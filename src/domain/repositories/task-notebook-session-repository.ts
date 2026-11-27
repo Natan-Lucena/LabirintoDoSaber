@@ -15,6 +15,8 @@ export interface ListFinishedBetweenParams {
   // Inclusivos, comparados com finishedAt.
   from: Date;
   to: Date;
+  // Só destes alunos (GET /student/overview); ausente = todos (cron).
+  studentIds?: Uuid[];
 }
 
 // Só o que o cron de notificações usa, sem respostas nem observação.
@@ -36,7 +38,8 @@ export interface TaskNotebookSessionRepository {
   listFinishedByEducatorSince(
     params: ListFinishedByEducatorSinceParams
   ): Promise<TaskNotebookSession[]>;
-  // Sessões de todos os educadores finalizadas no intervalo (cron de
-  // notificações), ordenadas por finishedAt e depois id.
+  // Sessões finalizadas no intervalo, de todos os educadores (cron de
+  // notificações) ou dos alunos informados, ordenadas por finishedAt e
+  // depois id.
   listFinishedBetween(params: ListFinishedBetweenParams): Promise<FinishedSessionRef[]>;
 }

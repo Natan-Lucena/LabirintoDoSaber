@@ -29,6 +29,6 @@ export class GetReportController extends BaseController {
       }
     }
 
-    return this.ok(res, mapReportToResponse(result.value));
+    return this.ok(res, mapReportToResponse(result.value.report, result.value.authorName));
   }
 }

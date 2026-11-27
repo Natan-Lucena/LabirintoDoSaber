@@ -8,6 +8,12 @@ import {
   AnamneseQuestionType,
   AnamneseTemplate,
 } from "../../../../../domain/entities/anamnese-template";
+import {
+  makeStudentAccess,
+  makeStudentRepositoryFake,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
+import { makeStudent } from "../../../session-evolution/use-cases/test-fixtures";
 
 const yesOptionId = Uuid.random().value;
 const noOptionId = Uuid.random().value;
@@ -40,12 +46,12 @@ const makeTemplate = () =>
     ],
   }) as unknown as AnamneseTemplate;
 
-const makeResponse = (template: AnamneseTemplate, educatorId: Uuid) => {
+const makeResponse = (template: AnamneseTemplate, educatorId: Uuid, studentId: Uuid) => {
   const created = AnamneseResponse.create(
     {
       templateId: template.id,
       educatorId,
-      studentId: Uuid.random(),
+      studentId,
       answers: [{ questionId: "q1", selectedOptionId: yesOptionId }],
       answeredAt: new Date("2026-01-10T12:00:00.000Z"),
     },
@@ -60,6 +66,9 @@ describe("UpdateAnamneseResponseUseCase", () => {
   let responseRepository: AnamneseResponseRepository;
   let useCase: UpdateAnamneseResponseUseCase;
   const educatorId = Uuid.random();
+  const student = makeStudent(educatorId);
+  const otherStudent = makeStudent(Uuid.random());
+  const colleagueId = Uuid.random();
 
   beforeEach(() => {
     templateRepository = {
@@ -71,13 +80,16 @@ describe("UpdateAnamneseResponseUseCase", () => {
     } as unknown as AnamneseResponseRepository;
     useCase = new UpdateAnamneseResponseUseCase(
       templateRepository,
-      responseRepository
+      responseRepository,
+      makeStudentAccess(makeStudentRepositoryFake([student, otherStudent]), [
+        shareStudent(student, colleagueId),
+      ])
     );
   });
 
   it("atualiza as respostas do dono, grava updatedAt e preserva answeredAt", async () => {
     const template = makeTemplate();
-    const response = makeResponse(template, educatorId);
+    const response = makeResponse(template, educatorId, student.id);
     (responseRepository.findById as any).mockResolvedValue(response);
     (templateRepository.findById as any).mockResolvedValue(template);
 
@@ -112,9 +124,9 @@ describe("UpdateAnamneseResponseUseCase", () => {
     expect(responseRepository.save).toHaveBeenCalledWith(updated);
   });
 
-  it("nega a edição por outro educador", async () => {
+  it("nega a edição de resposta de aluno de outro educador", async () => {
     const template = makeTemplate();
-    const response = makeResponse(template, Uuid.random());
+    const response = makeResponse(template, otherStudent.educatorId, otherStudent.id);
     (responseRepository.findById as any).mockResolvedValue(response);
 
     const result = await useCase.execute({
@@ -129,7 +141,7 @@ describe("UpdateAnamneseResponseUseCase", () => {
 
   it("recusa respostas sem a pergunta obrigatória", async () => {
     const template = makeTemplate();
-    const response = makeResponse(template, educatorId);
+    const response = makeResponse(template, educatorId, student.id);
     (responseRepository.findById as any).mockResolvedValue(response);
     (templateRepository.findById as any).mockResolvedValue(template);
 
@@ -145,7 +157,7 @@ describe("UpdateAnamneseResponseUseCase", () => {
 
   it("recusa opção que não existe na pergunta", async () => {
     const template = makeTemplate();
-    const response = makeResponse(template, educatorId);
+    const response = makeResponse(template, educatorId, student.id);
     (responseRepository.findById as any).mockResolvedValue(response);
     (templateRepository.findById as any).mockResolvedValue(template);
 
@@ -180,5 +192,23 @@ describe("UpdateAnamneseResponseUseCase", () => {
 
     expect(result).toEqual({ ok: false, error: "RESPONSE_NOT_FOUND" });
     expect(responseRepository.findById).not.toHaveBeenCalled();
+  });
+
+  it("deixa o colega com o aluno compartilhado editar e mantém o autor (EQ-11)", async () => {
+    const template = makeTemplate();
+    const response = makeResponse(template, educatorId, student.id);
+    (responseRepository.findById as any).mockResolvedValue(response);
+    (templateRepository.findById as any).mockResolvedValue(template);
+
+    const result = await useCase.execute({
+      responseId: response.id.value,
+      educatorId: colleagueId,
+      answers: [{ questionId: "q1", selectedOptionId: noOptionId }],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.educatorId.value).toBe(educatorId.value);
+    expect(responseRepository.save).toHaveBeenCalledWith(result.value);
   });
 });

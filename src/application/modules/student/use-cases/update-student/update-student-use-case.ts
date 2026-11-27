@@ -17,9 +17,9 @@ interface UpdateStudentUseCaseRequest {
   phonenumber?: string;
   learningTopics?: string[];
   photo?: Express.Multer.File;
-  guardianName?: string;
-  guardianPhone?: string;
-  guardianRelationship?: string;
+  guardianName?: string | null;
+  guardianPhone?: string | null;
+  guardianRelationship?: string | null;
 }
 
 export class UpdateStudentUseCase {

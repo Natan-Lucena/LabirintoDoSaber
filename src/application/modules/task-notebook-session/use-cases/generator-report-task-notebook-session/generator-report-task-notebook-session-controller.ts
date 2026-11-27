@@ -12,6 +12,9 @@ export class GeneratorReportTaskNotebookSessionController extends BaseController
     super();
   }
     async executeImpl(req: Request, res: Response): Promise<Response> {
+        const educator = req.user;
+        if (!educator) return this.unauthorized(res);
+
         const validation = await GeneratorReportTaskNotebookSessionSchema.safeParseAsync(
             req.params  
         );
@@ -21,14 +24,20 @@ export class GeneratorReportTaskNotebookSessionController extends BaseController
             return this.clientError(res, undefined, errors);
         }
 
-        const payload = validation.data;
-        const result = await this.useCase.execute(payload);
+        const result = await this.useCase.execute({
+            ...validation.data,
+            educatorId: educator.id,
+        });
 
         if (!result.ok) {
-            if (result.error === "SESSION_NOT_FOUND") {
-                return this.notFound(res, result.error);
-            } else {
-                return this.fail(res, result.error);
+            switch (result.error) {
+                case "SESSION_NOT_FOUND":
+                case "STUDENT_NOT_FOUND":
+                    return this.notFound(res, result.error);
+                case "UNAUTHORIZED":
+                    return this.forbidden(res, "UNAUTHORIZED");
+                default:
+                    return this.fail(res, "INTERNAL_SERVER_ERROR");
             }
         }
 

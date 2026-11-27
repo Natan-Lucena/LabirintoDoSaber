@@ -72,6 +72,7 @@ export type { TaskContent, TaskFieldError } from "./task-content";
 
 export type TaskError =
   | "INVALID_TASK_DATA"
+  | "MEDIA_TASK_REQUIRES_IMAGE_OR_AUDIO"
   | "ALTERNATIVES_NOT_ALLOWED"
   | "TYPE_CHANGE_NOT_ALLOWED"
   | { code: "INVALID_CONTENT"; errors: TaskFieldError[] };
@@ -99,8 +100,9 @@ export interface UpdateTaskProps {
   type?: TaskType;
   prompt?: string;
   alternatives?: TaskAlternative[];
-  imageFile?: string;
-  audioFile?: string;
+  // PP-05: null apaga; ausente mantém.
+  imageFile?: string | null;
+  audioFile?: string | null;
   skills?: string[];
   theme?: string;
   tone?: TaskTone;
@@ -246,6 +248,15 @@ export class Task {
       return failure<TaskError>("TYPE_CHANGE_NOT_ALLOWED");
     }
 
+    const imageFile = props.imageFile === null ? undefined : (props.imageFile ?? this.imageFile);
+    const audioFile = props.audioFile === null ? undefined : (props.audioFile ?? this.audioFile);
+
+    // Apagar a única mídia não muda o tipo sozinho: para virar múltipla
+    // escolha sem mídia, o cliente manda type multipleChoice junto.
+    if (type === TaskType.MultipleChoiceWithMedia && !imageFile && !audioFile) {
+      return failure<TaskError>("MEDIA_TASK_REQUIRES_IMAGE_OR_AUDIO");
+    }
+
     return Task.create({
       id: this.id,
       createdAt: this.createdAt,
@@ -255,8 +266,8 @@ export class Task {
       category: props.category ?? this.category,
       prompt: props.prompt ?? this.prompt,
       alternatives: props.alternatives ?? this.alternatives,
-      imageFile: props.imageFile ?? this.imageFile,
-      audioFile: props.audioFile ?? this.audioFile,
+      imageFile,
+      audioFile,
       skills: props.skills ?? this.skills,
       theme: props.theme ?? this.theme,
       tone: props.tone ?? this.tone,

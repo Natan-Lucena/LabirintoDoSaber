@@ -31,6 +31,9 @@ export interface NotificationRepository {
   // Ordenado por createdAt e depois id, mais recente primeiro.
   list(params: ListNotificationsParams): Promise<Notification[]>;
   countUnreadByStudent(educatorId: Uuid): Promise<UnreadCountByStudent[]>;
+  // Não lidas de todos os educadores criadas a partir de `since`, mais antigas
+  // primeiro (push diário).
+  listUnreadCreatedSince(since: Date): Promise<Notification[]>;
   // Marca as não lidas do educador. Devolve quantas mudaram.
   markAllRead(educatorId: Uuid, readAt: Date): Promise<number>;
 }

@@ -12,7 +12,8 @@ import {
   makeApplicationRepository,
   makeDemoTemplate,
   makeStudent,
-  makeStudentRepository,
+  makeStudentAccessFor,
+  shareStudent,
   makeTemplateRepository,
   startApplication,
   unwrap,
@@ -33,20 +34,20 @@ describe("CompleteScaleApplicationUseCase", () => {
     draft = startApplication(template, student);
     applicationRepository = makeApplicationRepository([draft]);
     const templateRepository = makeTemplateRepository([template]);
-    const studentRepository = makeStudentRepository([student]);
+    const studentAccess = makeStudentAccessFor([student]);
     useCase = new CompleteScaleApplicationUseCase(
       applicationRepository,
       templateRepository,
-      studentRepository
+      studentAccess
     );
     saveAnswers = new SaveScaleAnswersUseCase(
       applicationRepository,
       templateRepository,
-      studentRepository
+      studentAccess
     );
     deleteApplication = new DeleteScaleApplicationUseCase(
       applicationRepository,
-      studentRepository
+      studentAccess
     );
   });
 
@@ -108,5 +109,29 @@ describe("CompleteScaleApplicationUseCase", () => {
 
   it("should return APPLICATION_NOT_FOUND for an invalid id", async () => {
     expect(await complete("123")).toEqual({ ok: false, error: "APPLICATION_NOT_FOUND" });
+  });
+
+  describe("paciente compartilhado (EQ-11)", () => {
+    it("lets the colleague complete the application of a shared student", async () => {
+      const colleagueId = Uuid.random();
+      applicationRepository.store.set(
+        draft.id.value,
+        unwrap<ScaleApplication>(
+          draft.saveAnswers(template, demoAnswers([1, 1, 1, 1, 1, 1, 1, 1]))
+        )
+      );
+      useCase = new CompleteScaleApplicationUseCase(
+        applicationRepository,
+        makeTemplateRepository([template]),
+        makeStudentAccessFor([student], [shareStudent(student, colleagueId)])
+      );
+
+      const result = await useCase.execute({
+        educatorId: colleagueId,
+        applicationId: draft.id.value,
+      });
+
+      expect(result.ok).toBe(true);
+    });
   });
 });

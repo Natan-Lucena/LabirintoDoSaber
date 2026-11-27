@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { Uuid } from "@wave-telecom/framework/core";
 import { Task, TaskTone, TaskType } from "../../../../../domain/entities/task";
 import { UpdateTaskUseCase } from "./update-task-use-case";
+import { updateTaskSchema } from "../../schemas/update-task-schemas";
 import {
   BUCKET_URL,
   makeFileStorage,
@@ -212,5 +213,84 @@ describe("UpdateTaskUseCase", () => {
     expect(saved.theme).toBe("Animais");
     expect(saved.tone).toBe(TaskTone.Yellow);
     expect(saved.educatorId?.value).toBe(educatorId.value);
+  });
+
+  describe("null apaga a mídia (PP-05)", () => {
+    const withMedia = () =>
+      makeMultipleChoiceTask({
+        educatorId,
+        type: TaskType.MultipleChoiceWithMedia,
+        imageFile: `${BUCKET_URL}figura.png`,
+        audioFile: `${BUCKET_URL}som.mp3`,
+      });
+
+    it("null em imageFile apaga a imagem e mantém o áudio", async () => {
+      const task = withMedia();
+      taskRepository.getById.mockResolvedValue(task);
+
+      const result = await useCase.execute({ educatorId, id: task.id.value, imageFile: null });
+
+      expect(result.ok).toBe(true);
+      const saved = taskRepository.save.mock.calls[0][0] as Task;
+      expect(saved.imageFile).toBeUndefined();
+      expect(saved.audioFile).toBe(`${BUCKET_URL}som.mp3`);
+      expect(saved.type).toBe(TaskType.MultipleChoiceWithMedia);
+    });
+
+    it("ausente mantém as duas mídias", async () => {
+      const task = withMedia();
+      taskRepository.getById.mockResolvedValue(task);
+
+      await useCase.execute({ educatorId, id: task.id.value, prompt: "Outro enunciado" });
+
+      const saved = taskRepository.save.mock.calls[0][0] as Task;
+      expect(saved.imageFile).toBe(`${BUCKET_URL}figura.png`);
+      expect(saved.audioFile).toBe(`${BUCKET_URL}som.mp3`);
+    });
+
+    it("apagar a única mídia de uma múltipla escolha com mídia: MEDIA_TASK_REQUIRES_IMAGE_OR_AUDIO", async () => {
+      const task = makeMultipleChoiceTask({
+        educatorId,
+        type: TaskType.MultipleChoiceWithMedia,
+        imageFile: `${BUCKET_URL}figura.png`,
+      });
+      taskRepository.getById.mockResolvedValue(task);
+
+      const result = await useCase.execute({ educatorId, id: task.id.value, imageFile: null });
+
+      expect(result).toEqual({ ok: false, error: "MEDIA_TASK_REQUIRES_IMAGE_OR_AUDIO" });
+      expect(taskRepository.save).not.toHaveBeenCalled();
+    });
+
+    it("apagar as mídias junto com type multipleChoice vira múltipla escolha sem mídia", async () => {
+      const task = withMedia();
+      taskRepository.getById.mockResolvedValue(task);
+
+      const result = await useCase.execute({
+        educatorId,
+        id: task.id.value,
+        type: TaskType.MultipleChoice,
+        imageFile: null,
+        audioFile: null,
+      });
+
+      expect(result.ok).toBe(true);
+      const saved = taskRepository.save.mock.calls[0][0] as Task;
+      expect(saved.type).toBe(TaskType.MultipleChoice);
+      expect(saved.imageFile).toBeUndefined();
+      expect(saved.audioFile).toBeUndefined();
+    });
+  });
+});
+
+describe("updateTaskSchema (PP-05)", () => {
+  it("aceita null em imageFile e audioFile; ausente continua ausente", () => {
+    const id = Uuid.random().value;
+    expect(updateTaskSchema.safeParse({ id, imageFile: null, audioFile: null }).data).toEqual({
+      id,
+      imageFile: null,
+      audioFile: null,
+    });
+    expect(updateTaskSchema.safeParse({ id }).data).toEqual({ id });
   });
 });

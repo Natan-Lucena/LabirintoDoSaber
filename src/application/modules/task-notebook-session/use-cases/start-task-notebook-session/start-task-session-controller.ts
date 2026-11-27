@@ -4,6 +4,7 @@ import {
 } from "@wave-telecom/framework/controllers";
 import { StartTaskNotebookSessionUseCase } from "./start-task-session-use-case";
 import { Request, Response } from "express";
+import { mapTaskNotebookSessionToResponse } from "../../../../../infraestructure/mappers/map-task-notebook-session";
 import { startTaskSessionSchema } from "../../schemas/start-task-session.schema";
 
 export class StartTaskNotebookSessionController extends BaseController {
@@ -32,6 +33,10 @@ export class StartTaskNotebookSessionController extends BaseController {
       switch (result.error) {
         case "STUDENT_NOT_FOUND":
           return this.notFound(res, "STUDENT_NOT_FOUND");
+        case "UNAUTHORIZED":
+          return this.forbidden(res, "UNAUTHORIZED");
+        case "STUDENT_ARCHIVED":
+          return this.conflict(res, "STUDENT_ARCHIVED");
         case "NOTEBOOK_NOT_FOUND":
           return this.notFound(res, "NOTEBOOK_NOT_FOUND");
         case "APPOINTMENT_NOT_FOUND":
@@ -42,6 +47,6 @@ export class StartTaskNotebookSessionController extends BaseController {
           return this.fail(res, "INTERNAL_SERVER_ERROR");
       }
     }
-    return this.ok(res, result.value);
+    return this.ok(res, mapTaskNotebookSessionToResponse(result.value));
   }
 }

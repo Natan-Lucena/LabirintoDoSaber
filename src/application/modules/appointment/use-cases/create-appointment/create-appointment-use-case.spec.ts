@@ -4,6 +4,13 @@ import { CreateAppointmentUseCase } from "./create-appointment-use-case";
 import { AppointmentRepository } from "../../../../../domain/repositories/appointment-repository";
 import { Appointment } from "../../../../../domain/entities/appointment";
 import { AppointmentSchedulerService } from "../../../../../domain/services/appointment-scheduler-service";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  makeStudentRepositoryFake,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
+import { makeStudent } from "../../../session-evolution/use-cases/test-fixtures";
 
 const mockAppointmentRepository = (): AppointmentRepository =>
   ({
@@ -16,6 +23,7 @@ const mockAppointmentRepository = (): AppointmentRepository =>
 const mockSchedulerService = (): AppointmentSchedulerService =>
   ({
     ensureScheduled: vi.fn(),
+    reschedule: vi.fn(),
     cancel: vi.fn(),
     scheduleNext: vi.fn(),
   } as unknown as AppointmentSchedulerService);
@@ -26,14 +34,21 @@ describe("CreateAppointmentUseCase", () => {
   let useCase: CreateAppointmentUseCase;
 
   const educatorId = Uuid.random();
-  const studentId = Uuid.random().value;
+  const student = makeStudent(educatorId);
+  const studentId = student.id.value;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   const scheduledAt = new Date("2026-08-01T10:00:00Z");
 
   beforeEach(() => {
     vi.restoreAllMocks();
     appointmentRepository = mockAppointmentRepository();
     schedulerService = mockSchedulerService();
-    useCase = new CreateAppointmentUseCase(appointmentRepository, schedulerService);
+    shareRepository = makeShareRepository();
+    useCase = new CreateAppointmentUseCase(
+      appointmentRepository,
+      schedulerService,
+      makeStudentAccess(makeStudentRepositoryFake([student]), shareRepository)
+    );
 
     (appointmentRepository.save as any).mockResolvedValue(undefined);
     (schedulerService.ensureScheduled as any).mockResolvedValue(undefined);
@@ -72,7 +87,7 @@ describe("CreateAppointmentUseCase", () => {
   it("should return success with appointment data", async () => {
     const result = await useCase.execute({ educatorId, studentId, scheduledAt });
 
-    expect(result).toEqual(success(expect.objectContaining({ educatorId, studentId: new Uuid(studentId) })));
+    expect(result).toEqual(success(expect.objectContaining({ educatorId, studentId: student.id })));
   });
 
   it("should forward the optional observation field", async () => {
@@ -84,12 +99,36 @@ describe("CreateAppointmentUseCase", () => {
     expect(savedArg.observation).toBe(observation);
   });
 
-  it("should pass different educator/student ids correctly", async () => {
+  it("should let a colleague with the shared student create it in the colleague's own agenda (EQ-11)", async () => {
     const otherId = Uuid.random();
-    await useCase.execute({ educatorId: otherId, studentId, scheduledAt });
+    await shareRepository.create(shareStudent(student, otherId));
 
+    const result = await useCase.execute({ educatorId: otherId, studentId, scheduledAt });
+
+    expect(result.ok).toBe(true);
     const savedArg = (appointmentRepository.save as any).mock.calls[0][0];
     expect(savedArg.educatorId).toBe(otherId);
+    expect(appointmentRepository.search).toHaveBeenCalledWith(
+      expect.objectContaining({ educatorId: otherId })
+    );
+  });
+
+  it("should return UNAUTHORIZED for a student of another educator, without saving", async () => {
+    const result = await useCase.execute({ educatorId: Uuid.random(), studentId, scheduledAt });
+
+    expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
+    expect(appointmentRepository.save).not.toHaveBeenCalled();
+  });
+
+  it("should return STUDENT_NOT_FOUND for a missing student", async () => {
+    const result = await useCase.execute({
+      educatorId,
+      studentId: Uuid.random().value,
+      scheduledAt,
+    });
+
+    expect(result).toEqual({ ok: false, error: "STUDENT_NOT_FOUND" });
+    expect(appointmentRepository.save).not.toHaveBeenCalled();
   });
   it("should forward type and durationMinutes", async () => {
     await useCase.execute({ educatorId, studentId, scheduledAt, type: "Avaliação", durationMinutes: 90 });
@@ -141,5 +180,21 @@ describe("CreateAppointmentUseCase", () => {
 
     expect(result.ok).toBe(true);
     expect(appointmentRepository.save).toHaveBeenCalledOnce();
+  });
+
+  it("aluno arquivado: STUDENT_ARCHIVED, sem gravar nem agendar (PA-04, BE-PA-02)", async () => {
+    const archived = makeStudent(educatorId, "Bia");
+    archived.archive(new Date());
+    useCase = new CreateAppointmentUseCase(
+      appointmentRepository,
+      schedulerService,
+      makeStudentAccess(makeStudentRepositoryFake([archived]), shareRepository)
+    );
+
+    const result = await useCase.execute({ educatorId, studentId: archived.id.value, scheduledAt });
+
+    expect(result).toEqual({ ok: false, error: "STUDENT_ARCHIVED" });
+    expect(appointmentRepository.save).not.toHaveBeenCalled();
+    expect(schedulerService.ensureScheduled).not.toHaveBeenCalled();
   });
 });

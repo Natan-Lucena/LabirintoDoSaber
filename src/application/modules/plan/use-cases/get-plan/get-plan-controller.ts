@@ -28,6 +28,7 @@ export class GetPlanController extends BaseController {
       }
     }
 
-    return this.ok(res, mapPlanToResponse(result.value));
+    const { plan, authorName } = result.value;
+    return this.ok(res, mapPlanToResponse(plan, authorName));
   }
 }

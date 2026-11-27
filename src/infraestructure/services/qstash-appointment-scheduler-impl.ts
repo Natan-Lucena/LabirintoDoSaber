@@ -8,12 +8,7 @@ export class QStashAppointmentSchedulerImpl implements AppointmentSchedulerServi
   constructor(private appointmentRepo: AppointmentRepository) {}
 
   async ensureScheduled(appointment: Appointment): Promise<void> {
-    const [chainLeader] = await this.appointmentRepo.search({
-      status: AppointmentStatus.PENDING,
-      scheduledAfter: new Date(),
-      hasScheduledJob: true,
-      limit: 1,
-    });
+    const chainLeader = await this.findChainLeader();
 
     if (chainLeader) {
       if (chainLeader.scheduledAt <= appointment.scheduledAt) {
@@ -45,6 +40,30 @@ export class QStashAppointmentSchedulerImpl implements AppointmentSchedulerServi
     }
   }
 
+  async reschedule(appointment: Appointment): Promise<void> {
+    let current = appointment;
+    const messageId = appointment.metadata[CHAIN_KEY];
+
+    // A mensagem marcada é do horário antigo. Se ainda não disparou, ela é
+    // descartada; já notificado, o id é antigo e basta limpar.
+    if (typeof messageId === "string") {
+      if (!appointment.notifiedAt) {
+        await this._deleteQStashMessage(messageId);
+      }
+      current = appointment.withMetadata(CHAIN_KEY, null);
+      await this.appointmentRepo.save(current);
+    }
+
+    // Sem líder (era este), a cadeia recomeça pelo próximo PENDING, que pode
+    // ser este mesmo no horário novo. Com líder, este só assume se vier antes.
+    const chainLeader = await this.findChainLeader();
+    if (!chainLeader) {
+      await this.scheduleNext();
+    } else if (current.status === AppointmentStatus.PENDING && current.scheduledAt > new Date()) {
+      await this.ensureScheduled(current);
+    }
+  }
+
   async scheduleNext(): Promise<void> {
     const [next] = await this.appointmentRepo.search({
       status: AppointmentStatus.PENDING,
@@ -57,6 +76,16 @@ export class QStashAppointmentSchedulerImpl implements AppointmentSchedulerServi
     if (next) {
       await this._publishAndSave(next);
     }
+  }
+
+  private async findChainLeader(): Promise<Appointment | undefined> {
+    const [chainLeader] = await this.appointmentRepo.search({
+      status: AppointmentStatus.PENDING,
+      scheduledAfter: new Date(),
+      hasScheduledJob: true,
+      limit: 1,
+    });
+    return chainLeader;
   }
 
   private async _publishAndSave(appointment: Appointment): Promise<void> {

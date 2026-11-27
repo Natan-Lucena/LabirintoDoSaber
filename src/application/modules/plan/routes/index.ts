@@ -8,6 +8,7 @@ import {
   makePlanRepository,
   makePlanReviewRepository,
   makePlanSuggestionRepository,
+  makeStudentAccessService,
   makeStudentRepository,
   makeTaskNotebookSessionRepository,
   makeTaskRepository,
@@ -46,6 +47,7 @@ const planRouter = Router();
 
 const educatorRepository = makeEducatorRepository({ isMock: false });
 const studentRepository = makeStudentRepository({ isMock: false });
+const studentAccess = makeStudentAccessService();
 const appointmentRepository = makeAppointmentRepository();
 const planRepository = makePlanRepository();
 const planReviewRepository = makePlanReviewRepository();
@@ -58,20 +60,21 @@ const anamneseContextBuilder = new AnamneseContextBuilder(anamneseTemplateReposi
 const generateStudentAnalysisUseCase = new GenerateStudentAnalysisUseCase(
   studentRepository,
   makeTaskNotebookSessionRepository(),
-  makeTaskRepository({ isMock: false })
+  makeTaskRepository({ isMock: false }),
+  makeStudentAccessService()
 );
 
-const createPlanUseCase = new CreatePlanUseCase(planRepository, studentRepository, appointmentRepository);
-const listPlansUseCase = new ListPlansUseCase(planRepository, studentRepository);
-const getPlanUseCase = new GetPlanUseCase(planRepository, studentRepository);
-const updatePlanUseCase = new UpdatePlanUseCase(planRepository, studentRepository);
-const changeGoalStatusUseCase = new ChangeGoalStatusUseCase(planRepository, studentRepository);
-const closePlanUseCase = new ClosePlanUseCase(planRepository, studentRepository, planSuggestionRepository);
-const createPlanReviewUseCase = new CreatePlanReviewUseCase(planRepository, planReviewRepository, studentRepository);
-const listPlanReviewsUseCase = new ListPlanReviewsUseCase(planRepository, planReviewRepository, studentRepository);
+const createPlanUseCase = new CreatePlanUseCase(planRepository, studentAccess, appointmentRepository);
+const listPlansUseCase = new ListPlansUseCase(planRepository, studentAccess, educatorRepository);
+const getPlanUseCase = new GetPlanUseCase(planRepository, studentAccess, educatorRepository);
+const updatePlanUseCase = new UpdatePlanUseCase(planRepository, studentAccess);
+const changeGoalStatusUseCase = new ChangeGoalStatusUseCase(planRepository, studentAccess);
+const closePlanUseCase = new ClosePlanUseCase(planRepository, studentAccess, planSuggestionRepository);
+const createPlanReviewUseCase = new CreatePlanReviewUseCase(planRepository, planReviewRepository, studentAccess);
+const listPlanReviewsUseCase = new ListPlanReviewsUseCase(planRepository, planReviewRepository, studentAccess);
 const generatePlanDraftUseCase = new GeneratePlanDraftUseCase(
   planRepository,
-  studentRepository,
+  studentAccess,
   anamneseTemplateRepository,
   anamneseContextBuilder,
   generateStudentAnalysisUseCase,
@@ -80,18 +83,23 @@ const generatePlanDraftUseCase = new GeneratePlanDraftUseCase(
 const generatePlanSuggestionsUseCase = new GeneratePlanSuggestionsUseCase(
   planRepository,
   studentRepository,
+  studentAccess,
   planSuggestionRepository,
   anamneseContextBuilder,
   generateStudentAnalysisUseCase,
   aiPlanGeneratorService
 );
-const listPlanSuggestionsUseCase = new ListPlanSuggestionsUseCase(planSuggestionRepository, studentRepository);
+const listPlanSuggestionsUseCase = new ListPlanSuggestionsUseCase(
+  planSuggestionRepository,
+  studentRepository,
+  studentAccess
+);
 const acceptPlanSuggestionUseCase = new AcceptPlanSuggestionUseCase(
   planRepository,
-  studentRepository,
+  studentAccess,
   planSuggestionRepository
 );
-const dismissPlanSuggestionUseCase = new DismissPlanSuggestionUseCase(planSuggestionRepository, studentRepository);
+const dismissPlanSuggestionUseCase = new DismissPlanSuggestionUseCase(planSuggestionRepository, studentAccess);
 
 const authMiddleware = makeAuthMiddleware(educatorRepository);
 

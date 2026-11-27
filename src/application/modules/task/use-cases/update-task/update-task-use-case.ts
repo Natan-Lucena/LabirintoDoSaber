@@ -20,8 +20,8 @@ export interface UpdateTaskUseCaseRequest {
     text: string;
     isCorrect: boolean;
   }[];
-  imageFile?: string;
-  audioFile?: string;
+  imageFile?: string | null;
+  audioFile?: string | null;
   content?: unknown;
   skills?: string[];
   theme?: string;

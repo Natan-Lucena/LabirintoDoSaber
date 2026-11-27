@@ -7,8 +7,7 @@ import {
 } from "../../../../../domain/entities/plan";
 import { AppointmentRepository } from "../../../../../domain/repositories/appointment-repository";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
-import { assertStudentOwnership } from "../plan-access";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 
 export interface CreatePlanUseCaseRequest {
   educatorId: Uuid;
@@ -32,19 +31,16 @@ export interface CreatePlanUseCaseRequest {
 export class CreatePlanUseCase {
   constructor(
     private planRepository: PlanRepository,
-    private studentRepository: StudentRepository,
+    private studentAccess: StudentAccessService,
     private appointmentRepository: AppointmentRepository
   ) {}
 
   async execute(request: CreatePlanUseCaseRequest) {
     const studentId = new Uuid(request.studentId);
 
-    const ownership = await assertStudentOwnership(
-      this.studentRepository,
-      studentId,
-      request.educatorId
-    );
-    if (!ownership.ok) return ownership;
+    // Arquivado não recebe plano novo (PA-04).
+    const access = await this.studentAccess.assertActiveStudentAccess(studentId, request.educatorId);
+    if (!access.ok) return access;
 
     if (request.type === PlanType.PDI) {
       const activePdi = await this.planRepository.findActivePdi(studentId);
@@ -74,13 +70,10 @@ export class CreatePlanUseCase {
       }
     }
 
+    // Atendimento do aluno, de qualquer educador com acesso a ele (EQ-11).
     if (request.type === PlanType.PE && appointmentId) {
       const appointment = await this.appointmentRepository.findById(appointmentId);
-      if (
-        !appointment ||
-        appointment.educatorId.value !== request.educatorId.value ||
-        appointment.studentId.value !== studentId.value
-      ) {
+      if (!appointment || appointment.studentId.value !== studentId.value) {
         return failure("INVALID_APPOINTMENT");
       }
     }

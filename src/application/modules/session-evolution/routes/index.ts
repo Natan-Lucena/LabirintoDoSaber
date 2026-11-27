@@ -1,11 +1,14 @@
 import { Router } from "express";
 import {
+  makeActivityResultRepository,
   makeAiClinicalService,
   makeEducatorRepository,
   makePlanRepository,
   makeSessionEvolutionRepository,
+  makeStudentAccessService,
   makeStudentRepository,
   makeTaskNotebookSessionRepository,
+  makeTaskRepository,
 } from "../../../../infraestructure/factories";
 import { makeAuthMiddleware } from "../../../../infraestructure/middlewares";
 import { GetEvolutionContextUseCase } from "../use-cases/get-evolution-context/get-evolution-context-use-case";
@@ -27,45 +30,53 @@ const sessionEvolutionRouter = Router();
 
 const educatorRepository = makeEducatorRepository({ isMock: false });
 const studentRepository = makeStudentRepository({ isMock: false });
+const studentAccess = makeStudentAccessService();
 const sessionRepository = makeTaskNotebookSessionRepository();
 const planRepository = makePlanRepository();
 const evolutionRepository = makeSessionEvolutionRepository();
 const aiClinicalService = makeAiClinicalService();
+const activityResultRepository = makeActivityResultRepository();
+const taskRepository = makeTaskRepository({ isMock: false });
 
 const getEvolutionContextUseCase = new GetEvolutionContextUseCase(
   sessionRepository,
-  studentRepository,
+  studentAccess,
   planRepository,
-  evolutionRepository
+  evolutionRepository,
+  activityResultRepository,
+  taskRepository
 );
 const createSessionEvolutionUseCase = new CreateSessionEvolutionUseCase(
   sessionRepository,
-  studentRepository,
+  studentAccess,
   planRepository,
   evolutionRepository
 );
 const listSessionEvolutionsUseCase = new ListSessionEvolutionsUseCase(
   evolutionRepository,
-  studentRepository
+  studentAccess,
+  educatorRepository
 );
 const getSessionEvolutionUseCase = new GetSessionEvolutionUseCase(
   evolutionRepository,
-  studentRepository
+  studentAccess,
+  educatorRepository
 );
 const updateSessionEvolutionUseCase = new UpdateSessionEvolutionUseCase(
   evolutionRepository,
-  studentRepository,
+  studentAccess,
   planRepository,
   sessionRepository
 );
 const listPendingEvolutionsUseCase = new ListPendingEvolutionsUseCase(
   sessionRepository,
   evolutionRepository,
-  studentRepository
+  studentRepository,
+  studentAccess
 );
 const nextSessionSuggestionUseCase = new NextSessionSuggestionUseCase(
   sessionRepository,
-  studentRepository,
+  studentAccess,
   planRepository,
   evolutionRepository,
   aiClinicalService

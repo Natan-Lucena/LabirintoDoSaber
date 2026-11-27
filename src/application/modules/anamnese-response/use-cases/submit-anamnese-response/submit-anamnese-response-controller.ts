@@ -3,6 +3,7 @@ import {
   formatValidationErrors,
 } from "@wave-telecom/framework/controllers";
 import { Request, Response } from "express";
+import { mapAnamneseResponse } from "../../../../../infraestructure/mappers/map-anamnese-response";
 import { SubmitAnamneseResponseUseCase } from "./submit-anamnese-response-use-case";
 import { submitAnamneseResponseSchema } from "../../schemas/submit-anamnese-response.schema";
 
@@ -33,6 +34,8 @@ export class SubmitAnamneseResponseController extends BaseController {
           return this.notFound(res, "TEMPLATE_NOT_FOUND");
         case "STUDENT_NOT_FOUND":
           return this.notFound(res, "STUDENT_NOT_FOUND");
+        case "UNAUTHORIZED":
+          return this.forbidden(res, "UNAUTHORIZED");
         case "MISSING_REQUIRED_ANSWER":
         case "MISSING_TEXT_VALUE":
         case "MISSING_SELECTED_OPTION":
@@ -46,6 +49,6 @@ export class SubmitAnamneseResponseController extends BaseController {
       }
     }
 
-    return this.ok(res, result.value);
+    return this.ok(res, mapAnamneseResponse(result.value));
   }
 }

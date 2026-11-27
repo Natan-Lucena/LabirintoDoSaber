@@ -4,6 +4,14 @@ import { UpdateAppointmentUseCase } from "./update-appointment-use-case";
 import { AppointmentRepository } from "../../../../../domain/repositories/appointment-repository";
 import { AppointmentSchedulerService } from "../../../../../domain/services/appointment-scheduler-service";
 import { Appointment, AppointmentStatus } from "../../../../../domain/entities/appointment";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  makeStudentRepositoryFake,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
+import { makeStudent } from "../../../session-evolution/use-cases/test-fixtures";
+import { Student } from "../../../../../domain/entities/student";
 
 const mockAppointmentRepository = (): AppointmentRepository =>
   ({
@@ -16,9 +24,19 @@ const mockAppointmentRepository = (): AppointmentRepository =>
 const mockSchedulerService = (): AppointmentSchedulerService =>
   ({
     ensureScheduled: vi.fn(),
+    reschedule: vi.fn(),
     cancel: vi.fn(),
     scheduleNext: vi.fn(),
   } as unknown as AppointmentSchedulerService);
+
+// Alunos do repositório em memória do teste atual: o atendimento padrão é de
+// um aluno do próprio educador, que ele acessa.
+let students = new Map<string, Student>();
+const ownStudentOf = (educatorId: Uuid) => {
+  const student = makeStudent(educatorId);
+  students.set(student.id.value, student);
+  return student.id;
+};
 
 const makeAppointment = (
   educatorId: Uuid,
@@ -26,7 +44,7 @@ const makeAppointment = (
 ) =>
   Appointment.create({
     educatorId,
-    studentId: Uuid.random(),
+    studentId: overrides.studentId ?? ownStudentOf(educatorId),
     scheduledAt: new Date("2026-08-01T10:00:00Z"),
     observation: "Initial note",
     ...overrides,
@@ -40,12 +58,21 @@ describe("UpdateAppointmentUseCase", () => {
   let useCase: UpdateAppointmentUseCase;
 
   const educatorId = Uuid.random();
+  let studentRepository: ReturnType<typeof makeStudentRepositoryFake>;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
 
   beforeEach(() => {
     vi.restoreAllMocks();
     appointmentRepository = mockAppointmentRepository();
     schedulerService = mockSchedulerService();
-    useCase = new UpdateAppointmentUseCase(appointmentRepository, schedulerService);
+    studentRepository = makeStudentRepositoryFake();
+    students = studentRepository.store;
+    shareRepository = makeShareRepository();
+    useCase = new UpdateAppointmentUseCase(
+      appointmentRepository,
+      schedulerService,
+      makeStudentAccess(studentRepository, shareRepository)
+    );
 
     (appointmentRepository.save as any).mockResolvedValue(undefined);
     (appointmentRepository.search as any).mockResolvedValue([]);
@@ -300,6 +327,43 @@ describe("UpdateAppointmentUseCase", () => {
 
       expect(schedulerService.cancel).not.toHaveBeenCalled();
       expect(schedulerService.ensureScheduled).not.toHaveBeenCalled();
+      expect(schedulerService.reschedule).not.toHaveBeenCalled();
+    });
+
+    it("rescheduling a PENDING appointment should save and then reschedule it in the reminder chain", async () => {
+      const appt = makeAppointment(educatorId, {
+        scheduledAt: futureDate(),
+        metadata: { qstashMessageId: "msg-leader" },
+      });
+      (appointmentRepository.findById as any).mockResolvedValue(appt);
+      const callOrder: string[] = [];
+      (appointmentRepository.save as any).mockImplementation(async () => {
+        callOrder.push("save");
+      });
+      (schedulerService.reschedule as any).mockImplementation(async () => {
+        callOrder.push("reschedule");
+      });
+      const newTime = new Date(appt.scheduledAt.getTime() + 2 * 60 * 60 * 1000);
+
+      const result = await useCase.execute({ id: appt.id, educatorId, scheduledAt: newTime });
+
+      expect(result.ok).toBe(true);
+      expect(callOrder).toEqual(["save", "reschedule"]);
+      const rescheduled = (schedulerService.reschedule as any).mock.calls[0][0] as Appointment;
+      expect(rescheduled.id.value).toBe(appt.id.value);
+      expect(rescheduled.scheduledAt).toEqual(newTime);
+      expect(schedulerService.cancel).not.toHaveBeenCalled();
+      expect(schedulerService.ensureScheduled).not.toHaveBeenCalled();
+    });
+
+    it("changing only the duration of a PENDING appointment should not reschedule the reminder", async () => {
+      const appt = makeAppointment(educatorId, { scheduledAt: futureDate() });
+      (appointmentRepository.findById as any).mockResolvedValue(appt);
+
+      const result = await useCase.execute({ id: appt.id, educatorId, durationMinutes: 30 });
+
+      expect(result.ok).toBe(true);
+      expect(schedulerService.reschedule).not.toHaveBeenCalled();
     });
   });
 
@@ -372,6 +436,110 @@ describe("UpdateAppointmentUseCase", () => {
         error: { code: "APPOINTMENT_CONFLICT", conflictingAppointmentId: other.id.value },
       });
       expect(schedulerService.ensureScheduled).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("paciente compartilhado (EQ-11)", () => {
+    const ownerId = Uuid.random();
+    const colleagueId = Uuid.random();
+    const shared = makeStudent(ownerId);
+
+    beforeEach(async () => {
+      studentRepository.store.set(shared.id.value, shared);
+    });
+
+    it("lets the colleague update the owner's appointment of a shared student", async () => {
+      await shareRepository.create(shareStudent(shared, colleagueId));
+      const appt = makeAppointment(ownerId, { studentId: shared.id });
+      (appointmentRepository.findById as any).mockResolvedValue(appt);
+
+      const result = await useCase.execute({ id: appt.id, educatorId: colleagueId, observation: "Nota do colega" });
+
+      expect(result.ok).toBe(true);
+      expect(appointmentRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ observation: "Nota do colega", educatorId: ownerId })
+      );
+    });
+
+    it("returns NOT_FOUND for a colleague without the share", async () => {
+      const appt = makeAppointment(ownerId, { studentId: shared.id });
+      (appointmentRepository.findById as any).mockResolvedValue(appt);
+
+      const result = await useCase.execute({ id: appt.id, educatorId: colleagueId, observation: "Nota do colega" });
+
+      expect(result).toEqual(failure("NOT_FOUND"));
+      expect(appointmentRepository.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("aluno arquivado (PA-04)", () => {
+    const archivedStudentOf = (owner: Uuid) => {
+      const studentId = ownStudentOf(owner);
+      students.get(studentId.value)!.archive(new Date());
+      return studentId;
+    };
+
+    it("reativar (status PENDING) um atendimento cancelado: STUDENT_ARCHIVED, sem gravar nem agendar", async () => {
+      const appt = makeAppointment(educatorId, {
+        studentId: archivedStudentOf(educatorId),
+        status: AppointmentStatus.CANCELLED,
+        scheduledAt: futureDate(),
+      });
+      (appointmentRepository.findById as any).mockResolvedValue(appt);
+
+      const result = await useCase.execute({ id: appt.id, educatorId, status: AppointmentStatus.PENDING });
+
+      expect(result).toEqual({ ok: false, error: "STUDENT_ARCHIVED" });
+      expect(appointmentRepository.save).not.toHaveBeenCalled();
+      expect(schedulerService.ensureScheduled).not.toHaveBeenCalled();
+    });
+
+    it("editar sem reativar continua permitido (o cancelado mantém a observação editável)", async () => {
+      const appt = makeAppointment(educatorId, {
+        studentId: archivedStudentOf(educatorId),
+        status: AppointmentStatus.CANCELLED,
+      });
+      (appointmentRepository.findById as any).mockResolvedValue(appt);
+
+      const result = await useCase.execute({ id: appt.id, educatorId, observation: "Nota" });
+
+      expect(result.ok).toBe(true);
+    });
+
+    it("remarcar um PENDING passado para amanhã: STUDENT_ARCHIVED, sem gravar", async () => {
+      const appt = makeAppointment(educatorId, {
+        studentId: archivedStudentOf(educatorId),
+        scheduledAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      });
+      (appointmentRepository.findById as any).mockResolvedValue(appt);
+
+      const result = await useCase.execute({
+        id: appt.id,
+        educatorId,
+        scheduledAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      });
+
+      expect(result).toEqual({ ok: false, error: "STUDENT_ARCHIVED" });
+      expect(appointmentRepository.save).not.toHaveBeenCalled();
+      expect(appointmentRepository.search).not.toHaveBeenCalled();
+    });
+
+    it("mudar a duração de um PENDING também é remarcar: STUDENT_ARCHIVED", async () => {
+      const appt = makeAppointment(educatorId, { studentId: archivedStudentOf(educatorId) });
+      (appointmentRepository.findById as any).mockResolvedValue(appt);
+
+      const result = await useCase.execute({ id: appt.id, educatorId, durationMinutes: 30 });
+
+      expect(result).toEqual({ ok: false, error: "STUDENT_ARCHIVED" });
+    });
+
+    it("status PENDING num atendimento já PENDING não é reativação", async () => {
+      const appt = makeAppointment(educatorId, { studentId: archivedStudentOf(educatorId) });
+      (appointmentRepository.findById as any).mockResolvedValue(appt);
+
+      const result = await useCase.execute({ id: appt.id, educatorId, status: AppointmentStatus.PENDING });
+
+      expect(result.ok).toBe(true);
     });
   });
 });

@@ -8,7 +8,8 @@ import {
   makeApplicationRepository,
   makeDemoTemplate,
   makeStudent,
-  makeStudentRepository,
+  makeStudentAccessFor,
+  shareStudent,
   makeTemplateRepository,
   startApplication,
 } from "../test-fixtures";
@@ -20,7 +21,7 @@ describe("StartScaleApplicationUseCase", () => {
 
   let applicationRepository: ReturnType<typeof makeApplicationRepository>;
   let templateRepository: ReturnType<typeof makeTemplateRepository>;
-  let studentRepository: ReturnType<typeof makeStudentRepository>;
+  let studentAccess: ReturnType<typeof makeStudentAccessFor>;
   let appointmentRepository: AppointmentRepository;
   let useCase: StartScaleApplicationUseCase;
 
@@ -33,14 +34,14 @@ describe("StartScaleApplicationUseCase", () => {
   beforeEach(() => {
     applicationRepository = makeApplicationRepository();
     templateRepository = makeTemplateRepository([template]);
-    studentRepository = makeStudentRepository([student]);
+    studentAccess = makeStudentAccessFor([student]);
     appointmentRepository = {
       findById: vi.fn().mockResolvedValue(null),
     } as unknown as AppointmentRepository;
     useCase = new StartScaleApplicationUseCase(
       applicationRepository,
       templateRepository,
-      studentRepository,
+      studentAccess,
       appointmentRepository
     );
   });
@@ -82,7 +83,7 @@ describe("StartScaleApplicationUseCase", () => {
     new StartScaleApplicationUseCase(
       applicationRepository,
       makeTemplateRepository(templates),
-      studentRepository,
+      studentAccess,
       appointmentRepository
     );
 
@@ -184,6 +185,60 @@ describe("StartScaleApplicationUseCase", () => {
     expect(
       await useCase.execute({ ...request(), appointmentId: Uuid.random().value })
     ).toEqual({ ok: false, error: "INVALID_APPOINTMENT" });
+    expect(applicationRepository.save).not.toHaveBeenCalled();
+  });
+
+  describe("paciente compartilhado (EQ-11)", () => {
+    const colleagueId = Uuid.random();
+
+    beforeEach(() => {
+      useCase = new StartScaleApplicationUseCase(
+        applicationRepository,
+        templateRepository,
+        makeStudentAccessFor([student], [shareStudent(student, colleagueId)]),
+        appointmentRepository
+      );
+    });
+
+    it("lets the colleague start an application recorded with the colleague as author", async () => {
+      const result = await useCase.execute({ ...request(), educatorId: colleagueId });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.application.educatorId.value).toBe(colleagueId.value);
+    });
+
+    it("lets the colleague link an appointment of the owner with the same student", async () => {
+      const appointment = Appointment.create({
+        educatorId,
+        studentId: student.id,
+        scheduledAt: new Date("2026-11-10T13:00:00Z"),
+      });
+      (appointmentRepository.findById as any).mockResolvedValue(appointment);
+
+      const result = await useCase.execute({
+        ...request(),
+        educatorId: colleagueId,
+        appointmentId: appointment.id.value,
+      });
+
+      expect(result.ok).toBe(true);
+    });
+  });
+
+  it("aluno arquivado: STUDENT_ARCHIVED, sem iniciar a aplicação (PA-04)", async () => {
+    const archived = makeStudent(educatorId, "Bia");
+    archived.archive(new Date());
+    useCase = new StartScaleApplicationUseCase(
+      applicationRepository,
+      templateRepository,
+      makeStudentAccessFor([archived]),
+      appointmentRepository
+    );
+
+    const result = await useCase.execute({ ...request(), studentId: archived.id.value });
+
+    expect(result).toEqual({ ok: false, error: "STUDENT_ARCHIVED" });
     expect(applicationRepository.save).not.toHaveBeenCalled();
   });
 });

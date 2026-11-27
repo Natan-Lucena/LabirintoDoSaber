@@ -29,14 +29,14 @@ export class AssignEducatorController extends BaseController {
       return this.unauthorized(res);
     }
     const result = await this.assignEducatorUseCase.execute({
+      educatorId: educator.id,
       studentId: new Uuid(payload.studentId),
-      currentEducatorEmail: educator.email,
       newEducatorEmail: payload.newEducatorEmail,
     });
 
     if (!result.ok) {
       if (result.error === "STUDENT_NOT_FOUND") {
-        return this.clientError(res, "STUDENT_NOT_FOUND");
+        return this.notFound(res, "STUDENT_NOT_FOUND");
       }
       if (result.error === "STUDENT_NOT_ASSIGNED_TO_CURRENT_EDUCATOR") {
         return this.clientError(
@@ -45,7 +45,10 @@ export class AssignEducatorController extends BaseController {
         );
       }
       if (result.error === "NEW_EDUCATOR_NOT_FOUND") {
-        return this.clientError(res, "NEW_EDUCATOR_NOT_FOUND");
+        return this.notFound(res, "NEW_EDUCATOR_NOT_FOUND");
+      }
+      if (result.error === "NOT_IN_SAME_CLINIC") {
+        return this.clientError(res, "NOT_IN_SAME_CLINIC");
       }
       return this.fail(res, result.error);
     }

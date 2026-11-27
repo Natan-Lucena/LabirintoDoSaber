@@ -6,8 +6,17 @@ import { AnamneseTemplateRepository } from "../../../../../domain/repositories/a
 import { AnamneseResponseRepository } from "../../../../../domain/repositories/anamnese-response-repository";
 import { AiStudentAnalysisService } from "../../../../../domain/services/ai-student-analysis-service";
 import { TaskCategory } from "../../../../../domain/entities/task";
+import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { makeStudent } from "../../../session-evolution/use-cases/test-fixtures";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 
-const studentId = Uuid.random().value;
+const OWNER_ID = Uuid.random();
+const STUDENT = makeStudent(OWNER_ID);
+const studentId = STUDENT.id.value;
 const taskId = Uuid.random();
 
 const fakeStudent = {
@@ -67,6 +76,7 @@ describe("GenerateStudentAiAnalysisUseCase", () => {
   let templateRepo: AnamneseTemplateRepository;
   let responseRepo: AnamneseResponseRepository;
   let aiService: AiStudentAnalysisService;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let useCase: GenerateStudentAiAnalysisUseCase;
 
   beforeEach(() => {
@@ -74,8 +84,13 @@ describe("GenerateStudentAiAnalysisUseCase", () => {
     templateRepo = mockTemplateRepo();
     responseRepo = mockResponseRepo();
     aiService = mockAiService();
+    shareRepository = makeShareRepository();
+    const studentRepository = {
+      getById: vi.fn().mockResolvedValue(STUDENT),
+    } as unknown as StudentRepository;
     useCase = new GenerateStudentAiAnalysisUseCase(
       generate,
+      makeStudentAccess(studentRepository, shareRepository),
       templateRepo,
       responseRepo,
       aiService
@@ -87,12 +102,30 @@ describe("GenerateStudentAiAnalysisUseCase", () => {
     (aiService.generate as any).mockResolvedValue("Análise extensa...");
   });
 
+  it("EQ-11: returns UNAUTHORIZED for an educator without access, before any AI call", async () => {
+    const result = await useCase.execute({ studentId, educatorId: Uuid.random() });
+
+    expect(result).toEqual(failure("UNAUTHORIZED"));
+    expect(generate.loadAnalysisData).not.toHaveBeenCalled();
+    expect(aiService.generate).not.toHaveBeenCalled();
+  });
+
+  it("EQ-11: analyzes for an educator the student is shared with", async () => {
+    const colleagueId = Uuid.random();
+    shareRepository.store.push(shareStudent(STUDENT, colleagueId));
+
+    const result = await useCase.execute({ studentId, educatorId: colleagueId });
+
+    expect(result.ok).toBe(true);
+    expect(aiService.generate).toHaveBeenCalledTimes(1);
+  });
+
   it("propagates failure when the metrics use-case fails", async () => {
     (generate.loadAnalysisData as any).mockResolvedValue(
       failure("STUDENT_NOT_FOUND")
     );
 
-    const result = await useCase.execute({ studentId });
+    const result = await useCase.execute({ studentId, educatorId: OWNER_ID });
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
@@ -101,7 +134,7 @@ describe("GenerateStudentAiAnalysisUseCase", () => {
   });
 
   it("builds a rich input and returns the AI analysis text", async () => {
-    const result = await useCase.execute({ studentId });
+    const result = await useCase.execute({ studentId, educatorId: OWNER_ID });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -117,7 +150,7 @@ describe("GenerateStudentAiAnalysisUseCase", () => {
     expect(input.anamnese).toBeUndefined();
   });
 
-  it("omits the time of answers recorded before 2026-10-09 (legacy seconds)", async () => {
+  it("converts the time of answers recorded before 2026-10-09 from seconds (PP-08)", async () => {
     const legacy = {
       ...rawAnalysisValue,
       sessions: [
@@ -140,17 +173,17 @@ describe("GenerateStudentAiAnalysisUseCase", () => {
     };
     (generate.loadAnalysisData as any).mockResolvedValue(success(legacy));
 
-    await useCase.execute({ studentId });
+    await useCase.execute({ studentId, educatorId: OWNER_ID });
 
     const input = (aiService.generate as any).mock.calls[0][0];
-    expect(input.sessions[0].answers.map((a: any) => a.timeToAnswer)).toEqual([undefined, 3000]);
-    expect(input.sessions[0].averageTimeToAnswer).toBe(3000);
-    expect(input.sessions[1].answers[0].timeToAnswer).toBeUndefined();
-    expect(input.sessions[1].averageTimeToAnswer).toBeUndefined();
+    expect(input.sessions[0].answers.map((a: any) => a.timeToAnswer)).toEqual([12000, 3000]);
+    expect(input.sessions[0].averageTimeToAnswer).toBe(7500);
+    expect(input.sessions[1].answers[0].timeToAnswer).toBe(8000);
+    expect(input.sessions[1].averageTimeToAnswer).toBe(8000);
   });
 
   it("does not call loadAnalysisData more than once (no redundant fetch)", async () => {
-    await useCase.execute({ studentId });
+    await useCase.execute({ studentId, educatorId: OWNER_ID });
 
     expect(generate.loadAnalysisData as any).toHaveBeenCalledTimes(1);
   });
@@ -158,7 +191,7 @@ describe("GenerateStudentAiAnalysisUseCase", () => {
   it("returns AI_ANALYSIS_FAILED when the AI service throws", async () => {
     (aiService.generate as any).mockRejectedValue(new Error("boom"));
 
-    const result = await useCase.execute({ studentId });
+    const result = await useCase.execute({ studentId, educatorId: OWNER_ID });
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
@@ -188,7 +221,7 @@ describe("GenerateStudentAiAnalysisUseCase", () => {
       },
     ]);
 
-    const result = await useCase.execute({ studentId, templateId });
+    const result = await useCase.execute({ studentId, templateId, educatorId: OWNER_ID });
 
     expect(result.ok).toBe(true);
     const input = (aiService.generate as any).mock.calls[0][0];
@@ -209,7 +242,7 @@ describe("GenerateStudentAiAnalysisUseCase", () => {
   // pra isso.
   describe("no redundant student/task fetch (regression)", () => {
     it("builds session summaries purely from the data loadAnalysisData already resolved", async () => {
-      const result = await useCase.execute({ studentId });
+      const result = await useCase.execute({ studentId, educatorId: OWNER_ID });
 
       expect(result.ok).toBe(true);
       // loadAnalysisData é a ÚNICA fonte de student/tasks; não há
@@ -238,7 +271,7 @@ describe("GenerateStudentAiAnalysisUseCase", () => {
       });
       (responseRepo.listByStudentId as any).mockResolvedValue([]);
 
-      await useCase.execute({ studentId, templateId });
+      await useCase.execute({ studentId, templateId, educatorId: OWNER_ID });
 
       // buildAnamnese começa ANTES de loadAnalysisData terminar — prova
       // que rodam em paralelo (Promise.all), não em sequência.

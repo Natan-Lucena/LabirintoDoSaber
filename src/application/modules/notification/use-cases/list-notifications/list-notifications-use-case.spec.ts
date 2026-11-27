@@ -8,6 +8,11 @@ import {
   makeStudent,
   makeStudentRepository,
 } from "../test-fixtures";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 
 const MINUTE = 60 * 1000;
 const BASE = new Date("2026-11-12T09:00:00.000Z");
@@ -20,6 +25,7 @@ describe("ListNotificationsUseCase", () => {
   let transferred: Student;
   let students: Student[];
   let notificationRepository: ReturnType<typeof makeNotificationRepository>;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let useCase: ListNotificationsUseCase;
 
   const evolutionPending = (student: Student, minutesAgo: number, educator = educatorId) =>
@@ -39,9 +45,10 @@ describe("ListNotificationsUseCase", () => {
     transferred = makeStudent(otherEducatorId, "Carla");
     students = [ana, transferred];
     notificationRepository = makeNotificationRepository();
+    shareRepository = makeShareRepository();
     useCase = new ListNotificationsUseCase(
       notificationRepository,
-      makeStudentRepository(() => students)
+      makeStudentAccess(makeStudentRepository(() => students), shareRepository)
     );
   });
 
@@ -144,6 +151,19 @@ describe("ListNotificationsUseCase", () => {
       kept.id.value,
       withoutStudent.id.value,
     ]);
+  });
+
+  it("should keep notifications of a student shared with the educator and hide them after unsharing (NT-03, EQ-14)", async () => {
+    shareRepository.store.push(shareStudent(transferred, educatorId));
+    const ofShared = evolutionPending(transferred, 0);
+    notificationRepository.store.push(ofShared);
+
+    const shared = await useCase.execute({ educatorId, unreadOnly: false, limit: 20 });
+    expect(shared.ok && ids(shared.value.items)).toEqual([ofShared.id.value]);
+
+    await shareRepository.delete(transferred.id, educatorId);
+    const unshared = await useCase.execute({ educatorId, unreadOnly: false, limit: 20 });
+    expect(unshared.ok && ids(unshared.value.items)).toEqual([]);
   });
 
   it("should not list notifications of another educator", async () => {

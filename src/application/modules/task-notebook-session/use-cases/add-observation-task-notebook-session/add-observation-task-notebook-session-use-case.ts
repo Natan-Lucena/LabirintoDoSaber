@@ -1,22 +1,30 @@
 import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
+import { loadAccessibleSession } from "../../../session-evolution/use-cases/evolution-access";
 
 export interface AddObservationTaskNotebookSessionUseCaseRequest {
   sessionId: string;
+  educatorId: Uuid;
   observation: string;
 }
 
 export class AddObservationTaskNotebookSessionUseCase {
-  constructor(private sessionRepository: TaskNotebookSessionRepository) {}
+  constructor(
+    private sessionRepository: TaskNotebookSessionRepository,
+    private studentAccess: StudentAccessService
+  ) {}
 
   async execute(request: AddObservationTaskNotebookSessionUseCaseRequest) {
-    const sessionId = new Uuid(request.sessionId);
-
-    const session = await this.sessionRepository.getById(sessionId);
-
-    if (!session) {
-      return failure("SESSION_NOT_FOUND");
-    }
+    // RS-08: só quem acessa o aluno (dono ou compartilhado) registra.
+    const access = await loadAccessibleSession(
+      this.sessionRepository,
+      this.studentAccess,
+      request.sessionId,
+      request.educatorId
+    );
+    if (!access.ok) return access;
+    const { session } = access.value;
 
     const updated = session.addObservation(request.observation);
 

@@ -18,6 +18,9 @@ export class GenerateStudentAnalysisController extends BaseController {
   }
 
   async executeImpl(req: Request, res: Response): Promise<unknown> {
+    const educator = req.user;
+    if (!educator) return this.unauthorized(res);
+
     const paramsValidation = await generateStudentAnalisysSchema.safeParseAsync(
       req.params
     );
@@ -40,6 +43,7 @@ export class GenerateStudentAnalysisController extends BaseController {
 
     const result = await this.useCase.execute({
       studentId,
+      educatorId: educator.id,
       startDate: startDate ? new Date(startDate) : undefined,
       endDate: endDate ? new Date(endDate) : undefined,
       limit,
@@ -48,6 +52,9 @@ export class GenerateStudentAnalysisController extends BaseController {
     if (!result.ok) {
       if (result.error === "STUDENT_NOT_FOUND") {
         return this.notFound(res, "STUDENT_NOT_FOUND");
+      }
+      if (result.error === "UNAUTHORIZED") {
+        return this.forbidden(res, "UNAUTHORIZED");
       }
       return this.fail(res, result.error);
     }

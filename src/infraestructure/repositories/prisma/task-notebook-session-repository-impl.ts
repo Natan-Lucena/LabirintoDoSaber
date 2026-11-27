@@ -43,7 +43,12 @@ export class TaskNotebokSessionRepositoryImpl
     params: ListFinishedBetweenParams
   ): Promise<FinishedSessionRef[]> {
     const result = await this.prismaService.taskNotebookSession.findMany({
-      where: { finishedAt: { gte: params.from, lte: params.to } },
+      where: {
+        finishedAt: { gte: params.from, lte: params.to },
+        ...(params.studentIds
+          ? { studentId: { in: params.studentIds.map((id) => id.value) } }
+          : {}),
+      },
       select: { id: true, studentId: true, educatorId: true, finishedAt: true },
       orderBy: [{ finishedAt: "asc" }, { id: "asc" }],
     });

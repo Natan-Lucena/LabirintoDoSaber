@@ -1,9 +1,11 @@
 import { success, Uuid } from "@wave-telecom/framework/core";
 import { PlanStatus, PlanType } from "../../../../../domain/entities/plan";
+import { Student } from "../../../../../domain/entities/student";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { EducatorRepository } from "../../../../../domain/repositories/educator-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { mapPlanToSummary } from "../../../../../infraestructure/mappers/map-plan";
-import { assertStudentOwnership } from "../plan-access";
+import { loadAuthorNames } from "../../../../services/author-names";
 
 export interface ListPlansUseCaseRequest {
   educatorId: Uuid;
@@ -15,42 +17,44 @@ export interface ListPlansUseCaseRequest {
 export class ListPlansUseCase {
   constructor(
     private planRepository: PlanRepository,
-    private studentRepository: StudentRepository
+    private studentAccess: StudentAccessService,
+    private educatorRepository: EducatorRepository
   ) {}
 
   async execute(request: ListPlansUseCaseRequest) {
-    const studentId = request.studentId ? new Uuid(request.studentId) : undefined;
-
-    if (studentId) {
-      const ownership = await assertStudentOwnership(
-        this.studentRepository,
-        studentId,
+    // Planos dos alunos que o educador acessa (dono ou compartilhado, EQ-11),
+    // de qualquer autor. Aluno que trocou de dono some para o antigo.
+    let students: Student[];
+    if (request.studentId) {
+      const access = await this.studentAccess.assertStudentAccess(
+        new Uuid(request.studentId),
         request.educatorId
       );
-      if (!ownership.ok) return ownership;
+      if (!access.ok) return access;
+      students = [access.value];
+    } else {
+      const accessible = await this.studentAccess.listAccessibleStudents(request.educatorId);
+      students = accessible.map(({ student }) => student);
     }
 
+    if (students.length === 0) return success([]);
+
+    const studentsById = new Map(students.map((student) => [student.id.value, student]));
     const plans = await this.planRepository.search({
-      educatorId: request.educatorId,
-      studentId,
+      studentIds: students.map((student) => student.id),
       status: request.status,
       type: request.type,
     });
 
-    const studentIds = [...new Set(plans.map((plan) => plan.studentId.value))];
-    const students = await this.studentRepository.getByIds(
-      studentIds.map((id) => new Uuid(id))
-    );
-
-    // Planos de alunos que trocaram de dono somem para o educador antigo.
-    const ownedStudents = new Map(
-      students
-        .filter((student) => student.educatorId.value === request.educatorId.value)
-        .map((student) => [student.id.value, student])
+    // EQ-12: nome dos autores que não são quem lê, numa consulta só.
+    const authorNames = await loadAuthorNames(
+      this.educatorRepository,
+      plans.map((plan) => plan.educatorId),
+      request.educatorId
     );
 
     const summaries = plans
-      .filter((plan) => ownedStudents.has(plan.studentId.value))
+      .filter((plan) => studentsById.has(plan.studentId.value))
       .sort(
         (a, b) =>
           Number(b.status === PlanStatus.ACTIVE) -
@@ -58,7 +62,11 @@ export class ListPlansUseCase {
           b.updatedAt.getTime() - a.updatedAt.getTime()
       )
       .map((plan) =>
-        mapPlanToSummary(plan, ownedStudents.get(plan.studentId.value)!.name)
+        mapPlanToSummary(
+          plan,
+          studentsById.get(plan.studentId.value)!.name,
+          authorNames.get(plan.educatorId.value)
+        )
       );
 
     return success(summaries);

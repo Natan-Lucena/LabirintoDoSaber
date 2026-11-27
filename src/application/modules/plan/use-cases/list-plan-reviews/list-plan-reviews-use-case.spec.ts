@@ -6,11 +6,17 @@ import { Gender, Student } from "../../../../../domain/entities/student";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
 import { PlanReviewRepository } from "../../../../../domain/repositories/plan-review-repository";
 import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import {
+  makeShareRepository,
+  makeStudentAccess,
+  shareStudent,
+} from "../../../../../domain/tests/fakes/student-share-fakes";
 
 describe("ListPlanReviewsUseCase", () => {
   let planRepository: PlanRepository;
   let planReviewRepository: PlanReviewRepository;
   let studentRepository: StudentRepository;
+  let shareRepository: ReturnType<typeof makeShareRepository>;
   let useCase: ListPlanReviewsUseCase;
   let plan: Plan;
 
@@ -54,7 +60,8 @@ describe("ListPlanReviewsUseCase", () => {
     studentRepository = {
       getById: vi.fn().mockResolvedValue(student),
     } as unknown as StudentRepository;
-    useCase = new ListPlanReviewsUseCase(planRepository, planReviewRepository, studentRepository);
+    shareRepository = makeShareRepository();
+    useCase = new ListPlanReviewsUseCase(planRepository, planReviewRepository, makeStudentAccess(studentRepository, shareRepository));
   });
 
   it("should return the reviews of the plan", async () => {
@@ -82,5 +89,27 @@ describe("ListPlanReviewsUseCase", () => {
 
     expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
     expect(planReviewRepository.listByPlanId).not.toHaveBeenCalled();
+  });
+
+  it("should list the reviews of the owner plan to a colleague the student is shared with", async () => {
+    // Plano criado pelo dono; o colega com quem o aluno foi compartilhado
+    // escreve nele como o dono (EQ-11).
+    const colleagueId = Uuid.random();
+    await shareRepository.create(shareStudent(student, colleagueId));
+
+    const result = await useCase.execute({ educatorId: colleagueId, planId: plan.id.value });
+
+    expect(result.ok).toBe(true);
+    expect(planReviewRepository.listByPlanId).toHaveBeenCalledWith(plan.id);
+  });
+
+  it("should return UNAUTHORIZED to a colleague after the share is undone", async () => {
+    const colleagueId = Uuid.random();
+    await shareRepository.create(shareStudent(student, colleagueId));
+    await shareRepository.delete(student.id, colleagueId);
+
+    const result = await useCase.execute({ educatorId: colleagueId, planId: plan.id.value });
+
+    expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
   });
 });

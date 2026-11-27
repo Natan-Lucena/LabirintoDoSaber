@@ -1,12 +1,12 @@
 import { failure, success, Uuid } from "@wave-telecom/framework/core";
 import { NotificationRepository } from "../../../../../domain/repositories/notification-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { mapNotificationToResponse } from "../../../../../infraestructure/mappers/map-notification";
 import {
   decodeNotificationCursor,
   encodeNotificationCursor,
 } from "../notification-cursor";
-import { loadOwnedStudentIds } from "../student-visibility";
+import { loadAccessibleStudentIds } from "../student-visibility";
 
 export interface ListNotificationsUseCaseRequest {
   educatorId: Uuid;
@@ -18,7 +18,7 @@ export interface ListNotificationsUseCaseRequest {
 export class ListNotificationsUseCase {
   constructor(
     private notificationRepository: NotificationRepository,
-    private studentRepository: StudentRepository
+    private studentAccess: StudentAccessService
   ) {}
 
   async execute(request: ListNotificationsUseCaseRequest) {
@@ -43,12 +43,12 @@ export class ListNotificationsUseCase {
         ? encodeNotificationCursor({ createdAt: last.createdAt, id: last.id.value })
         : undefined;
 
-    const owned = await loadOwnedStudentIds(
-      this.studentRepository,
+    const accessible = await loadAccessibleStudentIds(
+      this.studentAccess,
       items.flatMap((n) => (n.studentId ? [n.studentId] : [])),
       request.educatorId
     );
-    const visible = items.filter((n) => !n.studentId || owned.has(n.studentId.value));
+    const visible = items.filter((n) => !n.studentId || accessible.has(n.studentId.value));
 
     return success({ items: visible.map(mapNotificationToResponse), nextCursor });
   }

@@ -5,9 +5,10 @@ import { dateOnlySchema, uuidSchema } from "./plan-fields";
 export const updatePlanSchema = z.object({
   title: z.string().min(1).max(120).optional(),
   generalObjective: z.string().min(1).max(2000).optional(),
-  professionalNotes: z.string().max(2000).optional(),
+  // PP-05: null apaga; ausente mantém.
+  professionalNotes: z.string().max(2000).nullable().optional(),
   endDate: dateOnlySchema.optional(),
-  nextReviewDate: dateOnlySchema.optional(),
+  nextReviewDate: dateOnlySchema.nullable().optional(),
   goals: z
     .array(
       z.object({

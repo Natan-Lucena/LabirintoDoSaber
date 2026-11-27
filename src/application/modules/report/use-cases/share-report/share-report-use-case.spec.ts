@@ -6,7 +6,8 @@ import {
   makeReport,
   makeReportRepository,
   makeStudent,
-  makeStudentRepository,
+  makeStudentAccessFor,
+  shareStudent,
   unwrap,
 } from "../test-fixtures";
 
@@ -21,7 +22,7 @@ describe("ShareReportUseCase (RP-08)", () => {
   beforeEach(() => {
     report = makeReport(student);
     reportRepository = makeReportRepository([report]);
-    useCase = new ShareReportUseCase(reportRepository, makeStudentRepository([student]));
+    useCase = new ShareReportUseCase(reportRepository, makeStudentAccessFor([student]));
   });
 
   it("should record the channel and the date of each share, keeping the content", async () => {
@@ -82,5 +83,32 @@ describe("ShareReportUseCase (RP-08)", () => {
     });
 
     expect(result).toEqual({ ok: false, error: "REPORT_NOT_FOUND" });
+  });
+
+  it("lets a colleague with the shared student record a share (EQ-11)", async () => {
+    const colleagueId = Uuid.random();
+    useCase = new ShareReportUseCase(
+      reportRepository,
+      makeStudentAccessFor([student], [shareStudent(student, colleagueId)])
+    );
+
+    const result = await useCase.execute({
+      educatorId: colleagueId,
+      reportId: report.id.value,
+      channel: ReportShareChannel.PRINT,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(reportRepository.addShare).toHaveBeenCalled();
+  });
+
+  it("returns UNAUTHORIZED for a colleague without the share", async () => {
+    const result = await useCase.execute({
+      educatorId: Uuid.random(),
+      reportId: report.id.value,
+      channel: ReportShareChannel.PRINT,
+    });
+
+    expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
   });
 });

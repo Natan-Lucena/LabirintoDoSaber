@@ -3,8 +3,7 @@ import { ScaleApplication } from "../../../../domain/entities/scale-application"
 import { ScaleTemplate } from "../../../../domain/entities/scale-template";
 import { ScaleApplicationRepository } from "../../../../domain/repositories/scale-application-repository";
 import { ScaleTemplateRepository } from "../../../../domain/repositories/scale-template-repository";
-import { StudentRepository } from "../../../../domain/repositories/student-repository";
-import { assertStudentOwnership } from "../../plan/use-cases/plan-access";
+import { StudentAccessService } from "../../../../domain/services/student-access-service";
 
 // O que o controller precisa para montar a resposta: o escore é calculado
 // com o template da versão gravada (AV-02).
@@ -14,10 +13,11 @@ export interface ScaleApplicationView {
   studentName: string;
 }
 
-// O acesso é pelo dono atual do aluno (AV-01), não pelo educatorId gravado.
-export async function loadOwnedApplication(
+// O acesso é pelo aluno, dono atual ou compartilhado (AV-01, EQ-11), não pelo
+// educatorId gravado.
+export async function loadAccessibleApplication(
   applicationRepository: ScaleApplicationRepository,
-  studentRepository: StudentRepository,
+  studentAccess: StudentAccessService,
   applicationId: string,
   educatorId: Uuid
 ) {
@@ -26,26 +26,22 @@ export async function loadOwnedApplication(
   const application = await applicationRepository.findById(new Uuid(applicationId));
   if (!application) return failure("APPLICATION_NOT_FOUND");
 
-  const ownership = await assertStudentOwnership(
-    studentRepository,
-    application.studentId,
-    educatorId
-  );
-  if (!ownership.ok) return ownership;
+  const access = await studentAccess.assertStudentAccess(application.studentId, educatorId);
+  if (!access.ok) return access;
 
-  return success({ application, student: ownership.value });
+  return success({ application, student: access.value });
 }
 
-export async function loadOwnedApplicationWithTemplate(
+export async function loadAccessibleApplicationWithTemplate(
   applicationRepository: ScaleApplicationRepository,
   templateRepository: ScaleTemplateRepository,
-  studentRepository: StudentRepository,
+  studentAccess: StudentAccessService,
   applicationId: string,
   educatorId: Uuid
 ) {
-  const access = await loadOwnedApplication(
+  const access = await loadAccessibleApplication(
     applicationRepository,
-    studentRepository,
+    studentAccess,
     applicationId,
     educatorId
   );

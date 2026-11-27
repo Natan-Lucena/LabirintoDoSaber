@@ -1,4 +1,5 @@
 import { Uuid } from "@wave-telecom/framework/core";
+import { dateInSaoPaulo } from "../utils/date-only";
 
 export enum NotificationKind {
   APPOINTMENTS_TODAY = "APPOINTMENTS_TODAY",
@@ -33,8 +34,12 @@ export interface NotificationProps {
   target?: NotificationTarget;
   // Aluno da notificação: some da lista se deixar de ser do educador (NT-03).
   studentId?: Uuid;
-  // Uma por kind + alvo + dia (NT-02).
+  // APPOINTMENTS_TODAY: uma por educador e dia. Pendências: uma por pendência,
+  // sem a data do cron, para não repetir a cada dia (PP-07). A pendência é a
+  // sessão, o plano com a data de revisão ou o rascunho com a última alteração.
   dedupeKey: string;
+  // Quantidade do APPOINTMENTS_TODAY, para o texto do push.
+  count?: number;
   createdAt: Date;
   readAt?: Date;
 }
@@ -70,7 +75,11 @@ export class Notification {
       title: string;
       body: string;
       target: NotificationTarget;
+      // O que identifica a ocorrência: a data (APPOINTMENTS_TODAY) ou a
+      // pendência (o alvo, e a data de revisão no plano).
+      occurrence: string;
       studentId?: Uuid;
+      count?: number;
     }
   ): Notification {
     return new Notification({
@@ -81,10 +90,8 @@ export class Notification {
       body: clip(props.body, NOTIFICATION_BODY_MAX),
       target: props.target,
       studentId: props.studentId,
-      dedupeKey:
-        props.kind === NotificationKind.APPOINTMENTS_TODAY
-          ? `${props.educatorId.value}:${props.kind}:${props.date}`
-          : `${props.educatorId.value}:${props.kind}:${props.target.id}:${props.date}`,
+      count: props.count,
+      dedupeKey: `${props.educatorId.value}:${props.kind}:${props.occurrence}`,
       createdAt: props.now ?? new Date(),
     });
   }
@@ -97,6 +104,8 @@ export class Notification {
       title: `${props.count} ${noun} hoje`,
       body: `Você tem ${props.count} ${noun} marcado${props.count === 1 ? "" : "s"} para hoje.`,
       target: { type: NotificationTargetType.AGENDA_DAY, id: props.date },
+      occurrence: props.date,
+      count: props.count,
     });
   }
 
@@ -107,6 +116,7 @@ export class Notification {
       title: "Evolução pendente",
       body: `A sessão de ${props.firstName} foi finalizada e ainda não tem evolução registrada.`,
       target: { type: NotificationTargetType.SESSION, id: props.sessionId.value },
+      occurrence: props.sessionId.value,
     });
   }
 
@@ -118,11 +128,19 @@ export class Notification {
       title: "Revisão de plano",
       body: `A revisão do plano de ${props.firstName} ${verb} em ${dayMonth(props.nextReviewDate)}.`,
       target: { type: NotificationTargetType.PLAN, id: props.planId.value },
+      // Nova data de revisão gera nova notificação.
+      occurrence: `${props.planId.value}:${props.nextReviewDate}`,
     });
   }
 
   static scaleDraftStale(
-    props: StudentProps & { applicationId: Uuid; templateName: string; days: number }
+    props: StudentProps & {
+      applicationId: Uuid;
+      templateName: string;
+      days: number;
+      // Última alteração do rascunho: retomar e abandonar de novo é outra pendência.
+      updatedAt: Date;
+    }
   ) {
     return Notification.build({
       ...props,
@@ -133,6 +151,7 @@ export class Notification {
         type: NotificationTargetType.SCALE_APPLICATION,
         id: props.applicationId.value,
       },
+      occurrence: `${props.applicationId.value}:${dateInSaoPaulo(props.updatedAt)}`,
     });
   }
 
@@ -170,6 +189,10 @@ export class Notification {
 
   get dedupeKey(): string {
     return this.props.dedupeKey;
+  }
+
+  get count(): number | undefined {
+    return this.props.count;
   }
 
   get createdAt(): Date {

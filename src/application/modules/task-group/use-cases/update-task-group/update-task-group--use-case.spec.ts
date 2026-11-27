@@ -89,13 +89,13 @@ describe("UpdateTaskGroupUseCase", () => {
     expect(repository.save).not.toHaveBeenCalled();
   });
 
-  it("devolve INVALID_TASK_GROUP_ID sem consultar o banco", async () => {
+  it("devolve TASK_GROUP_NOT_FOUND sem consultar o banco quando o id não é UUID", async () => {
     const result = await useCase.execute({
       id: "id-invalido",
       educatorId: ownerId,
     });
 
-    expect(result).toEqual({ ok: false, error: "INVALID_TASK_GROUP_ID" });
+    expect(result).toEqual({ ok: false, error: "TASK_GROUP_NOT_FOUND" });
     expect(repository.findById).not.toHaveBeenCalled();
   });
 

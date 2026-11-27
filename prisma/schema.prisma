@@ -43,12 +43,21 @@ model Student {
   guardianPhone        String?
   guardianRelationship String?
 
+  // PA-01: ausente = ACTIVE.
+  status     StudentStatus?
+  archivedAt DateTime?
+
   createdAt      DateTime          @default(now())
   educatorId     String
 
   educatorStudents EducatorStudent[]
 
   @@index([educatorId])
+}
+
+enum StudentStatus {
+  ACTIVE
+  ARCHIVED
 }
 
 type StudentDocument {
@@ -215,11 +224,29 @@ model TaskGroup {
   @@index([educatorId])
 }
 
+// Resultado de um jogo (tipos jogáveis novos) numa sessão. Fora de
+// TaskNotebookSession.answers: não entra no accuracy das análises.
+model ActivityResult {
+  id         String   @id @map("_id")
+  sessionId  String
+  taskId     String
+  taskType   String
+  completed  Boolean
+  correct    Boolean
+  attempts   Int
+  errors     Int
+  durationMs Int
+  recordedAt DateTime
+
+  // Um resultado por atividade e sessão; o prefixo serve às buscas por sessão.
+  @@unique([sessionId, taskId])
+}
+
 type TaskAnswer {
   taskId                String
   selectedAlternativeId String
   isCorrect             Boolean
-  timeToAnswer          Int // segundos
+  timeToAnswer          Int // milissegundos; antes de 2026-10-09, segundos (timeToAnswerInMs)
   answeredAt            DateTime
 }
 
@@ -288,6 +315,8 @@ model Appointment {
   id          String            @id @map("_id")
   educatorId  String
   studentId   String
+  // Ocorrência de uma série (AppointmentSeries); null no atendimento avulso.
+  seriesId    String?
   scheduledAt DateTime
   observation String?
   type            String?
@@ -305,12 +334,38 @@ model Appointment {
   // status sozinho sem precisar de índices extras.
   @@index([educatorId, studentId])
   @@index([status, scheduledAt])
+  // Atendimentos futuros PENDING de um conjunto de alunos (arquivar e
+  // GET /student/overview).
+  @@index([studentId, status, scheduledAt])
+  // Ocorrências de uma série, em ordem (GET/PUT/cancelar série).
+  @@index([seriesId, scheduledAt])
 }
 
 enum AppointmentStatus {
   PENDING
   COMPLETED
   CANCELLED
+}
+
+enum RecurrenceFrequency {
+  WEEKLY
+  BIWEEKLY
+}
+
+// Atendimentos recorrentes. As ocorrências são Appointment comuns com
+// seriesId; a série guarda a regra de criação e quando foi encerrada.
+model AppointmentSeries {
+  id               String              @id @map("_id")
+  studentId        String
+  educatorId       String
+  frequency        RecurrenceFrequency
+  firstScheduledAt DateTime
+  occurrences      Int
+  type             String?
+  durationMinutes  Int
+  observation      String?
+  endedAt          DateTime?
+  createdAt        DateTime            @default(now())
 }
 
 model StudentAnalysisReport {
@@ -668,8 +723,13 @@ model Notification {
   targetId   String?
   // Aluno da notificação: some da lista se ele deixar de ser do educador.
   studentId  String?
-  // Uma por kind + alvo + dia; o cron pode rodar de novo sem duplicar.
+  // <educatorId>:<kind>:<ocorrência>. APPOINTMENTS_TODAY: a data (uma por dia).
+  // Pendências, uma por pendência: EVOLUTION_PENDING <sessionId>; PLAN_REVIEW_DUE
+  // <planId>:<nextReviewDate>; SCALE_DRAFT_STALE <applicationId>:<updatedAt
+  // AAAA-MM-DD>. O cron pode rodar de novo sem duplicar.
   dedupeKey  String                  @unique
+  // Quantidade do APPOINTMENTS_TODAY, para o texto do push.
+  count      Int?
   createdAt  DateTime
   readAt     DateTime?
 
@@ -691,4 +751,139 @@ enum NotificationTargetType {
   SESSION
   PLAN
   SCALE_APPLICATION
+}
+
+// Token de push da Expo de um aparelho do educador. Até 5 por educador; o
+// visto há mais tempo sai.
+model PushToken {
+  id         String       @id @map("_id")
+  token      String       @unique
+  educatorId String
+  platform   PushPlatform
+  createdAt  DateTime
+  lastSeenAt DateTime
+
+  // Aparelhos do educador (limite e envio do cron).
+  @@index([educatorId, lastSeenAt])
+}
+
+enum PushPlatform {
+  android
+  ios
+}
+
+// Preferências de push. Ausente = padrões (push ligado e todos os kinds).
+model NotificationPreferences {
+  id            String             @id @map("_id")
+  educatorId    String             @unique
+  pushEnabled   Boolean
+  // Só os kinds desligados: um kind novo nasce ligado.
+  disabledKinds NotificationKind[]
+  updatedAt     DateTime
+}
+
+// Um push por educador por dia: o índice único impede o segundo envio,
+// inclusive com dois crons em paralelo.
+model PushDispatch {
+  id         String   @id @map("_id")
+  educatorId String
+  // Dia em São Paulo, AAAA-MM-DD.
+  date       String
+  createdAt  DateTime
+
+  @@unique([educatorId, date])
+  // Retenção: o cron apaga os registros antigos.
+  @@index([createdAt])
+}
+
+// Recibo de envio da Expo ainda não conferido. O id é o id do recibo.
+model PushReceipt {
+  id        String   @id @map("_id")
+  token     String
+  createdAt DateTime
+
+  // Retenção curta: a Expo guarda os recibos por um dia.
+  @@index([createdAt])
+}
+
+// Central de ajuda: carregada pelo seed versionado (help/tutorials.json).
+model HelpTutorial {
+  id              String   @id @map("_id")
+  order           Int
+  title           String
+  description     String
+  durationSeconds Int
+  featured        Boolean
+  videoUrl        String?
+  thumbnailUrl    String?
+  steps           String[]
+
+  @@index([order])
+}
+
+// Equipe: clínica que reúne educadores. Sem clínica, o app funciona como antes.
+model Clinic {
+  id        String   @id @map("_id")
+  name      String
+  createdAt DateTime
+}
+
+// Vínculo do educador com a clínica. Um educador em no máximo uma clínica.
+model ClinicMember {
+  id         String   @id @map("_id")
+  clinicId   String
+  educatorId String   @unique
+  role       TeamRole
+  joinedAt   DateTime
+
+  @@index([clinicId])
+}
+
+// Convite de uso único; consumido com updateMany condicional.
+model ClinicInvite {
+  id        String    @id @map("_id")
+  clinicId  String
+  code      String    @unique
+  role      TeamRole
+  createdBy String
+  createdAt DateTime
+  expiresAt DateTime
+  usedAt    DateTime?
+  usedBy    String?
+  revokedAt DateTime?
+
+  // Ativos da clínica (lista e limite de 20): clinicId + validade.
+  @@index([clinicId, expiresAt])
+}
+
+enum TeamRole {
+  ADMIN
+  PROFESSIONAL
+}
+
+// Paciente compartilhado pelo dono com um colega da mesma clínica (EQ-10).
+// O dono continua em Student.educatorId; o compartilhado lê e escreve os
+// dados clínicos (EQ-11).
+model StudentShare {
+  id         String   @id @map("_id")
+  studentId  String
+  educatorId String
+  sharedBy   String
+  sharedAt   DateTime
+
+  // Lista do aluno e checagem de acesso: studentId + educatorId (prefixo).
+  @@unique([studentId, educatorId])
+  // Pacientes compartilhados com o educador (GET /student/, notificações).
+  @@index([educatorId])
+}
+
+// Contador de limite de requisições por chave (escopo + hash do IP + janela).
+// A função é serverless: o limite precisa ficar no banco.
+model RateLimitCounter {
+  id        String   @id @map("_id")
+  count     Int
+  expiresAt DateTime
+
+  // Limpeza dos contadores de janelas já fechadas.
+  @@index([expiresAt])
 }

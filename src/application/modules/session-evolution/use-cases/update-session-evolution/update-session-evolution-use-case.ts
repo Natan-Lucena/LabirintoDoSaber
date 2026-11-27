@@ -6,9 +6,9 @@ import {
 } from "../../../../../domain/entities/session-evolution";
 import { PlanRepository } from "../../../../../domain/repositories/plan-repository";
 import { SessionEvolutionRepository } from "../../../../../domain/repositories/session-evolution-repository";
-import { StudentRepository } from "../../../../../domain/repositories/student-repository";
+import { StudentAccessService } from "../../../../../domain/services/student-access-service";
 import { TaskNotebookSessionRepository } from "../../../../../domain/repositories/task-notebook-session-repository";
-import { applyGoalChanges, loadOwnedEvolution } from "../evolution-access";
+import { applyGoalChanges, loadAccessibleEvolution } from "../evolution-access";
 
 export interface UpdateSessionEvolutionUseCaseRequest {
   educatorId: Uuid;
@@ -22,15 +22,15 @@ export interface UpdateSessionEvolutionUseCaseRequest {
 export class UpdateSessionEvolutionUseCase {
   constructor(
     private evolutionRepository: SessionEvolutionRepository,
-    private studentRepository: StudentRepository,
+    private studentAccess: StudentAccessService,
     private planRepository: PlanRepository,
     private sessionRepository: TaskNotebookSessionRepository
   ) {}
 
   async execute(request: UpdateSessionEvolutionUseCaseRequest) {
-    const access = await loadOwnedEvolution(
+    const access = await loadAccessibleEvolution(
       this.evolutionRepository,
-      this.studentRepository,
+      this.studentAccess,
       request.evolutionId,
       request.educatorId
     );
@@ -42,11 +42,12 @@ export class UpdateSessionEvolutionUseCase {
       ? (await this.planRepository.findById(evolution.planId)) ?? undefined
       : undefined;
 
-    // goalUpdates só mexem em plano do próprio educador (como em loadOwnedPlan).
+    // goalUpdates só mexem em plano do mesmo aluno; o acesso ao aluno (dono
+    // ou compartilhado) já foi conferido (EQ-11).
     if (
       plan &&
       request.goalUpdates &&
-      plan.educatorId.value !== request.educatorId.value
+      plan.studentId.value !== evolution.studentId.value
     ) {
       return failure("INVALID_PLAN");
     }

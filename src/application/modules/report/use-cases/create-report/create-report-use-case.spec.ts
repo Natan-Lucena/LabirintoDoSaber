@@ -12,6 +12,7 @@ import { AiClinicalService } from "../../../../../domain/services/ai-clinical-se
 import { GenerateStudentAnalysisUseCase } from "../../../task-notebook-session/use-cases/generate-student-analisys/generate-student-analisys-use-case";
 import { ReportContentBuilder } from "../../report-content-builder";
 import { GetReportUseCase } from "../get-report/get-report-use-case";
+import { makeStudentAccess } from "../../../../../domain/tests/fakes/student-share-fakes";
 import { CreateReportUseCase, CreateReportUseCaseRequest } from "./create-report-use-case";
 import {
   makeAnamneseResponseRepository,
@@ -28,9 +29,11 @@ import {
   makeReportRepository,
   makeSensitiveStudent,
   makeSessionRepository,
+  makeEducatorRepository,
   makeStudent,
   makeStudentRepository,
   makeTask,
+  shareStudent,
   makeTaskRepository,
   PERIOD,
   PROFESSIONAL,
@@ -103,6 +106,7 @@ describe("CreateReportUseCase", () => {
   let aiClinicalService: { [K in keyof AiClinicalService]: ReturnType<typeof vi.fn> };
   let useCase: CreateReportUseCase;
   let studentRepository: ReturnType<typeof makeStudentRepository>;
+  let contentBuilder: ReportContentBuilder;
 
   const request = (
     overrides: Partial<CreateReportUseCaseRequest> = {}
@@ -151,7 +155,8 @@ describe("CreateReportUseCase", () => {
       analysisUseCase: new GenerateStudentAnalysisUseCase(
         studentRepository,
         makeSessionRepository([sessionA, sessionB, openSession, oldSession]),
-        makeTaskRepository([readingTask, writingTask])
+        makeTaskRepository([readingTask, writingTask]),
+        makeStudentAccess(studentRepository)
       ),
       evolutionRepository,
       planRepository: makePlanRepository([
@@ -168,9 +173,10 @@ describe("CreateReportUseCase", () => {
       ]),
     });
 
+    contentBuilder = builder;
     useCase = new CreateReportUseCase(
       reportRepository,
-      studentRepository,
+      makeStudentAccess(studentRepository),
       builder,
       aiClinicalService
     );
@@ -266,6 +272,26 @@ describe("CreateReportUseCase", () => {
     expect(content).toContain(SENSITIVE.name);
     expect(aiInput).not.toContain(SENSITIVE.name);
     expect(aiInput).not.toContain(PROFESSIONAL.name);
+  });
+
+  it("should show only the first name and the surname initial to the SCHOOL audience (RP-02)", async () => {
+    const report = unwrap<Report>(
+      await useCase.execute(request({ audience: ReportAudience.SCHOOL }))
+    );
+
+    expect(report.content.patient).toEqual({ displayName: "Joaozinho F.", ageYears: 7 });
+    // Nenhum outro campo do documento leva o nome completo nem o sobrenome.
+    const content = JSON.stringify(report.content);
+    expect(content).not.toContain(SENSITIVE.name);
+    expect(content).not.toContain("Pereira");
+    expect(content).not.toContain("Joaozinho Fixture");
+  });
+
+  it("should keep the full name for the FAMILY and PROFESSIONAL audiences", async () => {
+    for (const audience of [ReportAudience.FAMILY, ReportAudience.PROFESSIONAL]) {
+      const report = unwrap<Report>(await useCase.execute(request({ audience })));
+      expect(report.content.patient?.displayName).toBe(SENSITIVE.name);
+    }
   });
 
   it("should send the audience and only the requested sections to the AI", async () => {
@@ -380,10 +406,14 @@ describe("CreateReportUseCase", () => {
     const edited = unwrap(evolution.update({ descriptiveRecord: "Registro reescrito." }));
     await evolutionRepository.save(edited);
 
-    const getReport = new GetReportUseCase(reportRepository, studentRepository);
-    const stored = unwrap<Report>(
-      await getReport.execute({ educatorId, reportId: report.id.value })
+    const getReport = new GetReportUseCase(
+      reportRepository,
+      makeStudentAccess(studentRepository),
+      makeEducatorRepository()
     );
+    const stored = unwrap<{ report: Report }>(
+      await getReport.execute({ educatorId, reportId: report.id.value })
+    ).report;
 
     expect(stored.content.evolutions?.[0].record).toBe("Leu sílabas com apoio visual.");
   });
@@ -460,5 +490,30 @@ describe("CreateReportUseCase", () => {
     const result = await useCase.execute(request({ studentId: Uuid.random().value }));
 
     expect(result).toEqual({ ok: false, error: "STUDENT_NOT_FOUND" });
+  });
+
+  describe("paciente compartilhado (EQ-11, EQ-12)", () => {
+    const colleagueId = Uuid.random();
+
+    it("lets the colleague create a report recorded with the colleague as author", async () => {
+      useCase = new CreateReportUseCase(
+        reportRepository,
+        makeStudentAccess(studentRepository, [shareStudent(student, colleagueId)]),
+        contentBuilder,
+        aiClinicalService
+      );
+
+      const report = unwrap<Report>(await useCase.execute(request({ educatorId: colleagueId })));
+
+      expect(report.educatorId.value).toBe(colleagueId.value);
+      expect(report.studentId.value).toBe(student.id.value);
+    });
+
+    it("returns UNAUTHORIZED for a colleague without the share", async () => {
+      const result = await useCase.execute(request({ educatorId: colleagueId }));
+
+      expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
+      expect(reportRepository.save).not.toHaveBeenCalled();
+    });
   });
 });

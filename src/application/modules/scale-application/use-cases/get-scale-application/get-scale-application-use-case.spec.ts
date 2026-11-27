@@ -9,7 +9,8 @@ import {
   makeApplicationRepository,
   makeDemoTemplate,
   makeStudent,
-  makeStudentRepository,
+  makeStudentAccessFor,
+  shareStudent,
   makeTemplateRepository,
   startApplication,
   unwrap,
@@ -45,7 +46,7 @@ describe("GetScaleApplicationUseCase", () => {
     useCase = new GetScaleApplicationUseCase(
       makeApplicationRepository([application]),
       templateRepository,
-      makeStudentRepository([student])
+      makeStudentAccessFor([student])
     );
   });
 
@@ -92,5 +93,36 @@ describe("GetScaleApplicationUseCase", () => {
     expect(
       await useCase.execute({ educatorId, applicationId: Uuid.random().value })
     ).toEqual({ ok: false, error: "APPLICATION_NOT_FOUND" });
+  });
+
+  describe("paciente compartilhado (EQ-11)", () => {
+    const colleagueId = Uuid.random();
+
+    it("lets the colleague read the application of a shared student", async () => {
+      useCase = new GetScaleApplicationUseCase(
+        makeApplicationRepository([application]),
+        templateRepository,
+        makeStudentAccessFor([student], [shareStudent(student, colleagueId)])
+      );
+
+      const result = await useCase.execute({
+        educatorId: colleagueId,
+        applicationId: application.id.value,
+      });
+
+      expect(result).toEqual({
+        ok: true,
+        value: { application, template: v1, studentName: "Ana" },
+      });
+    });
+
+    it("returns UNAUTHORIZED for a colleague without the share", async () => {
+      const result = await useCase.execute({
+        educatorId: colleagueId,
+        applicationId: application.id.value,
+      });
+
+      expect(result).toEqual({ ok: false, error: "UNAUTHORIZED" });
+    });
   });
 });
